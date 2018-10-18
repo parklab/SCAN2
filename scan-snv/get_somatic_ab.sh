@@ -18,7 +18,7 @@ training=$dir/chrall.rda
 fit=$dir/fits.rda
 outfile=$outdir/somatic_ab.rda
 
-script=/home/ljl11/balance/scan-snv/somatic_ab.R
+script=somatic_ab.R
 
 if [ -f $outfile ]; then
     echo "output file $outfile already exists, please delete it first"

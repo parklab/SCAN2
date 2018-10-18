@@ -20,7 +20,7 @@ bulk_sample=$4
 dir=$5
 fdr=$6
 
-script=/home/ljl11/balance/scan-snv/genotype.R
+script=genotype.R
 
 if [ -f $dir/somatic_gt.rda ]; then
     echo "output file $outfile already exists, please delete it first"

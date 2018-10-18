@@ -5,8 +5,8 @@
 #SBATCH -p park
 #SBATCH --mem-per-cpu=12G
 
-if [ $# -ne 6 ]; then
-    echo "usage: $0 mmq60_table mmq1_table sc_dir bulk_sample output_dir fdr"
+if [ $# -ne 7 ]; then
+    echo "usage: $0 mmq60_table mmq1_table sc_dir sc_sample bulk_sample output_dir fdr"
     echo "note: sc_dir must match the sample name used in the gatk tables"
     exit 1
 fi
@@ -14,19 +14,20 @@ fi
 mmq60=$1
 mmq1=$2
 scdir=$3
-bulk=$4
-outdir=$5
-fdr=$6
+sc=$4
+bulk=$5
+outdir=$6
+fdr=$7
 
 mkdir -p $outdir
 
 module load gcc
 module load R/3.3.3
 
-scansnv_dir=/home/ljl11/balance/scan-snv
+scansnv_dir=/home/ljl11/ndata1/genotyper1/paper/scan-snv/scan-snv
 
 echo "Step 1: finding somatic sites"
-$scansnv_dir/get_somatic_positions.sh $mmq60 $mmq1 $scdir $bulk $outdir
+$scansnv_dir/get_somatic_positions.sh $mmq60 $mmq1 $sc $bulk $outdir
 
 # creates outdir/somatic_positions.txt
 posfile=$outdir/somatic_positions.txt
@@ -51,7 +52,7 @@ $scansnv_dir/count_cigars.py $cigartxt > $cigarfile
 
 echo "Step 3: sampling hSNPs for CIGAR op distribution comparison"
 echo "This can take a while.."
-$scansnv_dir/get_hsnp_positions.sh $scdir $outdir
+$scansnv_dir/get_hsnp_positions.sh $scdir $outdir 1000
 hsnp_posfile=$outdir/hsnp_positions.txt
 if [ ! -f $hsnp_posfile ]; then
     echo "ERROR: expected positions file not created: $hsnp_posfile"
@@ -85,7 +86,7 @@ fi
 
 echo "Step 6: genotyping"
 # creates outdir/somatic_gt.rda
-$scansnv_dir/get_somatic_gt.sh $mmq60 $mmq1 $scdir $bulk $outdir $fdr
+$scansnv_dir/get_somatic_gt.sh $mmq60 $mmq1 $sc $bulk $outdir $fdr
 gtfile=$outdir/somatic_gt.rda
 if [ ! -f $gtfile ]; then
     echo "ERROR: expected genotype file not created: $gtfile"

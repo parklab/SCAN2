@@ -23,7 +23,6 @@ somatic.ab.bychrom <- lapply(1:22, function(chrom) {
     fit <- as.data.frame(fits[chrom,,drop=FALSE])
     if (ncol(fit)==5)
         colnames(fit) <- c('a', 'b', 'c', 'd', 'logq')
-    str(fit)
 
     pos <- som.tab[som.tab$chr == chrom,]$pos
     if (length(pos) == 0) {

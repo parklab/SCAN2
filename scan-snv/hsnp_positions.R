@@ -1,15 +1,13 @@
 args <- commandArgs(trailingOnly=TRUE)
 
-if (length(args) != 2)
+if (length(args) != 3)
     stop("usage: get_hsnp_positions.R training_hsnps.rda output.txt")
 
 source("routines.R")
 
 rda.file <- args[1]
 outfile <- args[2]
-# ideally we'd use at least as many sites as there are sSNV candidates,
-# but this seems to work reasonably well in practice.
-n=50000
+n <- as.integer(args[3])
 
 if (file.exists(outfile))
     stop(sprintf("output file %s already exists. please delete it first", outfile))

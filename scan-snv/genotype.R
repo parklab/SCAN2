@@ -38,7 +38,7 @@ for (i in 1:ncol(hmq)) {
 }
 
 gt <- genotype.somatic(hmq, lmq, sc.idx=sc.idx, bulk.idx=bulk.idx,
-    somatic.ab=somatic.ab, somatic.cigar=somatic.cigar, hsnp.cigar=hsnp.cigar,
+    somatic.ab=somatic.ab, somatic.cigars=somatic.cigar, hsnp.cigars=hsnp.cigar,
     target.fdr=fdr)
 
 # gatk table format is chr,pos,dbsnp,ref,alt,mq,mqrs,(calls)

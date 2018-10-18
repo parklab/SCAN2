@@ -206,7 +206,7 @@ merge.doublet <- function(singlet, doublet) {
 #   be aware, however, that capping gp.sd can cause a large fraction
 #   of the genome to be excluded (10-20%).
 genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx, somatic.ab,
-    somatic.cigars, germline.cigars, cap.alpha=TRUE, doublet=FALSE, sites.only=FALSE,
+    somatic.cigars, hsnp.cigars, cap.alpha=TRUE, doublet=FALSE, sites.only=FALSE,
     cg.id.q=0.9, cg.hs.q=0.9,
     random.seed=0, target.fdr=0.1, bins=20, max.gp.sd=Inf, #sqrt(2),
     bulkref=bulk.idx+1, bulkalt=bulk.idx+2, scref=sc.idx+1, scalt=sc.idx+2,
@@ -225,7 +225,7 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx, somatic.ab,
         gatk$muttype <- muttype.map[paste(gatk$refnt, gatk$altnt, sep=">")]
         gatk$dp <- gatk[,scalt] + gatk[,scref]
         gatk$af <- gatk[,scalt] / gatk$dp
-        if (missing(somatic.cigars) | missing(germline.cigars))
+        if (missing(somatic.cigars) | missing(hsnp.cigars))
             cat("    WARNING: no CIGAR data supplied. will increase FP rate\n")
     }
 
@@ -378,17 +378,17 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx, somatic.ab,
                             cap.alpha=cap.alpha)))
 
     cat("step 5: applying alignment filters (CIGAR.ID, CIGAR.HS)\n")
-    if (missing(somatic.cigars) | missing(germline.cigars)) {
+    if (missing(somatic.cigars) | missing(hsnp.cigars)) {
         cat("    WARNING: skipping alignment filtration. will increase FP rate\n")
     } else {
         somatic <- merge(somatic, somatic.cigars, by=c('chr', 'pos'), all.x=T)
-        germline.cigars <- merge(germline.cigars, germline[,c('chr', 'pos', 'dp')], all.x=T)
-        germline.cigars <- germline.cigars[germline.cigars$dp > 0,]
+        hsnp.cigars <- merge(hsnp.cigars, germline[,c('chr', 'pos', 'dp')], all.x=T)
+        hsnp.cigars <- hsnp.cigars[hsnp.cigars$dp > 0,]
         somatic$cg.id.test <-
-            test.against.germline(germline.cigars$ID/germline.cigars$dp,
+            test.against.germline(hsnp.cigars$ID/hsnp.cigars$dp,
                 somatic=somatic$ID/somatic$dp, max.q=cg.id.q)
         somatic$cg.hs.test <-
-            test.against.germline(germline.cigars$HS/germline.cigars$dp,
+            test.against.germline(hsnp.cigars$HS/hsnp.cigars$dp,
                 somatic=somatic$HS/somatic$dp, max.q=cg.hs.q)
     }
     
@@ -535,6 +535,11 @@ fcontrol <- function(germ.df, som.df, min.dp=10, jit.amt=0.0000001, bins=20, dou
     g <- g*1*(s > 0)
     # XXX: i don't like this. it doesn't quite match the principle, but
     # rather addresses a limitation of the heuristic method.
+
+    if (length(s) == 0 | all(g == 0))
+        return(list(est.somatic.burden=c(0, 0),
+             binmids=as.numeric(names(g)),
+             g=g, s=s, pops=NULL, doublet=doublet))
 
     # returns (lower, upper) bound estimates
     approx.ns <- estimate.somatic.burden(fc=list(g=g, s=s),
@@ -726,11 +731,10 @@ plot.cell.sharing <- function(df, nsamples=13, colname='cells') {
 }
 
 
-plot.ssnv.region <- function(chr, pos, alt, ref, fits, fit.data, upstream=5e4, downstream=5e4,
+plot.ssnv.region <- function(chr, pos, alt, ref, fits, fit.data, upstream=5e4, downstream=5e4, gp.extend=1e5, n.gp.points=100) {
     # needed for infer.gp
     source("predict.R")
 
-    gp.extend=1e5, n.gp.points=100) {
     d <- fit.data[fit.data$chr==chr & fit.data$pos >= pos - upstream &
                   fit.data$pos <= pos + downstream,]
 
