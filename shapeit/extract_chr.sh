@@ -1,20 +1,25 @@
 #!/bin/bash
 
-if [ $# -ne 1 ]; then
-    echo "usage: extract_chr.sh chr"
+if [ $# -ne 2 ]; then
+    echo "usage: extract_chr.sh output_dir chr"
+    echo "output_dir should be the same path used for output_dir"
+    echo "when running phase_chr.sh."
     exit 1
 fi
 
-chr=$1
+output_dir=$1
+chr=$2
 SHAPEIT_ROOT=/n/data1/hms/dbmi/park/jluquette/pellman/lodato/shapeit
 
 
+chrdir=$output_dir/shapeit_output_$chr
+
 echo "Converting from SHAPEIT format to VCF."
 $SHAPEIT_ROOT/bin/shapeit -convert \
-    --input-haps shapeit_output_$chr/1000g.cdt.nomulti.chr$chr.phased \
-    --output-vcf shapeit_output_$chr/1000g.cdt.nomulti.chr$chr.phased.vcf
+    --input-haps $chrdir/1000g.cdt.nomulti.chr$chr.phased \
+    --output-vcf $chrdir/1000g.cdt.nomulti.chr$chr.phased.vcf
 
 echo "Filtering to het sites."
 awk '{ if ($10 == "1|0" || $10 == "0|1" || $1 ~ /^#/) print $0; }' \
-    shapeit_output_$chr/1000g.cdt.nomulti.chr$chr.phased.vcf > \
-    1000g.cdt.nomulti.chr$chr.phased.hets.vcf
+    $chrdir/1000g.cdt.nomulti.chr$chr.phased.vcf > \
+    $output_dir/phased_hsnps.chr$chr.vcf

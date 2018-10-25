@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -c 2
+#SBATCH -c 4
 #SBATCH -t 12:00:00
 #SBATCH -p park
 #SBATCH --array=1-396
-#SBATCH --mem-per-cpu=8G
+#SBATCH --mem-per-cpu=5G
 
 if [ $# -lt 4 ]; then
     echo "usage: $0 mmq outdir bam1 bam2 [bam3 ... ]"
@@ -20,8 +20,8 @@ mkdir -p $outdir
 
 # ------ EDIT THESE VARIABLES ------
 # If multiple cores are available, specify the number of cores here.
-ncores=2
-mem=12G     # If using ncores > 1, increase ~linearly up to ~24G
+ncores=4
+mem=16G     # If using ncores > 1, increase ~linearly up to ~24G
 
 # To run GATK, you must have downloaded the GATK jar and have a version
 # of the human reference genome and dbSNP.

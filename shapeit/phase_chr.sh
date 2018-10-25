@@ -6,13 +6,23 @@
 #SBATCH --array=1-22
 #SBATCH --mem-per-cpu=8G
 
-if [ $# != 1 ]; then
-    echo "usage: ./phase_chr.sh vcf"
+if [ $# -lt 2 ]; then
+    echo "usage: ./phase_chr.sh vcf output_dir [chromosome]"
     exit 1
 fi
 
 vcf=$1
-chr=$SLURM_ARRAY_TASK_ID
+output_dir=$2
+
+if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
+    chr=$SLURM_ARRAY_TASK_ID
+else
+    if [ $# != 3 ]; then
+        echo "Not in SLURM array; must specify chromosome"
+        exit 1
+    fi
+    chr=$3
+fi
 
 echo "Phasing chromosome=$chr from VCF=$vcf"
 
@@ -27,7 +37,7 @@ awk "{ if (\$1 == \"$chr\" || \$0 ~ /^#/) print \$0; }" $vcf > $chrvcf
 # reference panel that are problematic, step 2 performs the phasing.
 SHAPEIT_ROOT=/n/data1/hms/dbmi/park/jluquette/pellman/lodato/shapeit
 REFPANEL_ROOT=$SHAPEIT_ROOT/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing
-OUTPUT_ROOT=./shapeit_output_$chr
+OUTPUT_ROOT=$output_dir/shapeit_output_$chr
 
 mkdir -p $OUTPUT_ROOT
 

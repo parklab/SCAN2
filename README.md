@@ -60,7 +60,7 @@ export LD_LIBRARY_PATH=/n/app/openblas/0.2.19/lib
 **Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
 **Data dependencies**: human reference genome (GRCh37 with decoy; e.g. `ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz`), dbSNP (v147, b37: e.g. `ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz`)
 
-1. Edit `gatk/run_gatk.sh`. You will need to supply paths to the dependencies
+1. Edit `gatk/run_gatk_demo.sh`. You will need to supply paths to the dependencies
    described above. This can be accomplished by editing the following lines:
 ```
 RESOURCES=~/balance/resources
@@ -70,13 +70,53 @@ DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
 ```
 2. Run the script two times, once using MMQ=60 and once using MMQ=1. The script
    will automatically create the directory `output_dir` to hold the generated
-   VCF files. **Approximate run time**: 30 minutes each (~1 hour total) using
-   a single core.
+   VCF files. **Approximate run time**: 1 hour each using 4 cores.
 ```
-run_gatk.sh 60 output_dir hunamp.chr22.bam il-12.chr22.bam
-run_gatk.sh 1 output_dir hunamp.chr22.bam il-12.chr22.bam
+run_gatk_demo.sh 60 output_dir hunamp.chr22.bam il-12.chr22.bam
+run_gatk_demo.sh 1 output_dir hunamp.chr22.bam il-12.chr22.bam
 ```
 
 
-## STEP 3: Fit covariance function parameters via grid search
+## STEP 3: Define and phase hSNPs
+
+**Dependencies**: SHAPEIT2 (v2, r837)
+**Data dependencies**: SHAPEIT2 formatted 1000 genomes reference haplotype panel
+
+1. Install and configure SHAPEIT2. 
+    * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
+      The unzipped path is `SHAPEIT_ROOT`.
+    * Download and unzip the 1000 genomes haplotype panel. (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html)
+      The unzipped path is `REFPANEL_ROOT`.
+    * Edit `shapeit/phase_chr.sh` and `shapeit/extract_chr.sh` and set
+      `SHAPEIT_ROOT` and `REFPANEL_ROOT`:
+```
+SHAPEIT_ROOT=/path/to/shapeit
+REFPANEL_ROOT=/path/to/1000g_reference_panel
+```
+2. Run SHAPEIT2 on heterozygous SNVs found in the bulk sample. Note that hSNPs are
+   taken only from the MMQ=60 GATK output.
+```
+# Select only biallelic SNVs for phasing
+java -jar /path/to/GATK -T SelectVariants -R /path/to/human_g1k_v37_decoy.fasta \
+    -T SelectVariants -V output_dir/hc_raw.mmq60.vcf \
+    -selectType SNP -restrictAllelesTo BIALLELIC -env -trimAlternates \
+    -select 'vc.getGenotype("hunamp").isCalled()' \
+    -o output_dir/hc_raw.mmq60.snp.vcf
+
+# Only phase sites reported in the bulk
+echo "hunamp" > samples_to_phase.txt
+
+shapeit/phase_chr.sh output_dir/hc_raw.mm60.snp.vcf output_dir 22
+shapeit/extract_chr.sh output_dir 22
+```
+3. If successful, a file named `phased_hsnps.chr22.vcf` should exist in
+   `output_dir`.
+
+
+## STEP 4: Fit covariance function parameters via grid search
 **Dependencies**: Python (v2.7), R (v3.3.3)
+python-drmaa
+drmaa
+
+1. Create training data files.
+export DRMAA_LIBRARY_PATH=/n/app/slurm-drmaa/1.0.7/lib/libdrmaa.so
