@@ -14,7 +14,7 @@ downloading hunamp and il-12. The two other kindred system samples are
 provided.
 
 * **[REQUIRED]** Unamplified cell line bulk\
-    BAM: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam\
+    BAM: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam \
     Index: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
 
 ## STEP 1. Compile `laplace_cpu`
