@@ -15,7 +15,7 @@ provided.
 
 ## STEP 1. Compile `laplace_cpu`
 
-**Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)
+**Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
 **Optional dependencies**: Intel C compiler
 
 1. Edit mkl-gridfit-gauss/Makefile (or Makefile.gcc if using gcc) to point to
@@ -40,7 +40,7 @@ export LD_LIBRARY_PATH=/n/app/openblas/0.2.19/lib
 
 ## STEP 2: Run GATK HaplotypeCaller on single cell and matched bulk data
 
-**Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)
+**Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
 **Data dependencies**: human reference genome (GRCh37 with decoy), dbSNP (v147, b37)
 
 1. Edit `gatk/run_gatk.sh`. You will need to supply paths to the dependencies
