@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <math.h>
 #include <errno.h>
+#include <string.h>   /* strerror */
 #include <stdlib.h>
 
 #include "cpu.h"
-#include "cpu_band.h"
 
 /* These relate to the parallelization grid */
 /* Each job calculates SUBEDGE x SUBEDGE points, and jobs are
@@ -35,6 +35,7 @@ laplace_approx_grid(FILE *outfile, int Nsamples, int chunk,
     double a, b, c, paramd;
     double logp;
 
+    /* strategy==1 (banded) is no longer supported */
     printf("Computing Laplace approx grid, strategy=%s, %s=%d\n",
         strategy == 1 ? "CPU banded" : "CPU chunked",
         strategy == 1 ? "bands" : "chunk size", chunk);
@@ -174,17 +175,14 @@ main(int argc, char **argv)
         finalize_cpu();
         break;
     case 1:
-        init_cpu_band(chunksize, N);
         printf("*** WARNING: approximating a full matrix by a banded matrix\n"
                "*** does not generally produce a positive semidefinite matrix,\n"
                "*** which can lead to a nonpositive determinant and therefore\n"
                "*** a NaN log probability.\n"
                "*** For large values of b, non-PSD banded matrices are frequent!\n"
                "*** USE AT YOUR OWN RISK.\n");
-        //laplace_approx_grid(chunksize, x, y, d, 10, strategy);
-        //laplace_approx_grid(outfile, gridoffset, chunksize,
-            //x, y, d, N, amin, amax, bmin, bmax, c, paramd, strategy);
-        finalize_cpu_band();
+        printf("ERROR: banded approximation is no longer supported.\n");
+        exit(1);
         break;
     default:
         printf("invalid strategy: %d\n", strategy);
