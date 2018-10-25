@@ -16,6 +16,15 @@ provided.
 * **[REQUIRED]** Unamplified cell line bulk\
     BAM: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam \
     Index: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
+* **[RECOMMENDED]** Kindred single cell IL-12\
+    BAM: http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam \
+    Index: http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
+* **[OPTIONAL]** Kindred single cell IL-11\
+    BAM: http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam \
+    Index: http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam.bai
+* **[OPTIONAL]** Kindred single cell-derived clone IL-1c\
+    BAM: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam \
+    Index: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam.bai
 
 ## STEP 1. Compile `laplace_cpu`
 
