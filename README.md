@@ -13,6 +13,9 @@ At least one single cell and the unamplified bulk must be used. We recommend
 downloading hunamp and il-12. The two other kindred system samples are
 provided.
 
+* **[REQUIRED]** Unamplified cell line bulk: [http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam]
+* **[REQUIRED]** Unamplified cell line bulk: [http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai]
+
 ## STEP 1. Compile `laplace_cpu`
 
 **Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
@@ -54,8 +57,13 @@ DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
 2. Run the script two times, once using MMQ=60 and once using MMQ=1. The script
    will automatically create the directory `output_dir` to hold the generated
    VCF files. **Approximate run time**: 30 minutes each (~1 hour total) using
-   a single core.
+   a single core. On our machine, this process is primarily I/O limited;
+   increasing the core count does not significantly reduce run time.
 ```
 run_gatk.sh 60 output_dir hunamp.chr22.bam il-12.chr22.bam
 run_gatk.sh 1 output_dir hunamp.chr22.bam il-12.chr22.bam
 ```
+
+
+## STEP 3: Fit covariance function parameters via grid search
+**Dependencies**:
