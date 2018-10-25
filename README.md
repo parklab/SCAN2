@@ -4,7 +4,8 @@ Single cell somatic genotyper
 # Running the demo
 The provided demo shows how the pipeline is run in practice. However,
 because parameter fitting (step 3) requires significant compute time,
-the demo only analyzes reads from chromosome 22.
+the demo only analyzes reads from chromosome 22. Using a server with 8
+cores, the demo took approximately **X HOURS** to run.
 Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
 measured from sites across all chromosome, the demo's output will not exactly
 reconstitute the findings reported in the manuscript.
@@ -109,14 +110,46 @@ echo "hunamp" > samples_to_phase.txt
 shapeit/phase_chr.sh output_dir/hc_raw.mm60.snp.vcf output_dir 22
 shapeit/extract_chr.sh output_dir 22
 ```
-3. If successful, a file named `phased_hsnps.chr22.vcf` should exist in
+   If successful, a file named `phased_hsnps.chr22.vcf` should exist in
    `output_dir`.
 
 
 ## STEP 4: Fit covariance function parameters via grid search
 **Dependencies**: Python (v2.7), R (v3.3.3)
-python-drmaa
-drmaa
 
 1. Create training data files.
-export DRMAA_LIBRARY_PATH=/n/app/slurm-drmaa/1.0.7/lib/libdrmaa.so
+```
+# Creates a VCF with only 
+# NOTE: the sample name "h25" corresponds to il-12
+shapeit/get_hsnps_singlecell.sh h25 output_dir/hc_raw.mmq60.snp.vcf output_dir/phased_hsnps.chr22.vcf output_dir
+
+awk -f gridfit_slurm/totab.awk output_dir/h25_hsnps.vcf > output_dir/h25_hsnps.tab
+
+Rscript gridfit_slurm/torda.R output_dir/h25_hsnps.tab output_dir/training_chr%d
+```
+
+2. Run the grid searching algorithm to find parameter MLEs. Using the parameters
+   below (ngrids=8, points-per-grid=400), the run took ~20 minutes. The parameters
+   used in the manuscript were ngrids=20, points-per-grid=1000.
+```
+mkdir -p output_dir/gridfit/chr22
+
+./gridfit_slurm/runchr.py \
+    --bindata=output_dir/training_chr22.bin \
+    --local \
+    --ngrids 8 \          # Set this to the number of cores available
+    --points-per-grid 400 \
+    --resume \
+    --combine=../gridfit_slurm/combine.R \
+    --mkl-laplace=../mkl-gridfit-gauss/laplace_cpu_gcc \
+    --outprefix=output_dir/gridfit/chr22
+```
+    If the run is successful, the file `output_dir/gridfit/chr22/fit.rda` will be created.
+
+3. Make the final fit file.
+```
+Rscript ./gridfit_slurm/make_fits.R
+```
+
+
+## STEP 5: Run SCAN-SNV

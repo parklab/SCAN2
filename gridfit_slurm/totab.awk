@@ -4,7 +4,7 @@ BEGIN {
 }
 {
     if ($1 !~ /^#/) {
-        split($sampleidx, gtstring, ":");
+        split($10, gtstring, ":");
         gt = gtstring[1];
         if (gt !~ /\./ && $9 ~ ":AD:") {
             dp = gtstring[3];
