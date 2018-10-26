@@ -102,17 +102,16 @@ $ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
 ```
 
 
-## STEP 3: Define and phase hSNPs
-
+## STEP 2: Define and phase hSNPs
 **Dependencies**: SHAPEIT2 (v2, r837)
 **Data dependencies**: SHAPEIT2 formatted 1000 genomes reference haplotype panel
 
 1. Install and configure SHAPEIT2. 
     * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
       The unzipped path is `SHAPEIT_ROOT`.
-    * Download and unzip the 1000 genomes haplotype panel. (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html)
+    * Download and unzip the 1000 genomes haplotype panel (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html).
       The unzipped path is `REFPANEL_ROOT`.
-    * Edit `shapeit/phase_chr.sh` and `shapeit/extract_chr.sh` and set
+    * Edit `scripts/phase_chr.sh` and `scripts/extract_chr.sh` and set
       `SHAPEIT_ROOT` and `REFPANEL_ROOT`:
 ```
 SHAPEIT_ROOT=/path/to/shapeit
