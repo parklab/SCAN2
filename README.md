@@ -8,7 +8,9 @@ are not necessarily required to run.
 
 **Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
     Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837)
+
 **Optional dependencies**: Intel C compiler (2016)
+
 **Data dependencies**:
     * Human reference genome version GRCh37 with decoy
         e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
@@ -17,11 +19,9 @@ are not necessarily required to run.
     * SHAPEIT2 formatted 1000 genomes reference haplotype panel
         e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
 
-<aside class="warning">
-**IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
-`PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
-appropriately before running SCAN-SNV.
-</aside>
+> **IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
+> `PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
+> appropriately before running SCAN-SNV.
 
 1. Build and install the SCAN-SNV R package
 ```
