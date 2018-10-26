@@ -34,10 +34,10 @@ $ cd /root/of/git/repo
 $ R CMD build rpkg
 $ R CMD INSTALL scansnv-0.1.tar.gz
 ```
-2. Install the Laplace approximator. First edit gridfit-gauss/Makefile.gcc (if you are
-   compiling with gcc) or gridfit-gauss/Makefile.icc (if you are using Intel's C
-   compiler) and set the paths to OpenBLAS and LAPACKE by modifying these two lines
-   to point to your local installation of OpenBLAS and LAPACKE.
+2. Install the Laplace approximator. First edit `gridfit-gauss/Makefile.gcc`
+   if you are compiling with gcc (`gridfit-gauss/Makefile.icc if you are
+   using Intel's C compiler) and set the paths to OpenBLAS and LAPACKE by
+   modifying these two lines:
 ```
 OPENBLAS=/n/app/openblas/0.2.19
 LAPACKE=/n/app/lapacke/3.6.1
@@ -55,6 +55,7 @@ $ make -f Makefile.gcc   # or -f Makefile.icc if Intel C compiler is available
 3. Add the helper scripts and laplace approximator binary to the global path
 ```
 # From the git repo root
+$ cd ..
 $ export PATH=$PATH:`realpath scripts`:`realpath bin`
 ```
 4. Make a GATK .jar file and relevant databases available in a single path.
@@ -78,7 +79,7 @@ $ export GATK_PATH=`pwd`
         e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
     * Download and unzip the 1000 genomes haplotype panel. The path to the top
       level of the unzipped archive is `REFPANEL_ROOT`.
-        e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
+        e.g., https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
     * Set the following two environment variables.
 ```
 $ export SHAPEIT_ROOT=/path/to/shapeit
