@@ -34,7 +34,7 @@ the results in the manuscript. They are not necessarily required to run.
 ```
 $ cd /root/of/git/repo
 $ R CMD build rpkg
-$ R CMD INSTALL scansnv-0.1.tar.gz
+$ R CMD INSTALL scansnv_0.1.tar.gz
 ```
 2. Install the Laplace approximator. First edit `gridfit-gauss/Makefile.gcc`
    if you are compiling with gcc (`gridfit-gauss/Makefile.icc if you are
@@ -132,18 +132,14 @@ covariates.
 1. Configure parallelism for GATK. Region-based parallelization was used for the
    manuscript's analysis, although an alternative and simpler method to
    parallelize is to increase thread count.
-   * To increase thread count, edit `scripts/run_gatk.sh` and replace
-     the line:
-```
-ncores=8    # Replace this line with the desired number of cores
-```
    * Region-based parallelization is only supported for clusters with
      SLURM installed.
-
+   * The first parameter of the `run_gatk.sh` script sets the number of
+     compute threads for GATK HaplotypeCaller.
 2. Run GATK two times: once using MMQ=60 and once using MMQ=1.
 ```
-$ run_gatk.sh 60 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
-$ run_gatk.sh 1 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
+$ run_gatk.sh n_threads 60 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
+$ run_gatk.sh n_threads 1 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
 ```
 
 
