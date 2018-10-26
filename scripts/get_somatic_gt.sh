@@ -10,9 +10,6 @@ if [ $# -ne 6 ]; then
     exit 1
 fi
 
-module load gcc
-module load R/3.3.3
-
 mmq60=$1
 mmq1=$2
 sc_sample=$3

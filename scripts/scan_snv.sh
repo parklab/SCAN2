@@ -21,10 +21,6 @@ fdr=$7
 
 mkdir -p $outdir
 
-module load gcc
-module load R/3.3.3
-module load java
-
 tmpfile=`mktemp`
 
 echo "Step 0: converting VCFs to tables"
