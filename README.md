@@ -12,7 +12,7 @@ Version numbers in parentheses are the tested versions and were used to produce
 the results in the manuscript. They are not necessarily required to run.
 
 **Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
-    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837)
+    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837), samtools (v1.3)
 
 **Optional dependencies**: Intel C compiler (2016)
 
@@ -27,7 +27,8 @@ the results in the manuscript. They are not necessarily required to run.
 
 > **IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
 > `PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
-> appropriately before running SCAN-SNV.
+> appropriately before running SCAN-SNV. The `samtools` binary must also be
+> in your $PATH.
 
 1. Build and install the SCAN-SNV R package
 ```
