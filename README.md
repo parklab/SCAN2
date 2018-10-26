@@ -3,8 +3,25 @@ Single cell somatic genotyper
 
 
 ## Installation
-**Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
-**Optional dependencies**: Intel C compiler
+Version numbers in parentheses denote the versions used in the manuscript. They
+are not necessarily required to run.
+
+**Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
+    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837)
+**Optional dependencies**: Intel C compiler (2016)
+**Data dependencies**:
+    * Human reference genome version GRCh37 with decoy
+        e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
+    * dbSNP (v147, b37)
+        e.g. ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz
+    * SHAPEIT2 formatted 1000 genomes reference haplotype panel
+        e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
+
+<aside class="warning">
+**IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
+`PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
+appropriately before running SCAN-SNV.
+</aside>
 
 1. Build and install the SCAN-SNV R package
 ```
@@ -54,17 +71,21 @@ $ cp /path/to/dbsnp dbsnp.vcf
 $ export GATK_PATH=`pwd`
 ```
 5. Install SHAPEIT2 and the 1000 genomes haplotype panel.
-    * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
-      The unzipped path is `SHAPEIT_ROOT`.
-    * Download and unzip the 1000 genomes haplotype panel (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html).
-      The unzipped path is `REFPANEL_ROOT`.
+    * Download and unzip SHAPEIT.  The path to the top level of the unzipped archive
+      is `SHAPEIT_ROOT`.
+        e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
+    * Download and unzip the 1000 genomes haplotype panel. The path to the top
+      level of the unzipped archive is `REFPANEL_ROOT`.
+        e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
+    * Set the following two environment variables.
 ```
 $ export SHAPEIT_ROOT=/path/to/shapeit
 $ export REFPANEL_ROOT=/path/to/refpanel
 ```
 
 
-# Running the demo
+
+## Running the demo
 The provided demo shows how the pipeline is run in practice. However,
 because parameter fitting (step 3) requires significant compute time,
 the demo only analyzes reads from chromosome 22. Using a server with 8
@@ -76,7 +97,8 @@ reconstitute the findings reported in the manuscript.
 In each step, the dependency versions refer to the **tested** versions.
 Other versions may work as well.
 
-## Step 0: Download data
+
+### Step 0: Download data
 1. Create a directory to contain the demo files and outputs.
 ```
 $ cd /root/of/git/repo
@@ -100,10 +122,8 @@ $ mkdir demo
     BAM: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam \
     Index: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam.bai
 
-## STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
-**Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
-**Data dependencies**: human reference genome (GRCh37 with decoy; e.g. `ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz`), dbSNP (v147, b37: e.g. `ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz`)
 
+### STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
 1. Configure the number of threads you wish to use for GATK by editing
    `scripts/run_gatk_demo.sh` and replacing the indicated line:
 ```
@@ -122,21 +142,16 @@ $ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
 ```
 
 
-## STEP 2: Define and phase hSNPs
-**Dependencies**: SHAPEIT2 (v2, r837)
-**Data dependencies**: SHAPEIT2 formatted 1000 genomes reference haplotype panel
+### STEP 2: Define and phase hSNPs
 1. Run SHAPEIT2 on potential heterozygous SNVs found in the bulk sample. Note
    that potential hSNPs are taken only from the MMQ=60 GATK output.
 ```
 run_shapeit.sh demo/hc_raw.mm60.vcf demo hunamp 22
 ```
-   If successful, a file named `phased_hsnps.chr22.vcf` should exist in
-   `demo`.
+   If successful, a file named `phased_hsnps.chr22.vcf` should exist in `demo`.
 
 
 ## STEP 3: Fit covariance function parameters via grid search
-**Dependencies**: Python (v2.7), R (v3.3.3)
-
 1. Create training data files.
 ```
 # NOTE: the sample name "h25" corresponds to il-12
@@ -167,7 +182,6 @@ make_fits.R demo/gridfit demo/fits.rda
 
 
 ## STEP 4: Run SCAN-SNV
-
 1. Convert GATK VCFs into table format.
 ```
 # Make expected symlinks to the single cell BAMs
