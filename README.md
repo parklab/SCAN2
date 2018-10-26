@@ -135,17 +135,10 @@ Using /path/to/scan-snv/scripts/scan_snv.sh
 ```
 **Ensure that no ERROR lines are printed before running the demo.**
 
-
-You should also edit the `demo.sh` file to
-reflect the number of CPU cores you wish to use. Simply modify the line
-```
-ncores=8
-```
-
 To run the demo:
 ```
 $ cd /path/to/scan-snv
-$ demo.sh
+$ demo.sh 8              # Run with 8 cores
 ```
 
 The final output is stored in Rdata format in `demo/scan-snv/somatic_gt.rda`.
