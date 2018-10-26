@@ -3,25 +3,21 @@
 #SBATCH -t 12:00:00
 #SBATCH -p park
 #SBATCH --array=1-396
-#SBATCH --mem-per-cpu=12G
+#SBATCH --mem-per-cpu=10G
 
 if [ $# -lt 4 ]; then
     echo "usage: $0 mmq outdir bam1 bam2 [bam3 ... ]"
+    echo "NOTE: if submitting to SLURM, nthreads should match the SBATCH"
+    echo "header in this file."
     exit 1
 fi
 
 mmq=$1
 outdir=$2
-shift
-shift
+shift 2
 bams=$@
 
 mkdir -p $outdir
-
-# ------ EDIT THESE VARIABLES ------
-# If multiple cores are available, specify the number of cores here.
-ncores=1
-mem=10G     # If using ncores > 1, increase ~linearly up to ~24G
 
 GATK=$GATK_PATH/gatk.jar
 HG19=$GATK_PATH/human_g1k_v37_decoy.fasta
@@ -32,12 +28,12 @@ DBSNP=$GATK_PATH/dbsnp.vcf
 vcfid=
 region_flag=
 if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
-    region_flag="-L $(awk "NR == $SLURM_ARRAY_TASK_ID" $GATK_PATH/regions.txt)"
+    region_flag="-L $(awk "NR == $SLURM_ARRAY_TASK_ID" regions.txt)"
     echo $region_flag
     vcfid=".${SLURM_ARRAY_TASK_ID}"
 fi
 
-java -Xms${mem} -Xmx${mem} -jar $GATK \
+java -Xms8G -Xmx8G -jar $GATK \
         -nct $ncores \
         -mmq $mmq \
         -T HaplotypeCaller \
