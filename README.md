@@ -51,7 +51,34 @@ $ export PATH=$PATH:`realpath scripts`:`realpath bin`
 $ cd /root/of/git/repo
 $ mkdir demo
 ```
-5. Download demo BAM files. Save the downloaded files to the `demo` directory.
+5. Make a GATK .jar file and relevant databases available in a single path.
+   You may place this directory anywhere you'd like. It is important,
+   however, that the files in this directory are named as stated below
+   (i.e., gatk.jar, dbsnp.vcf, human_g1k_v37_decoy.fasta).
+```
+$ mkdir gatkpath
+$ cd gatkpath
+# Put GATK (preferably version 3.8) here
+$ cp /path/to/gatk.jar gatk.jar
+# Put a copy of the human reference genome, GRCh37 with decoy here
+# All 3 files are necessary: the fasta, fasta.fai and dict.
+$ cp /path/to/ref.fasta human_g1k_v37_decoy.fasta
+$ cp /path/to/ref.fasta.fai human_g1k_v37_decoy.fasta.fai
+$ cp /path/to/ref.dict human_g1k_v37_decoy.dict
+# Put a copy of dbSNP (in VCF format) here
+$ cp /path/to/dbsnp dbsnp.vcf
+$ export GATK_PATH=`pwd`
+```
+6. Install SHAPEIT2 and the 1000 genomes haplotype panel.
+    * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
+      The unzipped path is `SHAPEIT_ROOT`.
+    * Download and unzip the 1000 genomes haplotype panel (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html).
+      The unzipped path is `REFPANEL_ROOT`.
+```
+$ export SHAPEIT_ROOT=/path/to/shapeit
+$ export REFPANEL_ROOT=/path/to/refpanel
+```
+7. Download demo BAM files. Save the downloaded files to the `demo` directory.
    At least one single cell and the unamplified bulk must be used. We recommend
    downloading hunamp and il-12. The two other kindred system samples are also
    provided. Both the BAM and index file must be downloaded.
@@ -75,16 +102,7 @@ $ mkdir demo
 **Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
 **Data dependencies**: human reference genome (GRCh37 with decoy; e.g. `ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz`), dbSNP (v147, b37: e.g. `ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz`)
 
-1. Edit `gatk/run_gatk_demo.sh`. You will need to supply paths to the dependencies
-   described above. This can be accomplished by editing the following lines:
-```
-RESOURCES=~/balance/resources
-GATK=$RESOURCES/GATK3.8.jar
-HG19=$RESOURCES/human_g1k_v37_decoy.fasta
-DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
-```
-
-2. Configure the number of threads you wish to use for GATK by editing
+1. Configure the number of threads you wish to use for GATK by editing
    `scripts/run_gatk_demo.sh` and replacing the indicated line:
 ```
 ncores=8    # Replace this line with the desired number of cores
@@ -92,7 +110,7 @@ mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
 ```
 **8 cores can process the chr22 data in approximately 1 hour per run.**
 
-3. Run GATK two times, once using MMQ=60 and once using MMQ=1. The script
+2. Run GATK two times, once using MMQ=60 and once using MMQ=1. The script
    will automatically create the directory `output_dir` to hold the generated
    VCF files.
 ```
@@ -105,36 +123,13 @@ $ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
 ## STEP 2: Define and phase hSNPs
 **Dependencies**: SHAPEIT2 (v2, r837)
 **Data dependencies**: SHAPEIT2 formatted 1000 genomes reference haplotype panel
-
-1. Install and configure SHAPEIT2. 
-    * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
-      The unzipped path is `SHAPEIT_ROOT`.
-    * Download and unzip the 1000 genomes haplotype panel (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html).
-      The unzipped path is `REFPANEL_ROOT`.
-    * Edit `scripts/phase_chr.sh` and `scripts/extract_chr.sh` and set
-      `SHAPEIT_ROOT` and `REFPANEL_ROOT`:
+1. Run SHAPEIT2 on potential heterozygous SNVs found in the bulk sample. Note
+   that potential hSNPs are taken only from the MMQ=60 GATK output.
 ```
-SHAPEIT_ROOT=/path/to/shapeit
-REFPANEL_ROOT=/path/to/1000g_reference_panel
-```
-2. Run SHAPEIT2 on heterozygous SNVs found in the bulk sample. Note that hSNPs are
-   taken only from the MMQ=60 GATK output.
-```
-# Select only biallelic SNVs for phasing
-java -jar /path/to/GATK -R /path/to/human_g1k_v37_decoy.fasta \
-    -T SelectVariants -V output_dir/hc_raw.mmq60.vcf \
-    -selectType SNP -restrictAllelesTo BIALLELIC -env -trimAlternates \
-    -select 'vc.getGenotype("hunamp").isCalled()' \
-    -o output_dir/hc_raw.mmq60.snp.vcf
-
-# Only phase sites reported in the bulk
-echo "hunamp" > samples_to_phase.txt
-
-shapeit/phase_chr.sh output_dir/hc_raw.mm60.snp.vcf output_dir 22
-shapeit/extract_chr.sh output_dir 22
+phase_chr.sh demo/hc_raw.mm60.vcf hunamp demo 22
 ```
    If successful, a file named `phased_hsnps.chr22.vcf` should exist in
-   `output_dir`.
+   `demo`.
 
 
 ## STEP 4: Fit covariance function parameters via grid search
