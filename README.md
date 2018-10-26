@@ -19,7 +19,7 @@ the results in the manuscript. They are not necessarily required to run.
 **Data dependencies**:
 
 * Human reference genome version GRCh37 with decoy
-  e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
+  e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz and associated \*.fai and \*.dict files.
 * dbSNP (v147, b37)
   e.g. ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz
 * SHAPEIT2 formatted 1000 genomes reference haplotype panel
