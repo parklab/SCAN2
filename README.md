@@ -97,7 +97,7 @@ $ export REFPANEL_ROOT=`realpath ALL.integrated_phase1_SHAPEIT_16-06-14.nosing`
 
 
 # Running the demo
-**Approximate run time**: 5 hours with 8 threads.
+**Approximate run time**: 5 hours with 8 threads (cores).
 
 The provided demo shows how the pipeline is run in practice. However,
 because parameter fitting (step 3) requires significant compute time,
@@ -112,13 +112,37 @@ requested threads, while 20,000 points per chromosome are used for normal
 analyses.
 
 Before running `demo.sh`, ensure that environment variables are set as
-described in **Installation**. You should also edit the `demo.sh` file to
+described in **Installation**. A script to check the integrity of your
+environment variables is available in `utils`. It is recommended to run
+this script before attempting the demo.
+```
+$ utils/check_env.sh
+Checking environment for necessary variables, PATH augmentations and libraries.
+-------------------------------------------------------------------------------
+Using laplace_cpu_gcc
+Using OpenBLAS:     libopenblas.so.0 -> libopenblas_core2p-r0.2.19.so
+Using GATK_PATH=/path/to/scan-snv/gatkpath
+Using SHAPEIT_ROOT=/path/to/scan-snv/shapeit/shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
+Using REFPANEL_ROOT=/path/to/scan-snv/shapeit/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing
+Using /n/app/samtools/1.9/bin/samtools
+Using /n/app/R/3.3.3/bin/Rscript
+Using /usr/bin/python
+Using /n/app/java/jdk-1.8u112/bin/java
+Using /path/to/scan-snv/scripts/demo.sh
+Using /path/to/scan-snv/scripts/run_gatk.sh
+Using /path/to/scan-snv/scripts/run_shapeit.sh
+Using /path/to/scan-snv/scripts/scan_snv.sh
+```
+**Ensure that no ERROR lines are printed before running the demo.**
+
+
+You should also edit the `demo.sh` file to
 reflect the number of CPU cores you wish to use. Simply modify the line
 ```
 ncores=8
 ```
 
-To run:
+To run the demo:
 ```
 $ cd /path/to/scan-snv
 $ demo.sh
