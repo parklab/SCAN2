@@ -6,8 +6,9 @@
 # These R functions are only used to predict AB at sSNV candidate
 # loci, meaning they do not need to be as optimized.
 
-zzz <- NULL  # for gradient maxing; wish there was a better way
-zzzchunk <- list()
+# XXX: for gradient fitting
+#zzz <- NULL  # for gradient maxing; wish there was a better way
+#zzzchunk <- list()
 
 K.func <- function(x, y, a, b, c, d) exp(a - (x - y)^2 / b^2) + exp(c - (x-y)^2 / d^2)
 
@@ -60,7 +61,8 @@ alg3.1 <- function(a, b, c, d, X, Y, D, max.it=50, verbose=TRUE) {
     retval <- list(iterations=iter, max.it=max.it, B.=B,
                     logq=logqs[iter+1], logqs=logqs, K=K, K.inv.f=var2,
                     a=a, b=b, c=c, d=d)
-    zzz <<- retval   # wish there were a better way
+    # XXX: for gradient fitting
+    #zzz <<- retval   # wish there were a better way
     retval
 }
 

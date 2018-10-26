@@ -1,6 +1,3 @@
-source("~/balance/utils/binio.R")
-
-
 # the covariance functions i chose were usually non identifiable,
 # to make them identifiable we force the parameters b < d.
 read.fit <- function(gridn, dir=".", n=25, chrs=22) {

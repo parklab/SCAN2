@@ -24,15 +24,6 @@ else
     chr=$3
 fi
 
-echo "Phasing chromosome=$chr from VCF=$vcf"
-
-chrvcf=${vcf/.vcf/.chr$chr.vcf}
-
-# Split by chromosome.  I think SHAPEIT can do this via some command
-# line arguments, but was too lazy to find them.
-awk "{ if (\$1 == \"$chr\" || \$0 ~ /^#/) print \$0; }" $vcf > $chrvcf
-
-
 # SHAPEIT runs in 2 steps.  The first step prunes out SNPs in the
 # reference panel that are problematic, step 2 performs the phasing.
 SHAPEIT_ROOT=/n/data1/hms/dbmi/park/jluquette/pellman/lodato/shapeit
@@ -40,6 +31,15 @@ REFPANEL_ROOT=$SHAPEIT_ROOT/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing
 OUTPUT_ROOT=$output_dir/shapeit_output_$chr
 
 mkdir -p $OUTPUT_ROOT
+
+echo "Phasing chromosome=$chr from VCF=$vcf"
+
+chrvcf=$OUTPUT_ROOT/$(basename $vcf .vcf).chr$chr.vcf
+echo "-----------------"
+echo $chrvcf
+
+# Split by chromosome.  I think SHAPEIT provides an option to do this.
+awk "{ if (\$1 == \"$chr\" || \$0 ~ /^#/) print \$0; }" $vcf > $chrvcf
 
 $SHAPEIT_ROOT/bin/shapeit \
     -check \

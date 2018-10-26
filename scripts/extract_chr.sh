@@ -9,6 +9,7 @@ fi
 
 output_dir=$1
 chr=$2
+fromsample=`cat samples_to_phase.txt`
 SHAPEIT_ROOT=/n/data1/hms/dbmi/park/jluquette/pellman/lodato/shapeit
 
 
@@ -21,5 +22,6 @@ $SHAPEIT_ROOT/bin/shapeit -convert \
 
 echo "Filtering to het sites."
 awk '{ if ($10 == "1|0" || $10 == "0|1" || $1 ~ /^#/) print $0; }' \
-    $chrdir/1000g.cdt.nomulti.chr$chr.phased.vcf > \
-    $output_dir/phased_hsnps.chr$chr.vcf
+    $chrdir/1000g.cdt.nomulti.chr$chr.phased.vcf \
+    | sed -e"s/$fromsample/phasedgt/g" > \
+      $output_dir/phased_hsnps.chr$chr.vcf

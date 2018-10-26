@@ -732,23 +732,26 @@ plot.cell.sharing <- function(df, nsamples=13, colname='cells') {
 
 
 plot.ssnv.region <- function(chr, pos, alt, ref, fits, fit.data, upstream=5e4, downstream=5e4, gp.extend=1e5, n.gp.points=100) {
-    # needed for infer.gp
-    source("predict.R")
-
     d <- fit.data[fit.data$chr==chr & fit.data$pos >= pos - upstream &
                   fit.data$pos <= pos + downstream,]
 
     cat("estimating AB in region..\n")
-    est.at <- seq(pos - upstream, pos + downstream, length.out=n.gp.points)
+    # ensure that we estimate at exactly pos
+    est.at <- c(seq(pos - upstream, pos-1, length.out=n.gp.points/2), pos,
+                seq(pos+1, pos + downstream, length.out=n.gp.points/2))
     fit.chr <- as.data.frame(fits[chr,,drop=FALSE])
     colnames(fit.chr) <- c('a', 'b', 'c', 'd', 'logq')
-    gp <- infer.gp(vars=data.frame(pos=est.at),
-        fit=fit.chr, chr=fit.data[fit.data$chr == chr,],
+    gp <- infer.gp(ssnvs=data.frame(pos=est.at),
+        fit=fit.chr, hsnps=fit.data[fit.data$chr == chr,],
         chunk=250, flank=gp.extend)
     gp$pos <- est.at
     plot.gp.confidence(df=gp, add=FALSE)
     points(d$pos, d$hap1/d$dp, pch=20, ylim=0:1)
-    points(pos, alt/(alt+ref), pch=20, cex=1.25, col=2)
+    af <- alt/(alt+ref) # adjust to closest AB
+    gp.at <- gp[gp$pos == pos,]$gp.mu
+    ab <- 1/(1+exp(-gp.at))
+    af <- ifelse(abs(af - ab) <= abs(af - (1-ab)), af, 1-af)
+    points(pos, af, pch=20, cex=1.25, col=2)
 }
 
 
