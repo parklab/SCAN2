@@ -18,12 +18,12 @@ the results in the manuscript. They are not necessarily required to run.
 
 **Data dependencies**:
 
-    * Human reference genome version GRCh37 with decoy
-        e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
-    * dbSNP (v147, b37)
-        e.g. ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz
-    * SHAPEIT2 formatted 1000 genomes reference haplotype panel
-        e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
+* Human reference genome version GRCh37 with decoy
+  e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
+* dbSNP (v147, b37)
+  e.g. ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz
+* SHAPEIT2 formatted 1000 genomes reference haplotype panel
+  e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html
 
 > **IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
 > `PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
