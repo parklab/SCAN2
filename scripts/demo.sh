@@ -11,7 +11,7 @@ fi
 
 ncores=$1
 
-if [ ! -f "utils/check_en v.sh" ]; then
+if [ ! -f "utils/check_env.sh" ]; then
     echo "ERROR: please run the demo script from the root of the scan-snv repository"
     exit 1
 fi
