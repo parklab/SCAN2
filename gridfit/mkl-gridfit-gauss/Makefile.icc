@@ -1,7 +1,0 @@
-OPENBLAS=/n/app/openblas/0.2.19
-LAPACKE=/n/app/lapacke/3.6.1
-
-OPT=-axAVX -xHost -O2 -B${OPENBLAS} -B${OPENBLAS}/lib
-
-laplace_cpu_icc: main.c cpu.c Makefile.icc
-	icc $(OPT) cpu.c main.c -o laplace_cpu_icc -llapack

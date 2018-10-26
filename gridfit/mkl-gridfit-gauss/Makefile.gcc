@@ -1,7 +1,0 @@
-OPENBLAS=/n/app/openblas/0.2.19
-LAPACKE=/n/app/lapacke/3.6.1
-
-CFLAGS=-O3 -I${OPENBLAS}/include -L${OPENBLAS} -L${OPENBLAS}/lib -I${LAPACKE}/include
-
-laplace_cpu_gcc: main.c cpu.c Makefile.gcc
-	gcc $(CFLAGS) cpu.c main.c -o laplace_cpu_gcc -llapack -lm

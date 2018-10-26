@@ -13,48 +13,16 @@ reconstitute the findings reported in the manuscript.
 In each step, the dependency versions refer to the **tested** versions.
 Other versions may work as well.
 
-## STEP 0. Installation and demo data
-**Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
-**Optional dependencies**: Intel C compiler
+## STEP -1. Install R package, set paths
 
-1. Build and install the SCAN-SNV R package
-```
-$ cd /root/of/git/repo
-$ R CMD build rpkg
-$ R CMD INSTALL scansnv-0.1.tar.gz
-```
-2. Install the Laplace approximator. First edit gridfit-gauss/Makefile.gcc (if you are
-   compiling with gcc) or gridfit-gauss/Makefile.icc (if you are using Intel's C
-   compiler) and set the paths to OpenBLAS and LAPACKE by modifying these two lines
-   to point to your local installation of OpenBLAS and LAPACKE.
-```
-OPENBLAS=/n/app/openblas/0.2.19
-LAPACKE=/n/app/lapacke/3.6.1
-```
-   Add the OpenBLAS library path to the linker path.
-```
-# Should be the same as $OPENBLAS with /lib appended
-$ export LD_LIBRARY_PATH=/path/to/openblas/lib  
-```
-   Compile the approximator program.
-```
-$ cd gridfit-gauss
-$ make -f Makefile.gcc   # or -f Makefile.icc if Intel C compiler is available
-```
-3. Add the helper scripts and laplace approximator binary to the global path
-```
-# From the git repo root
-$ export PATH=$PATH:`realpath scripts`:`realpath bin`
-```
-4. Create a directory to contain the demo files and outputs.
-```
-$ cd /root/of/git/repo
-$ mkdir demo
-```
-5. Download demo BAM files. Save the downloaded files to the `demo` directory.
-   At least one single cell and the unamplified bulk must be used. We recommend
-   downloading hunamp and il-12. The two other kindred system samples are also
-   provided. Both the BAM and index file must be downloaded.
+R CMD build rpkg
+R CMD INSTALL scansnv-0.1.tar.gz
+export PATH=$PATH:`realpath scripts`
+
+## STEP 0. Download demo BAM files
+At least one single cell and the unamplified bulk must be used. We recommend
+downloading hunamp and il-12. The two other kindred system samples are also
+provided. Both the BAM and index file must be downloaded.
 
 * **[REQUIRED]** Unamplified cell line bulk\
     BAM: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam \
@@ -69,9 +37,33 @@ $ mkdir demo
     BAM: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam \
     Index: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam.bai
 
+## STEP 1. Compile `laplace_cpu`
+
+**Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
+**Optional dependencies**: Intel C compiler
+
+1. Edit mkl-gridfit-gauss/Makefile (or Makefile.gcc if using gcc) to point to
+   install paths for LAPACKE and OpenBLAS:
+
+```
+OPENBLAS=/n/app/openblas/0.2.19   # Set these 2 lines appropriately
+LAPACKE=/n/app/lapacke/3.6.1
+```
+2. Compile
+```
+make -f Makefile.gcc    # or Makefile.icc if using Intel C compiler
+```
+
+3. **IMPORTANT** Add OpenBLAS to the linker path.
+
+```
+# Should be the same as $OPENBLAS with /lib appended
+export LD_LIBRARY_PATH=/n/app/openblas/0.2.19/lib  
+```
 
 
-## STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
+## STEP 2: Run GATK HaplotypeCaller on single cell and matched bulk data
+
 **Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
 **Data dependencies**: human reference genome (GRCh37 with decoy; e.g. `ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz`), dbSNP (v147, b37: e.g. `ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz`)
 
