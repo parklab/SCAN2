@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -c 1
+#SBATCH -c 4
 #SBATCH -t 12:00:00
-#SBATCH -p short
+#SBATCH -p park
 #SBATCH --array=1-396
-#SBATCH --mem-per-cpu=10G
+#SBATCH --mem-per-cpu=5G
 
 if [ $# -lt 4 ]; then
     echo "usage: $0 mmq outdir bam1 bam2 [bam3 ... ]"
@@ -20,19 +20,17 @@ mkdir -p $outdir
 
 # ------ EDIT THESE VARIABLES ------
 # If multiple cores are available, specify the number of cores here.
-ncores=1
-mem=9G     # If using ncores > 1, increase ~linearly up to ~24G
+ncores=8
+mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
 
-# To run GATK, you must have downloaded the GATK jar and have a version
-# of the human reference genome and dbSNP.
-RESOURCES=~/balance/resources
-GATK=$RESOURCES/GATK3.8.jar
-HG19=$RESOURCES/human_g1k_v37_decoy.fasta
-DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
+GATK=$GATK_PATH/gatk.jar
+HG19=$GATK_PATH/human_g1k_v37_decoy.fasta
+DBSNP=$GATK_PATH/dbsnp.vcf
 
 # If on a SLURM system and submitted as an array, parallelize over the
 # regions specified in regions.txt.
 vcfid=
+region_flag=
 if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
     region_flag="-L $(awk "NR == $SLURM_ARRAY_TASK_ID" regions.txt)"
     echo $region_flag

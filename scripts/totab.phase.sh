@@ -1,11 +1,12 @@
 #!/bin/bash
 
-if [ $# -ne 1 ]; then
-    echo "usage: $0 vcf"
+if [ $# -ne 2 ]; then
+    echo "usage: $0 vcf output_tab"
     exit 1
 fi
 
 vcf=$1
+outtab=$2
 
 awk 'BEGIN {
     OFS = "\t";
@@ -30,4 +31,4 @@ awk 'BEGIN {
             }
         }
     }
-}' $vcf
+}' $vcf > $outtab

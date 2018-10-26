@@ -11,10 +11,11 @@ phased_vcf=$3
 output_dir=$4
 
 output_vcf=$output_dir/${sample}_hsnps.vcf
+output_tab=$output_dir/${sample}_hsnps.tab
 tmp_vcf=$output_dir/tmp.vcf
 
-GATK=~/balance/resources/GATK3.8.jar
-REF=~/balance/resources/human_g1k_v37_decoy.fasta
+GATK=$GATK_PATH/gatk.jar
+REF=$GATK_PATH/human_g1k_v37_decoy.fasta
 
 java -jar $GATK -R $REF \
     -T CombineVariants \
@@ -36,3 +37,7 @@ java -jar $GATK -R $REF \
 
 rm $tmp_vcf
 rm ${tmp_vcf}.idx
+
+totab.phase.sh $output_vcf $output_tab
+
+torda.R $output_tab $output_dir/training_chr%d

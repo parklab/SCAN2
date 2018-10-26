@@ -27,8 +27,6 @@ fi
 
 # SHAPEIT runs in 2 steps.  The first step prunes out SNPs in the
 # reference panel that are problematic, step 2 performs the phasing.
-SHAPEIT_ROOT=/n/data1/hms/dbmi/park/jluquette/pellman/lodato/shapeit
-REFPANEL_ROOT=$SHAPEIT_ROOT/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing
 OUTPUT_ROOT=$output_dir/shapeit_output_$chr
 
 mkdir -p $OUTPUT_ROOT

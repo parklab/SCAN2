@@ -20,15 +20,12 @@ mkdir -p $outdir
 
 # ------ EDIT THESE VARIABLES ------
 # If multiple cores are available, specify the number of cores here.
-ncores=4
-mem=16G     # If using ncores > 1, increase ~linearly up to ~24G
+ncores=8
+mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
 
-# To run GATK, you must have downloaded the GATK jar and have a version
-# of the human reference genome and dbSNP.
-RESOURCES=~/balance/resources
-GATK=$RESOURCES/GATK3.8.jar
-HG19=$RESOURCES/human_g1k_v37_decoy.fasta
-DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
+GATK=$GATK_PATH/gatk.jar
+HG19=$GATK_PATH/human_g1k_v37_decoy.fasta
+DBSNP=$GATK_PATH/dbsnp.vcf
 
 # If on a SLURM system and submitted as an array, parallelize over the
 # regions specified in regions.txt.
@@ -39,7 +36,7 @@ if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
     echo $region_flag
     vcfid=".${SLURM_ARRAY_TASK_ID}"
 fi
-region_flag="-L 22"  # only run on chr22
+region_flag="-L 22"  # Demo only: run on chr22
 
 java -Xms${mem} -Xmx${mem} -jar $GATK \
         -nct $ncores \

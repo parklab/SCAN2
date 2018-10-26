@@ -126,24 +126,19 @@ $ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
 1. Run SHAPEIT2 on potential heterozygous SNVs found in the bulk sample. Note
    that potential hSNPs are taken only from the MMQ=60 GATK output.
 ```
-phase_chr.sh demo/hc_raw.mm60.vcf hunamp demo 22
+run_shapeit.sh demo/hc_raw.mm60.vcf demo hunamp 22
 ```
    If successful, a file named `phased_hsnps.chr22.vcf` should exist in
    `demo`.
 
 
-## STEP 4: Fit covariance function parameters via grid search
+## STEP 3: Fit covariance function parameters via grid search
 **Dependencies**: Python (v2.7), R (v3.3.3)
 
 1. Create training data files.
 ```
-# Creates a VCF with only 
 # NOTE: the sample name "h25" corresponds to il-12
-shapeit/get_hsnps_singlecell.sh h25 output_dir/hc_raw.mmq60.snp.vcf output_dir/phased_hsnps.chr22.vcf output_dir
-
-awk -f gridfit_slurm/totab.awk output_dir/h25_hsnps.vcf > output_dir/h25_hsnps.tab
-
-Rscript gridfit_slurm/torda.R output_dir/h25_hsnps.tab output_dir/training_chr%d
+get_hsnps_singlecell.sh h25 demo/hc_raw.mmq60.snp.vcf demo/phased_hsnps.chr22.vcf demo
 ```
 
 2. Run the grid searching algorithm to find parameter MLEs. Using the parameters
@@ -152,25 +147,24 @@ Rscript gridfit_slurm/torda.R output_dir/h25_hsnps.tab output_dir/training_chr%d
 ```
 mkdir -p output_dir/gridfit/chr22
 
-./gridfit_slurm/runchr.py \
-    --bindata=output_dir/training_chr22.bin \
+gridfit_chr.py \
+    --bindata=demo/training_chr22.bin \
     --local \
-    --ngrids 8 \          # Set this to the number of cores available
+    --ngrids 8 \                 # Set this to the number of cores available
     --points-per-grid 400 \
     --resume \
-    --combine=./gridfit_slurm/combine.R \
-    --mkl-laplace=./mkl-gridfit-gauss/laplace_cpu_gcc \
-    --outprefix=output_dir/gridfit/chr22
+    --laplace=laplace_cpu_gcc \  # Or laplace_cpu_icc if Intel C compiler was used
+    --outprefix=demo/gridfit/chr22
 ```
    If the run is successful, the file `output_dir/gridfit/chr22/fit.rda` will be created.
 
 3. Make the final fit file.
 ```
-Rscript ./gridfit_slurm/make_fits.R
+make_fits.R demo/gridfit demo/fits.rda
 ```
 
 
-## STEP 5: Run SCAN-SNV
+## STEP 4: Run SCAN-SNV
 
 1. Convert GATK VCFs into table format.
 ```

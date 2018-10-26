@@ -37,10 +37,12 @@ done
 
 for chrom in `seq 1 22`; do
     # resume mode is always safe to use, even for new analyses
-    cmd="/home/ljl11/balance/gridfit_slurm/runchr.py
+    cmd="gridfit_chr.py
         --bindata=$dir/chr$chrom.bin \
         --outprefix=$dir/gridfit/chr$chrom/ \
         --queue=$queue \
+        --combine=/n/data1/hms/dbmi/park/jluquette/genotyper1/paper/scan-snv/gridfit_slurm/combine.R \
+        --mkl-laplace=/n/data1/hms/dbmi/park/jluquette/genotyper1/paper/scan-snv/mkl-gridfit-gauss/laplace_cpu \
         --resume"
     mkdir -p $dir/gridfit/chr$chrom
     echo $cmd

@@ -4,7 +4,6 @@ import datetime
 import sys
 import os
 import time
-import drmaa
 import subprocess
 from argparse import ArgumentParser
 
@@ -89,14 +88,17 @@ def runstep(session, args, k, gridrange, grids_to_run):
 
     print("STEP %d: computing grid" % k)
     rungridC(session, args.queue, args.bindata,
-        args.mkl_laplace, fmtpre + ".%d",
+        args.laplace, fmtpre + ".%d",
         gridrange, grids_to_run, args.points_per_grid)
 
     # It is possible that the cluster file system has not yet updated and
     # discover_reruns is based on the expected files produced by each grid.
     # Try to prevent desyncing from launching new jobs by giving the FS a
     # minute to catch up.
-    time.sleep(60)
+    # XXX: only sleep when using DRMAA/cluster
+    if session is not None:
+        time.sleep(60)
+
     steps, grids_to_rerun = \
             discover_reruns([ k ], args.ngrids, args.outprefix)
     for i in range(0, args.retries):
@@ -105,7 +107,7 @@ def runstep(session, args, k, gridrange, grids_to_run):
                 % (args.retries, str(grids_to_rerun)))
             print("retry #%d, grid step %d" % (i+1, k))
             rungridC(session, args.queue, args.bindata,
-                args.mkl_laplace, fmtpre + ".%d",
+                args.laplace, fmtpre + ".%d",
                 gridrange, grids_to_rerun, args.points_per_grid)
             steps, grids_to_rerun = \
                     discover_reruns(steps, args.ngrids, args.outprefix)
@@ -118,45 +120,67 @@ def runstep(session, args, k, gridrange, grids_to_run):
 
 
 
-# uses the C program mkl-gridfit rather than the R script
+# uses the C program gridfit-gauss rather than the R script
 # gridrange format: length=4, [amin, amax, bmin, bmax]
 def rungridC(session, queue, bindata, prog, fmt, gridrange, grids_to_run, ppg):
+    """Responsible for deciding if jobs should be submitted to a DRM
+       (via DRMAA) or run locally."""
+
     jts = []
     for i in grids_to_run:
-        jt = session.createJobTemplate()
-        # This disables output buffering to make logs immediately readable
-        jt.remoteCommand = "stdbuf"
-        jt.args = [ "-o0", "-e0", prog ] + \
+        cmd = [ "stdbuf" ] + \
+            [ "-o0", "-e0", prog ] + \
             [ bindata, fmt.replace("%d", str(i)) + ".bin" ] +  \
             [ str(x) for x in gridrange ] + \
             [ str(ppg), str(i) ]
-        jt.outputPath = ":" + fmt.replace("%d", str(i)) + '.slurm'
-        jt.jobName = fmt.replace("%d", str(i)) + '.bin'
-        print(jt.args)
-        jt.joinFiles = True  # combines stderr and stdout
-        queuespec = "-p " + queue
-        # submitting to the park queue on O2 requires the park_contrib
-        # resource account.
-        if queue == 'park':
-            queuespec = queuespec + " -A park_contrib"
-        jt.nativeSpecification = queuespec + " -t 12:00:00"
-        jts.append(jt)
+
+        if session is None:  # running locally
+            outputPath = fmt.replace("%d", str(i)) + '.local_log'
+            jts.append(' '.join(cmd) + " > " + outputPath)
+        else:
+            jt = session.createJobTemplate()
+            # This disables output buffering to make logs immediately readable
+            jt.remoteCommand = cmd[0]
+            jt.args = cmd[1:len(cmd)]
+            jt.outputPath = ":" + fmt.replace("%d", str(i)) + '.slurm'
+            jt.jobName = fmt.replace("%d", str(i)) + '.bin'
+            print(jt.args)
+            jt.joinFiles = True  # combines stderr and stdout
+            queuespec = "-p " + queue
+            # submitting to the park queue on O2 requires the park_contrib
+            # resource account.
+            if queue == 'park':
+                queuespec = queuespec + " -A park_contrib"
+            jt.nativeSpecification = queuespec + " -t 12:00:00"
+            jts.append(jt)
     
-    # Doesn't set SLURM_ARRAY_TASK_ID properly
-    # I think drmaa's .PARAMETRIC_INDEX might work, but why bother
-    #jobids = session.runBulkJobs(jt, 1, ngrids, 1)
-    jobids = [ session.runJob(jt) for jt in jts ]
-    waitall(jobids, session)
-    for jt in jts:
-        session.deleteJobTemplate(jt)
+    if session is None:  # running locally
+        procs = [ subprocess.Popen(jt, shell=True) for jt in jts ]
+        for p in procs:
+            p.wait()
+    else:
+        # Doesn't set SLURM_ARRAY_TASK_ID properly
+        # I think drmaa's .PARAMETRIC_INDEX might work, but why bother
+        #jobids = session.runBulkJobs(jt, 1, ngrids, 1)
+        jobids = [ session.runJob(jt) for jt in jts ]
+        waitall(jobids, session)
+        for jt in jts:
+            session.deleteJobTemplate(jt)
 
 
 def combine(combinescript, outputpre, k, ngrids):
-    cmd = [ "Rscript", combinescript, outputpre, str(k), str(ngrids) ]
+    """Runs an Rscript locally to combine output grids."""
+    cmd = [ combinescript, outputpre, str(k), str(ngrids) ]
     output = subprocess.check_output(cmd)
     vals = [ float(line) for line in output.split() ]
     return vals
 
+
+def combine_and_write(combinescript, outputpre, k, ngrids):
+    """Runs an Rscript locally to combine output grids."""
+    cmd = [ combinescript, outputpre, str(k), str(ngrids), outputpre + "/fit.rda"]
+    output = subprocess.check_output(cmd)
+    return True
 
 def discover_reruns(steps, ngrids, outprefix):
     steps_needed = steps[:] # need a copy of steps since we're modifying it
@@ -201,12 +225,12 @@ ap.add_argument("--bindata", required=True, metavar="PATH",
     help="Training het sites in binary format from utils/binio.R.")
 ap.add_argument("--outprefix", default="", metavar="STRING",
     help="Prepend STRING to all output files.  Can include paths.")
-ap.add_argument("--mkl-laplace", metavar="PATH",
-    default="/home/ljl11/balance/mkl-gridfit-gauss/laplace_cpu",
+ap.add_argument("--laplace", metavar="PATH",
+    default="laplace_cpu",
     help="Path to the binary laplace_cpu approximation program.")
 ap.add_argument("--combine", metavar="PATH",
-    default="/home/ljl11/balance/gridfit_slurm/combine.R",
-    help="Path to the combine.R script.")
+    default="combine_grids.R",
+    help="Path to the combine_grids.R script.")
 ap.add_argument("--queue", default="park", metavar="STRING",
     help="Submit to SLURM queue STRING.")
 ap.add_argument("--ngrids", default=20, metavar="INT", type=int,
@@ -215,44 +239,55 @@ ap.add_argument("--points-per-grid", default=1000, metavar='INT', type=int,
     help='Calculate the likelihood of INT random points within the grid range per grid.')
 ap.add_argument("--resume", default=False, action='store_true',
     help="Resume a previous run. Attempts to automatically discover all failed grids, rerun them, and resume the next step if there is one. NOTE: I believe it is always safe to run in resume mode, even when starting a new analysis. One reason to not use resume mode is if you really want to recompute grids that have already completed.")
-ap.add_argument("--retries", default=1, metavar="INT", type=int,
+ap.add_argument("--retries", default=3, metavar="INT", type=int,
     help="When a grid failure is detected, try to rerun that grid INT times before giving up.")
+ap.add_argument("--local", default=False, action='store_true',
+    help='Run grid search on the local machine; do not submit to a cluster through DRMAA. IMPORTANT: when --local is specified, --ngrids threads will be run in parallel.')
 args = ap.parse_args()
 
 args.outprefix = os.path.realpath(args.outprefix) + '/'
 
-with drmaa.Session() as s:
-    # some probably useless info about the DRMAA-LSF interface
+s = None
+if args.local == False:
+    import drmaa
+    s = drmaa.Session()
+    s.initialize()
     print('Supported contact strings: %s' % s.contact)
     print('Supported DRM systems: %s' % s.drmsInfo)
     print('Supported DRMAA implementations: %s' % s.drmaaImplementation)
 
-    steps = [ 1, 2, 3, 4 ]
-    grids_to_run = range(1, args.ngrids+1)
-    if args.resume:
-        print("Resuming")
-        steps, grids_to_run = \
-            discover_reruns(steps, args.ngrids, args.outprefix)
+steps = [ 1, 2, 3, 4 ]
+grids_to_run = range(1, args.ngrids+1)
+if args.resume:
+    print("Resuming")
+    steps, grids_to_run = \
+        discover_reruns(steps, args.ngrids, args.outprefix)
 
-        if len(steps) > 0:
-            print("Failed grids from step %d are %s" % \
-                (steps[0], str(grids_to_run)))
+    if len(steps) > 0:
+        print("Failed grids from step %d are %s" % \
+            (steps[0], str(grids_to_run)))
 
-    gridrange = get_gridrange(steps, args.ngrids, args.combine, args.outprefix)
-    print("Running steps " + str(steps))
-    print("Initial grid ranges " + str(gridrange))
+gridrange = get_gridrange(steps, args.ngrids, args.combine, args.outprefix)
+print("Running steps " + str(steps))
+print("Initial grid ranges " + str(gridrange))
 
-    # use an objective stopping criteria one day
-    # for now, empirically determined that parameters tend to be very
-    # converged by g3, and g4 is overkill.
-    print('Starting run at ' + str(datetime.datetime.now()))
-    start_time = time.time()
-    for stepnum in steps:
+# use an objective stopping criteria one day
+# for now, empirically determined that parameters tend to be very
+# converged by g3, and g4 is overkill.
+print('Starting run at ' + str(datetime.datetime.now()))
+start_time = time.time()
+for stepnum in steps:
+    newgrid = runstep(s, args, stepnum, gridrange, grids_to_run)
+    print(newgrid)
+    gridrange = newgrid[0:8]
 
-        newgrid = runstep(s, args, stepnum, gridrange, grids_to_run)
-        print(newgrid)
-        gridrange = newgrid[0:8]
+if args.local == False:
+    s.exit()
 
-    print('Run completed ' + str(datetime.datetime.now()))
-    end_time = time.time()
-    print("%0.2f total seconds elapsed" % (end_time - start_time))
+#def combine_and_write(combinescript, outputpre, k, ngrids):
+print("saving best fit from grid " + str(steps[len(steps)-1]))
+combine_and_write(args.combine, args.outprefix, steps[len(steps)-1], args.ngrids)
+
+print('Run completed ' + str(datetime.datetime.now()))
+end_time = time.time()
+print("%0.2f total seconds elapsed" % (end_time - start_time))
