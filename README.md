@@ -17,6 +17,7 @@ the results in the manuscript. They are not necessarily required to run.
 **Optional dependencies**: Intel C compiler (2016)
 
 **Data dependencies**:
+
     * Human reference genome version GRCh37 with decoy
         e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
     * dbSNP (v147, b37)
@@ -211,6 +212,6 @@ $ cd ..
 2. Run SCAN-SNV. The final parameter is the target FDR.
 ```
 # Run SCAN-SNV
-$ scan_snv.sh /c_raw.mmq60.vcf hc_raw.mmq1.vcf output_directory \
+$ scan_snv.sh hc_raw.mmq60.vcf hc_raw.mmq1.vcf output_directory \
     single_cell_sample bulk_sample output_directory 0.1
 ```
