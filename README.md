@@ -47,7 +47,7 @@ LAPACKE=/n/app/lapacke/3.6.1
    Add the OpenBLAS library path to the linker path.
 ```
 # Should be the same as $OPENBLAS with /lib appended
-$ export LD_LIBRARY_PATH=/path/to/openblas/lib  
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/openblas/lib  
 ```
    Compile the approximator program.
 ```
@@ -78,23 +78,30 @@ $ export GATK_PATH=`pwd`
 5. Install SHAPEIT2 and the 1000 genomes haplotype panel.
     * Download and unzip SHAPEIT.  The path to the top level of the unzipped archive
       is `SHAPEIT_ROOT`.
-        e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
     * Download and unzip the 1000 genomes haplotype panel. The path to the top
       level of the unzipped archive is `REFPANEL_ROOT`.
-        e.g., https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
-    * Set the following two environment variables.
+    * Set the environment variables `SHAPEIT_ROOT` and `REFPANEL_ROOT`.
 ```
-$ export SHAPEIT_ROOT=/path/to/shapeit
-$ export REFPANEL_ROOT=/path/to/refpanel
+# For example, using the version of SHAPEIT2 available on 10/22/2018
+$ cd /path/to/git/repo
+$ mkdir shapeit
+$ cd shapeit
+$ wget https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
+$ tar xzvf shapeit.v2.r904.glibcv2.12.linux.tar.gz
+$ wget https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
+$ tar xzvf ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
+$ export SHAPEIT_ROOT=`realpath shapeit.v2.904.2.6.32-696.18.7.el6.x86_64`
+$ export REFPANEL_ROOT=`realpath ALL.integrated_phase1_SHAPEIT_16-06-14.nosing`
 ```
 
 
 
 # Running the demo
+**Approximate run time**: 5 hours with 8 threads.
+
 The provided demo shows how the pipeline is run in practice. However,
 because parameter fitting (step 3) requires significant compute time,
-the demo only analyzes reads from chromosome 22. Using a server with 8
-cores, the demo took approximately **5 hours** to run.
+the demo only analyzes reads from chromosome 22.
 Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
 normally measured from sites across all chromosomes, the demo's output will
 not exactly match the findings reported in the manuscript. In addition, a
