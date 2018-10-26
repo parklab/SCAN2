@@ -27,8 +27,8 @@ the results in the manuscript. They are not necessarily required to run.
 
 > **IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
 > `PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
-> appropriately before running SCAN-SNV. The `samtools` binary must also be
-> in your $PATH.
+> appropriately before running SCAN-SNV. The `samtools`, `Rscript`, `python`
+> and `java` binaries must also be in your $PATH.
 
 1. Build and install the SCAN-SNV R package
 ```
