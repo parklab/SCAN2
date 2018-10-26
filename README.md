@@ -56,7 +56,7 @@ $ make -f Makefile.gcc   # or -f Makefile.icc if Intel C compiler is available
 ```
 3. Add the helper scripts and laplace approximator binary to the global path
 ```
-# From the git repo root
+# Return to the git repo root
 $ cd ..
 $ export PATH=$PATH:`realpath scripts`:`realpath bin`
 ```
