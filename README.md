@@ -3,7 +3,7 @@ Single cell somatic genotyper
 
 
 ## Installation
-**Operating systems tested**: GNU/Linux, kernel version 3.10.0, CentOS 7
+**Operating systems tested**: GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
 
 **Installation time**: installation should take only a few minutes on a modern
 computer.
