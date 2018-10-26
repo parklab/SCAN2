@@ -1,19 +1,8 @@
 # scan-snv
 Single cell somatic genotyper
 
-# Running the demo
-The provided demo shows how the pipeline is run in practice. However,
-because parameter fitting (step 3) requires significant compute time,
-the demo only analyzes reads from chromosome 22. Using a server with 8
-cores, the demo took approximately **X HOURS** to run.
-Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
-measured from sites across all chromosome, the demo's output will not exactly
-reconstitute the findings reported in the manuscript.
 
-In each step, the dependency versions refer to the **tested** versions.
-Other versions may work as well.
-
-## STEP 0. Installation and demo data
+## Installation
 **Dependencies**: LAPACKE (v3.6.1), OpenBLAS (v0.2.19)\
 **Optional dependencies**: Intel C compiler
 
@@ -46,12 +35,7 @@ $ make -f Makefile.gcc   # or -f Makefile.icc if Intel C compiler is available
 # From the git repo root
 $ export PATH=$PATH:`realpath scripts`:`realpath bin`
 ```
-4. Create a directory to contain the demo files and outputs.
-```
-$ cd /root/of/git/repo
-$ mkdir demo
-```
-5. Make a GATK .jar file and relevant databases available in a single path.
+4. Make a GATK .jar file and relevant databases available in a single path.
    You may place this directory anywhere you'd like. It is important,
    however, that the files in this directory are named as stated below
    (i.e., gatk.jar, dbsnp.vcf, human_g1k_v37_decoy.fasta).
@@ -69,7 +53,7 @@ $ cp /path/to/ref.dict human_g1k_v37_decoy.dict
 $ cp /path/to/dbsnp dbsnp.vcf
 $ export GATK_PATH=`pwd`
 ```
-6. Install SHAPEIT2 and the 1000 genomes haplotype panel.
+5. Install SHAPEIT2 and the 1000 genomes haplotype panel.
     * Download and unzip SHAPEIT (e.g., https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz).
       The unzipped path is `SHAPEIT_ROOT`.
     * Download and unzip the 1000 genomes haplotype panel (e.g., https://mathgen.stats.ox.ac.uk/impute/data_download_1000G_phase1_integrated_SHAPEIT2_16-06-14.html).
@@ -78,7 +62,27 @@ $ export GATK_PATH=`pwd`
 $ export SHAPEIT_ROOT=/path/to/shapeit
 $ export REFPANEL_ROOT=/path/to/refpanel
 ```
-7. Download demo BAM files. Save the downloaded files to the `demo` directory.
+
+
+# Running the demo
+The provided demo shows how the pipeline is run in practice. However,
+because parameter fitting (step 3) requires significant compute time,
+the demo only analyzes reads from chromosome 22. Using a server with 8
+cores, the demo took approximately **X HOURS** to run.
+Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
+measured from sites across all chromosome, the demo's output will not exactly
+reconstitute the findings reported in the manuscript.
+
+In each step, the dependency versions refer to the **tested** versions.
+Other versions may work as well.
+
+## Step 0: Download data
+1. Create a directory to contain the demo files and outputs.
+```
+$ cd /root/of/git/repo
+$ mkdir demo
+```
+2. Download demo BAM files. Save the downloaded files to the `demo` directory.
    At least one single cell and the unamplified bulk must be used. We recommend
    downloading hunamp and il-12. The two other kindred system samples are also
    provided. Both the BAM and index file must be downloaded.
@@ -95,8 +99,6 @@ $ export REFPANEL_ROOT=/path/to/refpanel
 * **[OPTIONAL]** Kindred single cell-derived clone IL-1c\
     BAM: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam \
     Index: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam.bai
-
-
 
 ## STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
 **Dependencies**: Java (v1.8), GATK (v3.8-0-ge9d806836)\
