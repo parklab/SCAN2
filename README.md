@@ -168,17 +168,14 @@ make_fits.R demo/gridfit demo/fits.rda
 
 1. Convert GATK VCFs into table format.
 ```
-# A similar process has already been run for mmq60
-java -jar /path/to/GATK -R /path/to/human_g1k_v37_decoy.fasta \
-    -T SelectVariants -V output_dir/hc_raw.mmq1.vcf \
-    -selectType SNP -restrictAllelesTo BIALLELIC -env -trimAlternates \
-    -select 'vc.getGenotype("hunamp").isCalled()' \
-    -o output_dir/hc_raw.mmq1.snp.vcf
-
-totab.sh output_dir/hc_raw.mmq1.snp.vcf output_dir/mmq1.tab
-totab.sh output_dir/hc_raw.mmq60.snp.vcf output_dir/mmq60.tab
-
 # Make expected symlinks to the single cell BAMs
-ln -s ../il-12.chr22.bam wg.bam
-ln -s ../il-12.chr22.bam.bai wg.bam.bai
+$ cd demo
+$ ln -s il-12.chr22.bam wg.bam
+$ ln -s il-12.chr22.bam.bai wg.bam.bai
+$ cd ..
+```
+2. Run SCAN-SNV
+```
+# Run SCAN-SNV
+$ scan_snv.sh demo/hc_raw.mmq60.vcf demo/hc_raw.mmq1.vcf demo h25 hunamp demo 0.1
 ```

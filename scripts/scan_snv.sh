@@ -11,8 +11,8 @@ if [ $# -ne 7 ]; then
     exit 1
 fi
 
-mmq60=$1
-mmq1=$2
+mmq60_vcf=$1
+mmq1_vcf=$2
 scdir=$3
 sc=$4
 bulk=$5
@@ -23,6 +23,31 @@ mkdir -p $outdir
 
 module load gcc
 module load R/3.3.3
+module load java
+
+tmpfile=`mktemp`
+
+echo "Step 0: converting VCFs to tables"
+mmq60=${mmq60_vcf/.vcf/.tab}
+java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
+    -T SelectVariants \
+    -V $mmq60_vcf \
+    -selectType SNP -restrictAllelesTo BIALLELIC \
+    -env -trimAlternates \
+    -select 'vc.getGenotype("'$bulk'").isCalled()' \
+    -o $tmpfile
+totab.sh $tmpfile $mmq60
+
+mmq1=${mmq1_vcf/.vcf/.tab}
+java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
+    -T SelectVariants \
+    -V $mmq60_vcf \
+    -selectType SNP -restrictAllelesTo BIALLELIC \
+    -env -trimAlternates \
+    -select 'vc.getGenotype("'$bulk'").isCalled()' \
+    -o $tmpfile
+totab.sh $tmpfile $mmq1
+rm $tmpfile
 
 echo "Step 1: finding somatic sites"
 get_somatic_positions.sh $mmq60 $mmq1 $sc $bulk $outdir
