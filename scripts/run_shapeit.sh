@@ -36,7 +36,7 @@ echo "Phasing chromosome=$chr from VCF=$vcf"
 tmpfile=`mktemp`
 
 cleanvcf=$OUTPUT_ROOT/in.vcf
-java -jar $GATK_PATH/GATK3.8.jar \
+java -jar $GATK_PATH/gatk.jar \
     -R $GATK_PATH/human_g1k_v37_decoy.fasta \
     -T SelectVariants \
     -V $vcf \

@@ -3,8 +3,13 @@ Single cell somatic genotyper
 
 
 ## Installation
-Version numbers in parentheses denote the versions used in the manuscript. They
-are not necessarily required to run.
+**Operating systems tested**: GNU/Linux, kernel version 3.10.0, CentOS 7
+
+**Installation time**: installation should take only a few minutes on a modern
+computer.
+
+Version numbers in parentheses are the tested versions and were used to produce
+the results in the manuscript. They are not necessarily required to run.
 
 **Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
     Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837)
@@ -59,15 +64,12 @@ $ export PATH=$PATH:`realpath scripts`:`realpath bin`
 ```
 $ mkdir gatkpath
 $ cd gatkpath
-# Put GATK (preferably version 3.8) here
 $ cp /path/to/gatk.jar gatk.jar
-# Put a copy of the human reference genome, GRCh37 with decoy here
-# All 3 files are necessary: the fasta, fasta.fai and dict.
 $ cp /path/to/ref.fasta human_g1k_v37_decoy.fasta
 $ cp /path/to/ref.fasta.fai human_g1k_v37_decoy.fasta.fai
 $ cp /path/to/ref.dict human_g1k_v37_decoy.dict
-# Put a copy of dbSNP (in VCF format) here
 $ cp /path/to/dbsnp dbsnp.vcf
+$ cp /path/to/dbsnp/index dbsnp.vcf.idx
 $ export GATK_PATH=`pwd`
 ```
 5. Install SHAPEIT2 and the 1000 genomes haplotype panel.
@@ -85,95 +87,110 @@ $ export REFPANEL_ROOT=/path/to/refpanel
 
 
 
-## Running the demo
+# Running the demo
 The provided demo shows how the pipeline is run in practice. However,
 because parameter fitting (step 3) requires significant compute time,
 the demo only analyzes reads from chromosome 22. Using a server with 8
-cores, the demo took approximately **X HOURS** to run.
+cores, the demo took approximately **5 hours** to run.
 Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
-measured from sites across all chromosome, the demo's output will not exactly
-reconstitute the findings reported in the manuscript.
+normally measured from sites across all chromosomes, the demo's output will
+not exactly match the findings reported in the manuscript. In addition, a
+smaller number of grid points are used in the parameter MLE estimation,
+meaning the correlation function will also differ from the manuscript.
+For reference, the demo script computes 250 points times the number of
+requested threads, while 20,000 points per chromosome are used for normal
+analyses.
 
-In each step, the dependency versions refer to the **tested** versions.
-Other versions may work as well.
-
-
-### Step 0: Download data
-1. Create a directory to contain the demo files and outputs.
+Before running `demo.sh`, ensure that environment variables are set as
+described in **Installation**. You should also edit the `demo.sh` file to
+reflect the number of CPU cores you wish to use. Simply modify the line
 ```
-$ cd /root/of/git/repo
-$ mkdir demo
+ncores=8
 ```
-2. Download demo BAM files. Save the downloaded files to the `demo` directory.
-   At least one single cell and the unamplified bulk must be used. We recommend
-   downloading hunamp and il-12. The two other kindred system samples are also
-   provided. Both the BAM and index file must be downloaded.
 
-* **[REQUIRED]** Unamplified cell line bulk\
-    BAM: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam \
-    Index: http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
-* **[RECOMMENDED]** Kindred single cell IL-12\
-    BAM: http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam \
-    Index: http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
-* **[OPTIONAL]** Kindred single cell IL-11\
-    BAM: http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam \
-    Index: http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam.bai
-* **[OPTIONAL]** Kindred single cell-derived clone IL-1c\
-    BAM: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam \
-    Index: http://compbio.med.harvard.edu/scan-snv/il-1c.chr22.bam.bai
+To run:
+```
+$ cd /path/to/scan-snv
+$ demo.sh
+```
+
+The final output is stored in Rdata format in `demo/scan-snv/somatic_gt.rda`.
+The set of final, called sSNVs can be printed using
+```
+$ Rscript -e 'load("demo/scan-snv/somatic_gt.rda"); gt$somatic[gt$somatic$pass,]'
+```
+The expected output is a matrix of ~5-10 PASSed variants with several
+covariates.
 
 
+
+# Step by step usage
 ### STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
-1. Configure the number of threads you wish to use for GATK by editing
-   `scripts/run_gatk_demo.sh` and replacing the indicated line:
+1. Configure parallelism for GATK. Region-based parallelization was used for the
+   manuscript's analysis, although an alternative and simpler method to
+   parallelize is to increase thread count.
+   * To increase thread count, edit `scripts/run_gatk.sh` and replace
+     the line:
 ```
 ncores=8    # Replace this line with the desired number of cores
-mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
 ```
-**8 cores can process the chr22 data in approximately 1 hour per run.**
+   * Region-based parallelization is only supported for clusters with
+     SLURM installed.
 
-2. Run GATK two times, once using MMQ=60 and once using MMQ=1. The script
-   will automatically create the directory `output_dir` to hold the generated
-   VCF files.
+2. Run GATK two times: once using MMQ=60 and once using MMQ=1.
 ```
-$ cd /path/to/git/repo
-$ run_gatk_demo.sh 60 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
-$ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
+$ run_gatk.sh 60 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
+$ run_gatk.sh 1 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
 ```
 
 
 ### STEP 2: Define and phase hSNPs
-1. Run SHAPEIT2 on potential heterozygous SNVs found in the bulk sample. Note
-   that potential hSNPs are taken only from the MMQ=60 GATK output.
+1. Run SHAPEIT2 on potential heterozygous SNPs found in the bulk sample. The
+   `hc_raw.mmq60.vcf` below refers to the VCF produced by `run_gatk.sh 60 ...`.
+   `bulk_sample_name` should be the sample string in the VCF corresponding to
+   the bulk sample.
 ```
-run_shapeit.sh demo/hc_raw.mm60.vcf demo hunamp 22
+$ for chrom in `seq 1 22`; do
+>   run_shapeit.sh hc_raw.mmq60.vcf output_directory bulk_sample_name $chrom
+> done
 ```
-   If successful, a file named `phased_hsnps.chr22.vcf` should exist in `demo`.
+   If successful, files named `phased_hsnps.chr[1-22].vcf` should exist in
+   the specified output directory.
+2. Combine the chromosome-specific VCFs into a single VCF. For example, using
+   GATK:
+```
+$ java -cp /path/to/gatk.jar org.broadinstitute.gatk.tools.CatVariants \
+      -R /path/to/human/reference.fasta  \
+      $(for chrom in `seq 1 22`; do echo -V phased_hsnps.chr$chrom.vcf; done) \
+      -out phased_hsnps.vcf \
+      -assumeSorted
+```
 
 
-## STEP 3: Fit covariance function parameters via grid search
-1. Create training data files.
+### STEP 3: Fit covariance function parameters via grid search
+1. Create training data files. `single_cell_sample` is the string found in
+   the mmq60 VCF corresponding to the single cell sample.
 ```
-# NOTE: the sample name "h25" corresponds to il-12
-get_hsnps_singlecell.sh h25 demo/hc_raw.mmq60.snp.vcf demo/phased_hsnps.chr22.vcf demo
+$ get_hsnps_singlecell.sh single_cell_sample hc_raw.mmq60.snp.vcf phased_hsnps.vcf output_directory
 ```
 
-2. Run the grid searching algorithm to find parameter MLEs. Using the parameters
-   below (ngrids=8, points-per-grid=400), the run took ~30 minutes. The parameters
-   used in the manuscript were ngrids=20, points-per-grid=1000.
+2. Run the grid searching algorithm to find parameter MLEs. In a typical
+   analysis, we use 20,000 points per grid level (ngrids=20,
+   points-per-grid=1000). For each chromosome, run:
 ```
-mkdir -p output_dir/gridfit/chr22
+mkdir -p output_directory/gridfit/chr22
 
 gridfit_chr.py \
-    --bindata=demo/training_chr22.bin \
+    --bindata=training_chr22.bin \
     --local \
     --ngrids 8 \                 # Set this to the number of cores available
     --points-per-grid 400 \
     --resume \
     --laplace=laplace_cpu_gcc \  # Or laplace_cpu_icc if Intel C compiler was used
-    --outprefix=demo/gridfit/chr22
+    --outprefix=output_directory/gridfit/chr22
 ```
-   If the run is successful, the file `output_dir/gridfit/chr22/fit.rda` will be created.
+   If the run is successful, the files
+   `output_directory/gridfit/chr[1-22]/fit.rda` will be created.
 
 3. Make the final fit file.
 ```
@@ -181,17 +198,18 @@ make_fits.R demo/gridfit demo/fits.rda
 ```
 
 
-## STEP 4: Run SCAN-SNV
+### STEP 4: Run SCAN-SNV
 1. Convert GATK VCFs into table format.
 ```
 # Make expected symlinks to the single cell BAMs
-$ cd demo
-$ ln -s il-12.chr22.bam wg.bam
-$ ln -s il-12.chr22.bam.bai wg.bam.bai
+$ cd output_directory
+$ ln -s /path/to/single/cell/BAM wg.bam
+$ ln -s /path/to/single/cell/BAI wg.bam.bai
 $ cd ..
 ```
-2. Run SCAN-SNV
+2. Run SCAN-SNV. The final parameter is the target FDR.
 ```
 # Run SCAN-SNV
-$ scan_snv.sh demo/hc_raw.mmq60.vcf demo/hc_raw.mmq1.vcf demo h25 hunamp demo 0.1
+$ scan_snv.sh /c_raw.mmq60.vcf hc_raw.mmq1.vcf output_directory \
+    single_cell_sample bulk_sample output_directory 0.1
 ```

@@ -5,5 +5,9 @@ CFLAGS=-O3 -I$(OPENBLAS)/include -L$(OPENBLAS) -L$(OPENBLAS)/lib -I$(LAPACKE)/in
 
 BINARY=../bin/laplace_cpu_gcc
 
-$(BINARY): main.c cpu.c Makefile.gcc
+
+$(BINARY): main.c cpu.c Makefile.gcc ../bin
 	gcc $(CFLAGS) cpu.c main.c -o $(BINARY) -llapack -lm
+
+../bin:
+	mkdir ../bin

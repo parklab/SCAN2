@@ -13,8 +13,7 @@ fi
 ncores=$1
 mmq=$2
 outdir=$3
-shift
-shift
+shift 3
 bams=$@
 
 mkdir -p $outdir

@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -c 4
+#SBATCH -c 1
 #SBATCH -t 12:00:00
 #SBATCH -p park
 #SBATCH --array=1-396
-#SBATCH --mem-per-cpu=5G
+#SBATCH --mem-per-cpu=12G
 
 if [ $# -lt 4 ]; then
     echo "usage: $0 mmq outdir bam1 bam2 [bam3 ... ]"
@@ -20,8 +20,8 @@ mkdir -p $outdir
 
 # ------ EDIT THESE VARIABLES ------
 # If multiple cores are available, specify the number of cores here.
-ncores=8
-mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
+ncores=1
+mem=10G     # If using ncores > 1, increase ~linearly up to ~24G
 
 GATK=$GATK_PATH/gatk.jar
 HG19=$GATK_PATH/human_g1k_v37_decoy.fasta
@@ -32,7 +32,7 @@ DBSNP=$GATK_PATH/dbsnp.vcf
 vcfid=
 region_flag=
 if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
-    region_flag="-L $(awk "NR == $SLURM_ARRAY_TASK_ID" regions.txt)"
+    region_flag="-L $(awk "NR == $SLURM_ARRAY_TASK_ID" $GATK_PATH/regions.txt)"
     echo $region_flag
     vcfid=".${SLURM_ARRAY_TASK_ID}"
 fi
