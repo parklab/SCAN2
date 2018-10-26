@@ -5,23 +5,19 @@
 #SBATCH --array=1-396
 #SBATCH --mem-per-cpu=5G
 
-if [ $# -lt 4 ]; then
-    echo "usage: $0 mmq outdir bam1 bam2 [bam3 ... ]"
+if [ $# -lt 5 ]; then
+    echo "usage: $0 nthreads mmq outdir bam1 bam2 [bam3 ... ]"
     exit 1
 fi
 
-mmq=$1
-outdir=$2
+ncores=$1
+mmq=$2
+outdir=$3
 shift
 shift
 bams=$@
 
 mkdir -p $outdir
-
-# ------ EDIT THESE VARIABLES ------
-# If multiple cores are available, specify the number of cores here.
-ncores=8
-mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
 
 GATK=$GATK_PATH/gatk.jar
 HG19=$GATK_PATH/human_g1k_v37_decoy.fasta
@@ -38,7 +34,7 @@ if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
 fi
 region_flag="-L 22"  # Demo only: run on chr22
 
-java -Xms${mem} -Xmx${mem} -jar $GATK \
+java -Xms20G -Xmx20G -jar $GATK \
         -nct $ncores \
         -mmq $mmq \
         -T HaplotypeCaller \
