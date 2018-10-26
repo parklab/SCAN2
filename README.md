@@ -83,12 +83,20 @@ GATK=$RESOURCES/GATK3.8.jar
 HG19=$RESOURCES/human_g1k_v37_decoy.fasta
 DBSNP=$RESOURCES/dbsnp_147_b37_common_all_20160601.vcf
 ```
-2. Run the script two times, once using MMQ=60 and once using MMQ=1. The script
-   will automatically create the directory `output_dir` to hold the generated
-   VCF files. **Approximate run time**: 1 hour each using 4 cores.
+2. Configure the number of threads you wish to use for GATK by editing
+   `scripts/run_gatk_demo.sh` and replacing the indicated line:
 ```
-run_gatk_demo.sh 60 output_dir hunamp.chr22.bam il-12.chr22.bam
-run_gatk_demo.sh 1 output_dir hunamp.chr22.bam il-12.chr22.bam
+ncores=8    # Replace this line with the desired number of cores
+mem=22G     # If using ncores > 1, increase ~linearly up to ~24G
+```
+**8 cores can process the chr22 data in approximately 1 hour per run.**
+3. Run GATK two times, once using MMQ=60 and once using MMQ=1. The script
+   will automatically create the directory `output_dir` to hold the generated
+   VCF files.
+```
+$ cd /path/to/git/repo
+$ run_gatk_demo.sh 60 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
+$ run_gatk_demo.sh 1 demo demo/hunamp.chr22.bam demo/il-12.chr22.bam
 ```
 
 
