@@ -12,7 +12,8 @@ Version numbers in parentheses are the tested versions and were used to produce
 the results in the manuscript. They are not necessarily required to run.
 
 **Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
-    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837), samtools (v1.3)
+    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837), samtools (v1.3),
+fastGHQuad (R package)
 
 **Optional dependencies**: Intel C compiler (2016)
 
@@ -92,6 +93,12 @@ $ wget https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06
 $ tar xzvf ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
 $ export SHAPEIT_ROOT=`realpath shapeit.v2.904.2.6.32-696.18.7.el6.x86_64`
 $ export REFPANEL_ROOT=`realpath ALL.integrated_phase1_SHAPEIT_16-06-14.nosing`
+```
+6. Install `fastGHQuad`. This is a standard R package. To install:
+```
+$ R
+R> install.packages("fastGHQuad")
+# follow the prompts to install..
 ```
 
 
