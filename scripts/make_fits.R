@@ -21,7 +21,7 @@ fits <- do.call(rbind, lapply(1:22, function(chr) {
             load(f)
             return(c(chr, fits))
         } else
-            return(list())
+            return(c())
     }
 ))
 
