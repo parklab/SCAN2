@@ -40,9 +40,8 @@ for chrom in `seq 1 22`; do
     cmd="gridfit_chr.py
         --bindata=$dir/chr$chrom.bin \
         --outprefix=$dir/gridfit/chr$chrom/ \
+        --laplace=laplace_cpu_gcc \
         --queue=$queue \
-        --combine=/n/data1/hms/dbmi/park/jluquette/genotyper1/paper/scan-snv/gridfit_slurm/combine.R \
-        --mkl-laplace=/n/data1/hms/dbmi/park/jluquette/genotyper1/paper/scan-snv/mkl-gridfit-gauss/laplace_cpu \
         --resume"
     mkdir -p $dir/gridfit/chr$chrom
     echo $cmd
@@ -51,3 +50,13 @@ done
 
 # waits for all child processes
 wait
+
+for chrom in `seq 1 22`; do
+    if [ ! -f "$dir/gridfit/chr$chrom/fit.rda" ]; then
+        echo "Failed (at least) chromosome $chrom"
+        exit 1
+    fi
+done
+
+# If we got here, then should be good
+make_fits.R $dir/gridfit $dir/fits.rda
