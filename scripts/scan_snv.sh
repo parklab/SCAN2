@@ -22,10 +22,10 @@ nhsnps=$8
 
 mkdir -p $outdir
 
-tmpfile=`mktemp`
+tmpfile=`mktemp -p $outdir`
 
 echo "Step 0: converting VCFs to tables"
-mmq60=${mmq60_vcf/.vcf/.tab}
+mmq60="$outdir/$(basename $mmq60_vcf .vcf).tab"
 java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
     -T SelectVariants \
     -V $mmq60_vcf \
@@ -35,10 +35,10 @@ java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
     -o $tmpfile
 totab.sh $tmpfile $mmq60
 
-mmq1=${mmq1_vcf/.vcf/.tab}
+mmq1="$outdir/$(basename $mmq1_vcf .vcf).tab"
 java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
     -T SelectVariants \
-    -V $mmq60_vcf \
+    -V $mmq1_vcf \
     -selectType SNP -restrictAllelesTo BIALLELIC \
     -env -trimAlternates \
     -select 'vc.getGenotype("'$bulk'").isCalled()' \
