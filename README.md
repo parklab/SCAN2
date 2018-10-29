@@ -237,9 +237,10 @@ $ ln -s /path/to/single/cell/BAM wg.bam
 $ ln -s /path/to/single/cell/BAI wg.bam.bai
 $ cd ..
 ```
-2. Run SCAN-SNV. The final parameter is the target FDR.
+2. Run SCAN-SNV. The final parameters are the target FDR and the number of
+   hSNPs to use to approximate the CIGAR indel and read clipping filters.
 ```
 # Run SCAN-SNV
 $ scan_snv.sh hc_raw.mmq60.vcf hc_raw.mmq1.vcf output_directory \
-    single_cell_sample bulk_sample output_directory 0.1
+    single_cell_sample bulk_sample output_directory 0.1 10000
 ```

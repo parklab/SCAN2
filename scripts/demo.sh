@@ -78,5 +78,5 @@ if [ $? -ne 0 ]; then exit 1; fi
 
 echo "DEMO: running SCAN-SNV"
 mkdir -p scan-snv
-scan_snv.sh hc_raw.mmq60.vcf hc_raw.mmq1.vcf . h25 hunamp scan-snv 0.1
+scan_snv.sh hc_raw.mmq60.vcf hc_raw.mmq1.vcf . h25 hunamp scan-snv 0.1 500
 if [ $? -ne 0 ]; then exit 1; fi

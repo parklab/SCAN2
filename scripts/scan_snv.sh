@@ -5,9 +5,9 @@
 #SBATCH -p park
 #SBATCH --mem-per-cpu=12G
 
-if [ $# -ne 7 ]; then
-    echo "usage: $0 mmq60_table mmq1_table sc_dir sc_sample bulk_sample output_dir fdr"
-    echo "note: sc_dir must match the sample name used in the gatk tables"
+if [ $# -ne 8 ]; then
+    echo "usage: $0 mmq60_vcf mmq1_vcf sc_dir sc_sample bulk_sample output_dir fdr nhsnps"
+    echo "nhsnps - the number of hSNPs to sample to get CIGAR indel and clipping distributions"
     exit 1
 fi
 
@@ -18,6 +18,7 @@ sc=$4
 bulk=$5
 outdir=$6
 fdr=$7
+nhsnps=$8
 
 mkdir -p $outdir
 
@@ -69,9 +70,9 @@ count_cigars.py $cigartxt > $cigarfile
 
 
 
-echo "Step 3: sampling hSNPs for CIGAR op distribution comparison"
+echo "Step 3: sampling $nhsnps hSNPs for CIGAR op distribution comparison"
 echo "This can take a while.."
-get_hsnp_positions.sh $scdir $outdir 250 # 00
+get_hsnp_positions.sh $scdir $outdir $nhsnps
 hsnp_posfile=$outdir/hsnp_positions.txt
 if [ ! -f $hsnp_posfile ]; then
     echo "ERROR: expected positions file not created: $hsnp_posfile"
