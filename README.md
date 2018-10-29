@@ -159,6 +159,12 @@ covariates.
 
 
 # Step by step usage
+### STEP 0: Configure environment
+1. See **Installation**. Set all necessary environment variables and
+   ensure the necessary dependencies are on your $PATH.
+2. `utils/check_env.sh` can be run to check the environment. If no ERROR
+   lines are emitted, then all dependencies are present.
+
 ### STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
 1. Configure parallelism for GATK. Region-based parallelization was used for the
    manuscript's analysis, although an alternative and simpler method to
