@@ -1,0 +1,61 @@
+__default__:
+    queue: park
+    account: park_contrib
+    time: 1440
+
+gatk_scatter:
+    mempercpu: 10000
+
+gatk_gather:
+    mempercpu: 4000
+
+shapeit_prepare:
+    mempercpu: 8000
+
+shapeit_scatter:
+    mempercpu: 8000
+
+shapeit_gather:
+    mempercpu: 8000
+
+training_hsnps_helper:
+    mempercpu: 8000
+
+training_hsnps:
+    mempercpu: 8000
+
+abmodel_scatter:
+    mempercpu: 2000
+
+abmodel_gather_by_chrom:
+    mempercpu: 2000
+
+abmodel_fit:
+    mempercpu: 2000
+
+scansnv_vcftotab:
+    mempercpu: 12000
+
+scansnv_somatic_sites:
+    mempercpu: 8000
+
+scansnv_hsnp_controls:
+    mempercpu: 4000
+
+scansnv_count_cigars:
+    mempercpu: 1000
+
+scansnv_estimate_ab_scatter:
+    mempercpu: 4000
+
+scansnv_estimate_ab_scatter:
+    mempercpu: 4000
+
+scansnv_estimate_ab_gather:
+    mempercpu: 4000
+
+scansnv_fdr_control:
+    mempercpu: 8000
+
+scansnv_genotype:
+    mempercpu: 12000

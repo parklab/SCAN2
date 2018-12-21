@@ -1,0 +1,539 @@
+import pandas as pd
+from snakemake.utils import R
+
+
+# Read in the GATK parallelization regions file
+gatk_region_tab = pd.read_table(config["gatk_region_file"])
+gatk_region_chrs = gatk_region_tab['chr']
+gatk_region_starts = gatk_region_tab['start']
+gatk_region_stops = gatk_region_tab['stop']
+
+# Determine the number of chunks and get GATK compatible region strings
+gatk_chunks = range(1, 1 + len(gatk_region_chrs))
+gatk_regions = [ "%s:%d-%s" % (gatk_region_chrs[i], int(gatk_region_starts[i])+1, gatk_region_stops[i]) for i in range(0, len(gatk_region_chrs)) ]
+
+# Get the list of unique chromosome names in the region list, preserving order
+chrs = []
+[ chrs.append(s) for s in gatk_region_chrs if not chrs.count(s) ]
+
+
+
+wildcard_constraints:
+    gatk_chunk="\d+",
+    gatk_mmq="\d+"
+
+
+
+rule all:
+    input:
+        "scansnv/h25/genotypes.chr22.rda"
+
+
+
+rule gatk_gather:
+    input:
+        vcf=lambda wildcards:
+                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+                       gatk_mmq=wildcards.gatk_mmq, gatk_chunk=gatk_chunks)
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
+    params:
+        lambda wildcards:
+            ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+                            gatk_mmq=wildcards.gatk_mmq, gatk_chunk=gatk_chunks))
+    shell:
+        "gatk org.broadinstitute.gatk.tools.CatVariants"
+        "    -Xmx3G -Xms3G"
+        "    -R {config[humref]}"
+        "    {params}"
+        "    -out {output.vcf}"
+        "    -assumeSorted"
+
+
+
+rule gatk_scatter:
+    input:
+        bam=expand("{sample}.bam", sample=config['samples']),
+        regions="regions.txt"
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+    params:
+        bamlist=expand("-I {sample}.bam", sample=config['samples']),
+        regionflag=lambda wildcards:
+            "-L " + gatk_regions[int(wildcards.gatk_chunk) - 1],
+        mmq="{gatk_mmq}"
+    shell:
+        "gatk -Xmx8G -Xms8G "
+        "    -T HaplotypeCaller"
+        "    -R {config[humref]}"
+        "    --dontUseSoftClippedBases -l INFO"
+        "    --dbsnp {config[dbsnp]}"
+        "    -rf BadCigar "
+        "    -mmq {params.mmq}"
+        "    {params.bamlist}"
+        "    {params.regionflag}"
+        "    -o {output.vcf}"
+
+
+
+rule shapeit_gather:
+    input:
+        expand("shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs)
+    output:
+        vcf="phased_hsnps.vcf"
+    params:
+        vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs))
+    shell:
+        "gatk org.broadinstitute.gatk.tools.CatVariants"
+        "    -Xmx3G -Xms3G"
+        "    -R {config[humref]}"
+        "    {params.vcfs}"
+        "    -out {output}"
+        "    -assumeSorted"
+
+
+
+rule shapeit_scatter:
+    input:
+        "shapeit/chr{chr}/hc_raw.mmq60.chr{chr}.vcf"
+    output:
+        "shapeit/chr{chr}/phased_hsnps.vcf"
+    params:
+        excludefile="shapeit/chr{chr}/shapeit_check.snp.strand.exclude",
+        tmpout="shapeit/chr{chr}/chr{chr}.phased",
+        tmpout2="shapeit/chr{chr}/phased.vcf",
+        log="shapeit/chr{chr}/shapeit_check.log",
+        gmap="genetic_map_chr{chr}",
+        hap="1000GP_Phase3_chr{chr}",
+        leg="1000GP_Phase3_chr{chr}",
+        gmap_extra_x=lambda wildcards: '_nonPAR' if wildcards.chr == 'X' else '',
+        extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
+        xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
+    shell:
+        # Note the "|| true" after shapeit -check: this is because shapeit
+        # -check returns non-0 when it finds any number of problematic SNPs.
+        # This CAN be dangerous as we're avoiding Snakemake's pipefail error
+        # detection method.
+        "shapeit -check"
+        "    --input-vcf={input}"
+        "    --output-log {params.log}"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample || true ; "
+        "shapeit"
+        "    --input-vcf={input}"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample"
+        "    --exclude-snp {params.excludefile}"
+        "    {params.xflag}"
+        "    -O {params.tmpout} ; "
+        "shapeit -convert "
+        "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
+        "awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
+        "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}"
+    
+
+
+rule shapeit_prepare:
+    input:
+        "gatk/hc_raw.mmq60.vcf"
+    output:
+        "shapeit/chr{chr}/hc_raw.mmq60.chr{chr}.vcf"
+    params:
+        chr="{chr}"
+    shell:
+        "gatk -Xmx6G -Xms6G"
+        "    -T SelectVariants"
+        "    -R {config[humref]}"
+        "    -V {input}"
+        "    -selectType SNP"
+        "    -sn {config[bulk_sample]}"
+        "    -restrictAllelesTo BIALLELIC"
+        "    -env -trimAlternates"
+        "    -L {params.chr}"
+        "    -o {output}"
+
+
+
+rule training_hsnps_helper:
+    input:
+        joint_vcf="gatk/hc_raw.mmq60.vcf",
+        phased_vcf="phased_hsnps.vcf"
+    output:
+        tab="ab_model/{sample}/hsnps.tab",
+        combined_vcf="ab_model/{sample}/hsnps.vcf",
+        tmp_vcf="ab_model/{sample}/hsnps_helper_tmp.vcf",
+    params:
+        sn="{sample}"
+    shell:
+        "gatk -Xmx6G -Xms6G"
+        "    -R {config[humref]}"
+        "    -T CombineVariants"
+        "    -V {input.joint_vcf}"
+        "    -V {input.phased_vcf}"
+        "    -o {output.tmp_vcf} ;"
+        "gatk -Xmx6G -Xms6G"
+        "    -R {config[humref]}"
+        "    -T SelectVariants"
+        "    -V {output.tmp_vcf}"
+        "    -sn {params.sn}"
+        "    -sn phasedgt"
+        "    -env -trimAlternates"
+        "    -select 'vc.getGenotype(\"'{params.sn}'\").isCalled()'"
+        "    -select 'vc.getGenotype(\"phasedgt\").isCalled()'"
+        "    -select 'vc.isBiallelic()'"
+        "    -selectType SNP"
+        "    -o {output.combined_vcf} ; "
+        "{config[scripts]}/totab.phase.sh {output.combined_vcf} {output.tab}"
+
+
+
+rule training_hsnps:
+    input:
+        "ab_model/{sample}/hsnps.tab"
+    output:
+        rda="ab_model/{sample}/training.rda"
+    run:
+        R("""
+            data <- read.table("{input}",
+                header=TRUE, stringsAsFactors=FALSE,
+                colClasses=c(chr='character'))
+            save(data, file="{output}")
+        """)
+
+
+
+rule abmodel_fit:
+    input:
+        lambda wildcards: 
+            expand("ab_model/{sample}/chr{chr}/fit_step{abmodel_steps}.rda",
+                sample=wildcards.sample, chr=chrs,
+                abmodel_steps=config['abmodel_steps'])
+    output:
+        "ab_model/{sample}/fits.rda"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ', '.join([ "'" + f + "'" for f in input ]) + ")",
+    run:
+        R("""
+            x <- lapply({params.infiles}, function(f) {{
+                load(f)
+                list(chr=chr, fit=fit)
+            }})
+            fits <- lapply(x, function(xx) xx$fit)
+            names(fits) <- lapply(x, function(xx) xx$chr)
+            save(fits, file="{output}")
+        """)
+
+
+
+rule abmodel_gather_by_chrom:
+    input:
+        lambda wildcards:
+            expand("ab_model/{sample}/chr{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda",
+                sample=wildcards.sample,
+                chr=wildcards.chr,
+                abmodel_step=wildcards.abmodel_step,
+                abmodel_chunk=range(1, config["abmodel_chunks"]+1))
+    output:
+        fit="ab_model/{sample}/chr{chr}/fit_step{abmodel_step}.rda",
+        range="ab_model/{sample}/chr{chr}/param_ranges_step{abmodel_step}.rda"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ', '.join("'" + f + "'" for f in input) + ")",
+        chr="{chr}"
+    run:
+        R("""
+            x <- do.call(rbind, 
+                lapply({params.infiles}, function(f) {{
+                    load(f)
+                    logp.samples
+                }})
+            )
+            dn <- dimnames(x)
+            x <- as.matrix(x)
+            # swapping columns (1,2) and (3,4) to force b < d.
+            # ifelse returns a value the same shape as the first argument
+            logi.mat <- matrix(rep(x[,2] < x[,4], times=5), ncol=5)
+            x <- as.data.frame(ifelse(logi.mat, x, x[,c(3,4,1,2,5)]))
+            dimnames(x) <- dn
+            x <- x[order(x[,5], decreasing=TRUE),]
+
+            # The highest logp value (x[,5]) is the best fit
+            fit <- x[1,,drop=FALSE]
+            chr <- "{params.chr}"
+            save(chr, fit, file="{output.fit}")
+
+            # Use the top 50 logp values to build a new parameter range
+            x[,2] <- log10(x[,2])   # b and d bounds are in log10 space
+            x[,4] <- log10(x[,4])
+            bounds <- apply(head(x[,-5], 50), 2, range)
+            colnames(bounds) <- colnames(x)[-5]
+            save(bounds, file="{output.range}")
+        """)
+
+
+
+# Every step with abmodel_step > 1 will add the previous step's output
+# to its input.  This allows the recursion to terminate when step=1.
+def abmodel_scatter_input(wildcards):
+    prf = ''
+    d = dict()
+    d['training'] = "ab_model/{sample}/training.rda",
+    if int(wildcards.abmodel_step) > 1:
+         prf = expand("ab_model/{sample}/chr{chr}/param_ranges_step{abmodel_prev_step}.rda",
+                sample=wildcards.sample,
+                chr=wildcards.chr,
+                abmodel_prev_step=int(wildcards.abmodel_step) - 1)
+         d['param_ranges'] = prf
+    return d
+
+rule abmodel_scatter:
+    input:
+        unpack(abmodel_scatter_input)  
+        #"ab_model/{sample}/training.rda"
+    output:
+        "ab_model/{sample}/chr{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda"
+    params:
+        chr="{chr}",
+        seed="{abmodel_chunk}",
+        step="{abmodel_step}",
+        paramfile=lambda wildcards, input: \
+            input.param_ranges if wildcards.abmodel_step != '1' else ''
+    benchmark:
+        "ab_model/{sample}/chr{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv"
+    run:
+        R("""
+            library(scansnv)
+            alim <- c(-7, 2)
+            blim <- c(2, 4)
+            clim <- c(-7, 2)
+            dlim <- c(2, 6)
+            if ({params.step} > 1) {{
+                load("{params.paramfile}")
+                alim <- bounds[,1]
+                blim <- bounds[,2]
+                clim <- bounds[,3]
+                dlim <- bounds[,4]
+            }}
+            load("{input.training}")
+            data <- data[data$chr == "{params.chr}",]
+            ctx <- abmodel.approx.ctx(x=data$pos,
+                y=data$hap1, d=data$hap1+data$hap2,
+                hsnp.chunksize={config[abmodel_hsnp_chunksize]}
+            )
+            logp.samples <- abmodel.sample(
+                n={config[abmodel_samples_per_chunk]},
+                alim=alim, blim=blim, clim=clim, dlim=dlim,
+                ctx=ctx,
+                seed={params.seed})
+            save(logp.samples, file="{output}")
+        """)
+
+
+
+rule scansnv_vcftotab:
+    input:
+        "gatk/hc_raw.mmq{gatk_mmq}.vcf"
+    output:
+        vcf="scansnv/mmq{gatk_mmq}.vcf",
+        tab="scansnv/mmq{gatk_mmq}.tab"
+    shell:
+        "gatk -Xmx10G -Xms10G"
+        "   -T SelectVariants"
+        "   -R {config[humref]}"
+        "   -V {input}"
+        "   -selectType SNP -restrictAllelesTo BIALLELIC"
+        "   -env -trimAlternates"
+        "   -select 'vc.getGenotype(\"{config[bulk_sample]}\").isCalled()'"
+        "   -o {output.vcf} ; "
+        "{config[scripts]}/totab.sh {output.vcf} {output.tab}"
+
+
+
+# Outputs a set of hSNPs to be used as controls for cigar op tests.
+# hSNPs are actually not particularly useful for AB tests since they
+# are used to fit the model.
+rule scansnv_hsnp_controls:
+    input:
+        "phased_hsnps.vcf"
+    output:
+        "scansnv/hsnp_positions.chr{chr}.tab"
+    params:
+        chr="{chr}"
+    run:
+        R("""
+            vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
+                            comment="#", colClasses=c(V1='character'))
+            vcf <- vcf[vcf[,1] == "{params.chr}",]
+            hsnp.sample <- vcf[sample(nrow(vcf), size={config[hsnp_controls]}),]
+            colnames(hsnp.sample)[1:2] <- c('chr', 'pos')
+            write.table(hsnp.sample[,1:2], file="{output}", quote=F,
+                row.names=FALSE, sep='\t')
+        """)
+
+
+
+rule scansnv_somatic_sites:
+    input:
+        expand("scansnv/mmq60.tab")
+    output:
+        "scansnv/somatic_positions.chr{chr}.tab"
+    params:
+        chr="{chr}"
+    run:
+        R("""
+            # Use a very sensitive definition of somatic site here
+            # At least: 0 alt reads in bulk, not a no-call, not in dbsnp
+            # and at least 2 non-bulk reads.
+            tab <- read.table("{input}", stringsAsFactors=FALSE, header=TRUE,
+                            comment="#", colClasses=c(chr='character'))
+            bulk.sample <- make.names("{config[bulk_sample]}")
+            bulk.idx <- which(colnames(tab) == bulk.sample)
+            bulk.alt <- bulk.idx +  2
+            sc.alts <- which(grepl("alt", colnames(tab)) &
+                             colnames(tab) != colnames(tab)[bulk.alt] &
+                             colnames(tab) != "altnt")
+            cat("Using data:\n")
+            for (i in 1:ncol(tab)) {{
+                s <- ifelse(i %in% sc.alts,
+                    "[SC]",
+                    ifelse(i == bulk.alt, "[BULK]", ""))
+                cat(sprintf("%8s %s\n", s, colnames(tab)[i]))
+            }}
+
+            candidate.somatics <-
+                tab[tab[,bulk.alt] == 0 &
+                    tab[,bulk.idx] == '0/0' &
+                    tab$dbsnp == '.' &
+                    rowSums(as.matrix(tab[,sc.alts])) > 1 &
+                    tab$chr == "{params.chr}",]
+            write.table(candidate.somatics[,c(1:2, 4:5)], sep="\t",
+                quote=FALSE, row.names=FALSE, file="{output}")
+        """)
+
+
+
+rule scansnv_count_cigars:
+    input:
+        sites="scansnv/{vartype}_positions.chr{chr}.tab",
+        bam="{sample}.bam"
+    output:
+        txt="scansnv/{sample}/{vartype}_cigars.chr{chr}.txt",
+        tab="scansnv/{sample}/{vartype}_cigars.chr{chr}.tab"
+    shell:
+        "{config[scripts]}/get_cigars.sh {input.sites} {input.bam} {output.txt} ; "
+        "{config[scripts]}/count_cigars.py {output.txt} > {output.tab}"
+
+
+
+rule scansnv_estimate_ab_scatter:
+    input:
+        fits="ab_model/{sample}/fits.rda",
+        training="ab_model/{sample}/training.rda",
+        sites="scansnv/{type}_positions.chr{chr}.tab"
+    output:
+        "scansnv/{sample}/{type}_ab.chr{chr}.rda"
+    params:
+        type=lambda wildcards: wildcards.type
+    shell:
+        "{config[scripts]}/estimate_ab.R"
+        "   {input.fits} {input.training} {input.sites} {params.type} {output}"
+        
+
+
+rule scansnv_estimate_ab_gather:
+    input:
+        lambda wildcards:
+            expand("scansnv/{sample}/{type}_ab.chr{chr}.rda",
+                type=wildcards.type, sample=wildcards.sample, chr=chrs)
+    output:
+        "scansnv/{sample}/{type}_ab.rda"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
+    run:
+        R("""
+            ab <- do.call(rbind, lapply({params.infiles},
+                function(f) {{ load(f); ab }}))
+            save(ab, file="{output}")
+        """)
+
+
+
+rule scansnv_fdr_control:
+    input:
+        mmq60="scansnv/mmq60.tab",
+        hsnps="ab_model/{sample}/training.rda",
+        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
+    output:
+        "scansnv/{sample}/fdr_control.rda"
+    params:
+        sample="{sample}",
+        site_files=lambda wildcards, input:
+            "c(" + ", ".join([ "'" + f + "'" for f in input.som_sites ]) + ")"
+    run:
+        R("""
+            library(scansnv)
+            sc.sample <- make.names("{params.sample}")
+            bulk.sample <- make.names("{config[bulk_sample]}")
+
+            somatic.sites <- do.call(rbind, lappy({params.site_files},
+                function(f)
+                    read.table(f, header=T, stringsAsFactors=FALSE,
+                        colClasses=c(chr='character'))
+            ))
+
+            load("{input.hsnps}")  # loads 'data'
+
+            hmq <- read.table("{input.mmq60}", header=T, stringsAsFactors=T,
+                colClasses=c(chr='character'))
+
+            sc.idx <- which(colnames(hmq) == sc.sample)
+            bulk.idx <- which(colnames(hmq) == bulk.sample)
+            cat("Using data:\n")
+            for (i in 1:ncol(hmq)) {{
+                s <- ifelse(i == sc.idx, "[SC]", ifelse(i == bulk.idx, "[BULK]", ""))
+                cat(sprintf("%8s %s\n", s, colnames(hmq)[i]))
+            }}
+            hmq$dp <- hmq[,sc.idx+1] + hmq[,sc.idx+2]
+            hmq$af <- hmq[,sc.idx+2] / hmq$dp
+
+            somatic.candidates <- merge(somatic.sites, hmq, all.x=T)
+str(somatic.candidates)
+            hsnps <- merge(data[,c('chr', 'pos')], hmq, all.x=T)
+str(hsnps)
+
+            x <- get.fdr.control.parameters(somatic.candidates, hsnps)
+            bins <- x$bins
+            burden <- x$burden  
+            fcs <- x$fcs
+            nt.na <- x$nt.na
+            save(bins, burden, fcs, nt.na, file="{output}")
+        """)
+
+
+rule scansnv_genotype:
+    input:
+        mmq60="scansnv/mmq60.tab",
+        mmq1="scansnv/mmq1.tab",
+        ab="scansnv/{sample}/somatic_ab.chr{chr}.rda",
+        som_cigars="scansnv/{sample}/somatic_cigars.chr{chr}.tab",
+        som_sites="scansnv/somatic_positions.chr{chr}.tab",
+        hsnp_cigars="scansnv/{sample}/hsnp_cigars.chr{chr}.tab",
+        hsnp_sites="scansnv/hsnp_positions.chr{chr}.tab",
+        fdr_control="scansnv/{sample}/fdr_control.rda",
+    output:
+        "scansnv/{sample}/genotypes.chr{chr}.rda"
+    params:
+        sc_sample="{sample}"
+    shell:
+        "{config[scripts]}/genotype.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {params.sc_sample} {config[bulk_sample]}"
+        "   {input.ab} {input.som_cigars} {input.hsnp_cigars}"
+        "   {output} {config[fdr]}"
+        "   {input.som_sites} {input.hsnp_sites} {input.fdr_control}"
