@@ -20,13 +20,15 @@ chrs = []
 
 wildcard_constraints:
     gatk_chunk="\d+",
-    gatk_mmq="\d+"
+    gatk_mmq="\d+",
+    hsnp_type="cigar|control"
 
 
 
 rule all:
     input:
-        "scansnv/h25/genotypes.chr22.rda"
+        "scansnv/h25/somatic_genotypes.rda" #,
+        #"scansnv/h25/hsnp_control_genotypes.chr22.rda"
 
 
 
@@ -354,24 +356,23 @@ rule scansnv_vcftotab:
 
 
 
-# Outputs a set of hSNPs to be used as controls for cigar op tests.
-# hSNPs are actually not particularly useful for AB tests since they
-# are used to fit the model.
-rule scansnv_hsnp_controls:
+rule scansnv_sample_hsnps:
     input:
         "phased_hsnps.vcf"
     output:
-        "scansnv/hsnp_positions.chr{chr}.tab"
+        "scansnv/hsnp_{hsnp_type}_positions.chr{chr}.tab"
     params:
-        chr="{chr}"
+        chr="{chr}",
+        nsamples=lambda wildcards:
+            int(config['hsnp_' + wildcards.hsnp_type + '_nsamples'])
     run:
         R("""
             vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
                             comment="#", colClasses=c(V1='character'))
             vcf <- vcf[vcf[,1] == "{params.chr}",]
-            hsnp.sample <- vcf[sample(nrow(vcf), size={config[hsnp_controls]}),]
-            colnames(hsnp.sample)[1:2] <- c('chr', 'pos')
-            write.table(hsnp.sample[,1:2], file="{output}", quote=F,
+            hsnp.sample <- vcf[sample(nrow(vcf), size={params.nsamples}),]
+            colnames(hsnp.sample)[c(1:2,4:5)] <- c('chr', 'pos', 'refnt', 'altnt')
+            write.table(hsnp.sample[,c(1:2,4:5)], file="{output}", quote=F,
                 row.names=FALSE, sep='\t')
         """)
 
@@ -464,13 +465,13 @@ rule scansnv_estimate_ab_gather:
 
 
 
-rule scansnv_fdr_control:
+rule scansnv_fdr_tuning:
     input:
         mmq60="scansnv/mmq60.tab",
         hsnps="ab_model/{sample}/training.rda",
         som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
     output:
-        "scansnv/{sample}/fdr_control.rda"
+        "scansnv/{sample}/fdr_tuning.rda"
     params:
         sample="{sample}",
         site_files=lambda wildcards, input:
@@ -481,7 +482,7 @@ rule scansnv_fdr_control:
             sc.sample <- make.names("{params.sample}")
             bulk.sample <- make.names("{config[bulk_sample]}")
 
-            somatic.sites <- do.call(rbind, lappy({params.site_files},
+            somatic.sites <- do.call(rbind, lapply({params.site_files},
                 function(f)
                     read.table(f, header=T, stringsAsFactors=FALSE,
                         colClasses=c(chr='character'))
@@ -503,37 +504,52 @@ rule scansnv_fdr_control:
             hmq$af <- hmq[,sc.idx+2] / hmq$dp
 
             somatic.candidates <- merge(somatic.sites, hmq, all.x=T)
-str(somatic.candidates)
             hsnps <- merge(data[,c('chr', 'pos')], hmq, all.x=T)
-str(hsnps)
 
-            x <- get.fdr.control.parameters(somatic.candidates, hsnps)
-            bins <- x$bins
-            burden <- x$burden  
-            fcs <- x$fcs
-            nt.na <- x$nt.na
-            save(bins, burden, fcs, nt.na, file="{output}")
+            fdr.tuning <- get.fdr.tuning.parameters(somatic.candidates, hsnps)
+            save(fdr.tuning, file="{output}")
         """)
 
 
-rule scansnv_genotype:
+rule scansnv_genotype_scatter:
     input:
         mmq60="scansnv/mmq60.tab",
         mmq1="scansnv/mmq1.tab",
-        ab="scansnv/{sample}/somatic_ab.chr{chr}.rda",
-        som_cigars="scansnv/{sample}/somatic_cigars.chr{chr}.tab",
-        som_sites="scansnv/somatic_positions.chr{chr}.tab",
-        hsnp_cigars="scansnv/{sample}/hsnp_cigars.chr{chr}.tab",
-        hsnp_sites="scansnv/hsnp_positions.chr{chr}.tab",
-        fdr_control="scansnv/{sample}/fdr_control.rda",
+        som_ab="scansnv/{sample}/{type}_ab.chr{chr}.rda",
+        som_cigars="scansnv/{sample}/{type}_cigars.chr{chr}.tab",
+        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.chr{chr}.tab",
+        fdr_tuning="scansnv/{sample}/fdr_tuning.rda",
     output:
-        "scansnv/{sample}/genotypes.chr{chr}.rda"
+        "scansnv/{sample}/{type}_genotypes.chr{chr}.rda"
     params:
         sc_sample="{sample}"
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]}"
-        "   {input.ab} {input.som_cigars} {input.hsnp_cigars}"
-        "   {output} {config[fdr]}"
-        "   {input.som_sites} {input.hsnp_sites} {input.fdr_control}"
+        "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
+        "   {output} {config[fdr]} {input.fdr_tuning}"
+
+
+
+rule scansnv_genotype_gather:
+    input:
+        lambda wildcards:
+            expand("scansnv/{sample}/{type}_genotypes.chr{chr}.rda",
+                sample=wildcards.samples, type=wildcards.type, chr=chrs)
+    output:
+        "scansnv/{sample}/{type}_genotypes.rda"
+    params:
+        files=lambda wildcards, input:
+            "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
+    run:
+        R("""
+            somatic <- do.call(rbind,
+                lapply({params.files}, function(f) {{
+                    load(f)
+                    gt$somatic
+                }})
+            )
+
+            save(somatic, file="{output}")
+        """)
