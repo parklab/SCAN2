@@ -1,0 +1,18 @@
+package:
+    name: natefoo-slurm-drmaa
+    version: "1.2.0_dev_deca826"
+
+source:
+    url: https://github.com/natefoo/slurm-drmaa/releases/download/1.2.0-dev.deca826/slurm-drmaa-1.2.0-dev.deca826.tar.gz
+    sha256: 548d1990b1e90a99aadd15709076878bd3381aa6379f9ac9a9cffaa6756beca7
+
+requirements:
+    host:
+        - autoconf
+        - bison
+        - ragel
+        - gperf
+
+about:
+    home: https://github.com/natefoo/slurm-drmaa
+    license: GPLv3
