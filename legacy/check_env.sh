@@ -104,6 +104,19 @@ else
 fi
 
 
+if [ -z ${DRMAA_LIBRARY_PATH+x} ]; then
+    echo "WARNING: the \$DRMAA_LIBRARY_PATH environment variable is unset"
+    echo "WARNING: the cluster scripts for grid fitting will not work!"
+else
+    echo "Using DRMAA_LIBRARY_PATH=$DRMAA_LIBRARY_PATH"
+    if [ ! -f "$DRMAA_LIBRARY_PATH" ]; then
+        echo "ERROR: DRMAA_LIBRARY_PATH specified but file does not exist"
+        retval=1
+    else
+        echo "CLUSTER GRIDFITTING ENABLED"
+    fi
+fi
+
 
 ##################################################################
 # PATH must contain quite a few things..

@@ -11,12 +11,12 @@ fi
 
 ncores=$1
 
-if [ ! -f "utils/check_env.sh" ]; then
+if [ ! -f "scripts/check_env.sh" ]; then
     echo "ERROR: please run the demo script from the root of the scan-snv repository"
     exit 1
 fi
 
-utils/check_env.sh
+scripts/check_env.sh
 if [ $? -ne 0 ]; then
     echo "ERROR: utils/check_env.sh failed. Please rectify all ERROR lines above."
     exit 1

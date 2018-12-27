@@ -6,7 +6,7 @@
 #SBATCH --mem-per-cpu=12G
 
 if [ $# -ne 6 ]; then
-    echo "usage: $0 mmq60.tab mmq1.tab sc.sample bulk.sample scan_snv_dir"
+    echo "usage: $0 mmq60.tab mmq1.tab sc.sample bulk.sample scan_snv_dir fdr"
     exit 1
 fi
 

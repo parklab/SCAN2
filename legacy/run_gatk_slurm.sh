@@ -3,10 +3,10 @@
 #SBATCH -t 12:00:00
 #SBATCH -p park
 #SBATCH -A park_contrib
-#SBATCH --array=1-400
+#SBATCH --array=1-410
 #SBATCH --mem-per-cpu=10G
 
-if [ $# -lt 4 ]; then
+if [ $# -lt 3 ]; then
     echo "usage: $0 outdir bam1 bam2 [bam3 ... ]"
     exit 1
 fi
@@ -27,13 +27,13 @@ REGIONS=$GATK_PATH/regions.txt
 vcfid=
 region_flag=
 if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
-    # Array values 1-200 use MMQ=60; 201-400 use MMQ=1.
+    # Array values 1-205 use MMQ=60; 206-410 use MMQ=1.
     # There are only 200 regions in the standard regions file.
     mmq=60
     regionidx=$SLURM_ARRAY_TASK_ID
-    if [ $SLURM_ARRAY_TASK_ID -gt 200 ]; then
+    if [ $SLURM_ARRAY_TASK_ID -gt 205 ]; then
         mmq=1
-        regionidx=$(($regionidx - 200))
+        regionidx=$(($regionidx - 205))
     fi
 
     region_flag="-L $(awk "NR == $regionidx" $REGIONS)"

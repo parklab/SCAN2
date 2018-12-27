@@ -25,8 +25,8 @@ find.nearest.germline <- function(som, germ) {
 # These types of tests are controlled by SENSITIVITY to germline sites
 # (which hopefully applies to somatic sites) rather than the AB tests
 # that aim to control the FDR.
-test.against.germline <- function(germline, somatic, min.q=0, max.q=1) {
-    x <- quantile(germline[!is.na(germline)], probs=c(min.q, max.q))
+test.against.hsnps <- function(hsnps, somatic, min.q=0, max.q=1) {
+    x <- quantile(hsnps[!is.na(hsnps)], probs=c(min.q, max.q))
     min.cutoff <- x[1]
     max.cutoff <- x[2]
     somatic >= min.cutoff & somatic <= max.cutoff
@@ -162,18 +162,77 @@ plot.3mer <- function(x, ...) {
         fill=mutsig.cols[seq(1, length(mutsig.cols), 16)])
 }
 
-# to genotype doublets, run genotype.somatic twice: once in normal mode
-# and again in doublet mode. then merge the results by unique sites.
-# there will be differences in things like mda.pv, lysis.pv, as
-# expected.
-merge.doublet <- function(singlet, doublet) {
-    x <- merge(singlet, doublet, by=colnames(doublet)[(1:101)[-53]],
-          all=T, suffixes=c('', '.doublet'))
-    x$subcell <- ifelse(is.na(x$lysis.pv), 'doublet specific',
-        ifelse(is.na(x$lysis.pv.doublet), 'singlet specific', 'both'))
-    x
+
+
+# somatic and hsnps must have 'af' and 'dp' columns
+get.fdr.tuning.parameters <- function(somatic, hsnps, bins=20)
+{
+    cat(sprintf("        estimating bounds on somatic mutation rate..\n"))
+
+    max.dp <- quantile(hsnps$dp, prob=0.9)
+    fcs <- lapply(0:max.dp, function(dp)
+        fcontrol(germ.df=hsnps[hsnps$dp == dp,], # & hsnps[,scalt] >= sc.min.alt,],
+                som.df=somatic[somatic$dp == dp,],
+                bins=bins, min.dp=0)
+    )
+    fc.max <- fcontrol(germ.df=hsnps[hsnps$dp > max.dp,], # & hsnps[,scalt] > sc.min.alt,],
+                som.df=somatic[somatic$dp > max.dp,],
+                bins=bins, min.dp=0)
+    fcs <- c(fcs, list(fc.max))
+    cat(sprintf("        profiled hSNP and somatic VAFs at depths %d .. %d\n",
+        0, max.dp))
+
+    burden <- as.integer(
+        c(sum(sapply(fcs, function(fc) fc$est.somatic.burden[1])),  # min est
+          sum(sapply(fcs, function(fc) fc$est.somatic.burden[2])))  # max est
+    )
+
+    cat(sprintf("        estimated callable somatic mutation burden range (%d, %d)\n",
+        burden[1], burden[2]))
+    cat("          -> using MAXIMUM burden\n")
+    list(bins=bins, burden=burden, fcs=fcs, max.dp=max.dp)
 }
 
+
+apply.fdr.tuning.parameters <- function(somatic, fdr.tuning) {
+    somatic$popbin <- ceiling(somatic$af * fdr.tuning$bins)
+    somatic$popbin[somatic$dp == 0 | somatic$popbin == 0] <- 1
+
+    nt.na <- mapply(function(dp, popbin) {
+        idx = min(dp, fdr.tuning$max.dp+1) + 1
+        if (is.null(fdr.tuning$fcs[[idx]]$pops))
+            c(0.1, 0.1)
+        else
+            fdr.tuning$fcs[[idx]]$pops$max[popbin,]
+    }, somatic$dp, somatic$popbin)
+
+    nt.na
+}
+
+# Previously part of genotype.somatic, but will be done externally
+# for now.
+lowmq <- function() {
+    # annotate each variant with the counts of supporting reads allowing
+    # for low mapping quality.
+    cat(sprintf("        attaching low MQ data..\n"))
+    old.bulkref <- bulkref
+    old.bulkalt <- bulkalt
+    bulkref <- ncol(gatk) + bulkref - 2
+    bulkalt <- ncol(gatk) + bulkalt - 2
+    gatk <- merge(gatk, gatk.lowmq, by=c('chr', 'pos'),
+        suffixes=c('', '.lmq'), all.x=TRUE)
+    cat(sprintf("        adjusted bulk ref and alt columns to\n"))
+    cat(sprintf("          -> ref=%s, alt=%s\n", colnames(gatk)[bulkref],
+        colnames(gatk)[bulkalt]))
+    cat(sprintf("        replacing %d NA low MQ counts with high MQ counts\n",
+        sum(is.na(gatk[,bulkalt]))))
+    gatk[,bulkref] <- ifelse(is.na(gatk[,bulkref]),
+                             gatk[,old.bulkref], gatk[,bulkref])
+    gatk[,bulkalt] <- ifelse(is.na(gatk[,bulkalt]),
+                             gatk[,old.bulkalt], gatk[,bulkalt])
+}
+
+# UPDATE ME: Most of the comments below no longer apply.
 # gatk is a dataframe containing GATK derived ref and alt counts
 # genome-wide. it must contain the output of at least one single
 # cell jointly called with at least one bulk.
@@ -205,190 +264,110 @@ merge.doublet <- function(singlet, doublet) {
 #   be used at your own risk.
 #   be aware, however, that capping gp.sd can cause a large fraction
 #   of the genome to be excluded (10-20%).
-genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx, somatic.ab,
-    somatic.cigars, hsnp.cigars, cap.alpha=TRUE, doublet=FALSE, sites.only=FALSE,
-    cg.id.q=0.9, cg.hs.q=0.9,
-    random.seed=0, target.fdr=0.1, bins=20, max.gp.sd=Inf, #sqrt(2),
-    bulkref=bulk.idx+1, bulkalt=bulk.idx+2, scref=sc.idx+1, scalt=sc.idx+2,
-    bulk.max.alt=0, bulk.min.dp=11, sc.min.alt=2, sc.min.dp=6)
+genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
+    sites.with.ab, somatic.cigars, hsnp.cigars, fdr.tuning, spikein=FALSE,
+    cap.alpha=TRUE, cg.id.q=0.9, cg.hs.q=0.9, random.seed=0, target.fdr=0.1,
+    bulkref=bulk.idx+1, bulkalt=bulk.idx+2, scref=sc.idx+1, scalt=sc.idx+2)
 {
     call.fingerprint <- as.list(environment())
     # almost all of this information is saved in the results
-    dont.save <- c('gatk', 'gatk.lowmq', 'somatic.ab', 'somatic.cigars')
+    dont.save <- c('gatk', 'gatk.lowmq', 'sites.with.ab',
+        'somatic.cigars', 'hsnp.cigars')
     call.fingerprint <- call.fingerprint[!(names(call.fingerprint) %in% dont.save)]
     set.seed(random.seed)
-    fraction.gp.sd.reliable <- NA
-    if (sites.only) {
-        cat("Skipping step 1, only returning somatic candidate and bulk sites.\n")
-    } else {
-        cat("step 1: finding het SNPs and candidate sSNVS..\n")
-        gatk$muttype <- muttype.map[paste(gatk$refnt, gatk$altnt, sep=">")]
-        gatk$dp <- gatk[,scalt] + gatk[,scref]
-        gatk$af <- gatk[,scalt] / gatk$dp
-        if (missing(somatic.cigars) | missing(hsnp.cigars))
-            cat("    WARNING: no CIGAR data supplied. will increase FP rate\n")
-    }
 
-    # annotate each variant with the counts of supporting reads allowing
-    # for low mapping quality.
-    cat(sprintf("        attaching low MQ data..\n"))
-    old.bulkref <- bulkref
-    old.bulkalt <- bulkalt
-    bulkref <- ncol(gatk) + bulkref - 2
-    bulkalt <- ncol(gatk) + bulkalt - 2
-    gatk <- merge(gatk, gatk.lowmq, by=c('chr', 'pos'),
-        suffixes=c('', '.lmq'), all.x=TRUE)
-    cat(sprintf("        adjusted bulk ref and alt columns to\n"))
-    cat(sprintf("          -> ref=%s, alt=%s\n", colnames(gatk)[bulkref],
-        colnames(gatk)[bulkalt]))
-    cat(sprintf("        replacing %d NA low MQ counts with high MQ counts\n",
-        sum(is.na(gatk[,bulkalt]))))
-    gatk[,bulkref] <- ifelse(is.na(gatk[,bulkref]),
-                             gatk[,old.bulkref], gatk[,bulkref])
-    gatk[,bulkalt] <- ifelse(is.na(gatk[,bulkalt]),
-                             gatk[,old.bulkalt], gatk[,bulkalt])
+    cat("step 1: preparing data\n")
+    gatk$muttype <- muttype.map[paste(gatk$refnt, gatk$altnt, sep=">")]
+    gatk$dp <- gatk[,scalt] + gatk[,scref]
+    gatk$af <- gatk[,scalt] / gatk$dp
 
-
-    cat("step 2: separating germline sites from somatic SNV candidates\n")
-    cat(sprintf("        bulk min depth             %d\n", bulk.min.dp))
-    cat(sprintf("        bulk max alt reads         %d\n", bulk.max.alt))
-    cat(sprintf("        single cell min depth      %d\n", sc.min.dp))
-    cat(sprintf("        single cell min alt reads  %d\n", sc.min.alt))
-    germline <- gatk[gatk[,bulk.idx] == '0/1' &
-                     gatk[,bulkref]+gatk[,bulkalt] >= bulk.min.dp,]
-    somatic <- gatk[gatk[,bulkalt] <= bulk.max.alt &
-                    gatk[,old.bulkalt] <= bulk.max.alt &
-                    gatk[,bulkalt] + gatk[,bulkref] >= bulk.min.dp &
-                    gatk[,scalt] >= sc.min.alt &
-                    gatk[,scalt] + gatk[,scref] >= sc.min.dp &
-                    # some sites with #alt=0 are called as variants presumably
-                    # due to poor PairHMM likelihood ratios
-                    gatk[,bulk.idx] == '0/0' &
-                    # only retain biallelic sites
-                    !grepl(",", gatk$altnt) &
-                    # not present in dbSNP
-                    gatk$dbsnp == '.',]
-
-    cat(sprintf("        %d germline het SNVs\n", nrow(germline)))
+    # sites only has columns 'chr','pos','refnt','altnt', which match gatk.
+    # so this merge call is really just subsetting gatk.
+    somatic <- merge(gatk, sites.with.ab, all.y=TRUE)
     cat(sprintf("        %d somatic SNV candidates\n", nrow(somatic)))
-    if (sites.only)
-        return(list(germline=germline, somatic=somatic))
+    # choose the AB nearest to the AF of each candidate
+    somatic$gp.mu <- ifelse(somatic$af < 1/2,
+        -abs(somatic$gp.mu), abs(somatic$gp.mu))
+    somatic$ab <- 1/(1+exp(-somatic$gp.mu))
 
-    cat(sprintf("        attaching AB estimates to somatic candidates..\n"))
-    somatic <- merge(somatic, somatic.ab, all.x=T, by=c('chr', 'pos'))
-    # choose the nearest AB
-    if (doublet) {
-        # XXX: might be true that i could get rid of the doublet factors
-        # everywhere else in the analysis by setting AB=(closest AB)/2 here
-        # not worrying about it now.
-        ab1 <- 1/(1+exp(abs(somatic$gp.mu)))
-        ab2 <- 1/(1+exp(-abs(somatic$gp.mu)))
-        somatic$gp.mu <- ifelse(abs(somatic$af - ab1/2) < abs(somatic$af - ab2/2), abs(somatic$gp.mu), -abs(somatic$gp.mu))
-        # choose the AB closest to the expected doublet AF
-        somatic$ab <- ifelse(abs(somatic$af - ab1/2) < abs(somatic$af - ab2/2), ab1, ab2)
-    } else {
-        somatic$gp.mu <- ifelse(somatic$af < 1/2,
-            -abs(somatic$gp.mu), abs(somatic$gp.mu))
-        somatic$ab <- 1/(1+exp(-somatic$gp.mu))
-    }
-    if (max.gp.sd < Inf)
-        cat("        removing sites with uncertain AB estimates\n")
 
-    fraction.gp.sd.reliable <- mean(somatic$gp.sd < max.gp.sd)
-    cat(sprintf("          -> %d / %d (%0.2f%%) sites retained\n",
-        sum(somatic$gp.sd < max.gp.sd), nrow(somatic), 100*fraction.gp.sd.reliable))
-    somatic <- somatic[somatic$gp.sd < max.gp.sd,]
-
-    cat("step 3: computing p-values for filters\n")
-    cat("        step 3a: allele balance consistency (somatic)\n")
-    factor <- ifelse(doublet, 2, 1)
+    cat("step 2: computing p-values for filters\n")
+    cat("        allele balance consistency\n")
     somatic$abc.pv <-
-        mapply(abc2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu, gp.sd=somatic$gp.sd, factor=factor, dp=somatic$dp)
+        mapply(abc2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu,
+            gp.sd=somatic$gp.sd, factor=1, dp=somatic$dp)
 
-    cat("        step 3a: SKIPPING allele balance consistency (germline control)\n")
-    # NB. includes NAs because of germline SNVs where SC depth=0
-    #germline$abc.pv <-
-        #mapply(abc, altreads=germline[,scalt], ab=germline$ab, dp=germline$dp)
-
-    cat("        step 3b: lysis artifacts\n")
-    factor <- ifelse(doublet, 4, 2)
+    cat("        lysis artifacts\n")
     somatic$lysis.pv <-
-        mapply(test2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu, gp.sd=somatic$gp.sd, dp=somatic$dp, div=factor)
+        mapply(test2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu,
+            gp.sd=somatic$gp.sd, dp=somatic$dp, div=2)
 
-    cat("        step 3c: MDA artifacts\n")
-    factor <- ifelse(doublet, 8, 4)
+    cat("        MDA artifacts\n")
     somatic$mda.pv <-
-        mapply(test2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu, gp.sd=somatic$gp.sd, dp=somatic$dp, div=factor)
+        mapply(test2, altreads=somatic[,scalt], gp.mu=somatic$gp.mu,
+            gp.sd=somatic$gp.sd, dp=somatic$dp, div=4)
 
 
-    cat(sprintf("step 4: controlling FDR = %0.3f\n", target.fdr))
-    
+    cat(sprintf("step 3: tuning FDR = %0.3f\n", target.fdr))
     if (cap.alpha)
         cat(sprintf("        cap.alpha=TRUE: alpha <= %0.3f enforced despite artifact prevalence\n", target.fdr))
 
-    somatic$popbin <- ceiling(somatic$af*bins)
+    nt.na <- apply.fdr.tuning.parameters(somatic, fdr.tuning)
+str(somatic)
+str(nt.na)
 
-    cat(sprintf("        estimating bounds on somatic mutation rate..\n"))
-    max.dp <- quantile(germline$dp, prob=0.9)
-    fcs <- lapply(sc.min.dp:max.dp, function(dp)
-        fcontrol(germ.df=germline[germline$dp == dp & germline[,scalt] > sc.min.alt,],
-                som.df=somatic[somatic$dp == dp,],
-                bins=bins, doublet=doublet, min.dp=0)
-    )
-    fc.max <- fcontrol(germ.df=germline[germline$dp > max.dp & germline[,scalt] > 1,],
-                som.df=somatic[somatic$dp > max.dp,],
-                bins=bins, doublet=doublet, min.dp=0)
-    fcs <- c(fcs, list(fc.max))
-
-    burden <- as.integer(
-        c(sum(sapply(fcs, function(fc) fc$est.somatic.burden[1])),  # min est
-          sum(sapply(fcs, function(fc) fc$est.somatic.burden[2])))  # max est
-    )
-
-    cat(sprintf("        estimated callable somatic mutation burden range (%d, %d)\n",
-        burden[1], burden[2]))
-    cat("          -> using MAXIMUM burden\n")
-    cat(sprintf("           --> WARNING: gp.sd not calculated for germline sites, no longer representative\n"))
-    cat(sprintf("           --> warning: not estimating effect of ID filter\n"))
-    
-
-    cat("        step 4a: lysis artifact FDR\n")
-    factor <- ifelse(doublet, 4, 2)
-    nt.na <- mapply(function(dp, popbin)
-        fcs[[min(dp, max.dp+1) - sc.min.dp + 1]]$pops$max[popbin,],
-        somatic$dp, somatic$popbin)
+    cat("        lysis artifact FDR\n")
     somatic <- cbind(somatic,
                 lysis=t(mapply(match.fdr2,
                             gp.mu=somatic$gp.mu, gp.sd=somatic$gp.sd,
                             dp=somatic$dp,
-                            nt=nt.na[1,],
-                            na=nt.na[2,],
-                            target.fdr=target.fdr, div=factor,
+                            nt=nt.na[1,], na=nt.na[2,],
+                            target.fdr=target.fdr, div=2,
                             cap.alpha=cap.alpha)))
 
-    cat("        step 4b: MDA artifact FDR\n")
-    factor <- ifelse(doublet, 8, 4)
+    cat("        MDA artifact FDR\n")
     somatic <- cbind(somatic,
                 mda=t(mapply(match.fdr2,
                             gp.mu=somatic$gp.mu, gp.sd=somatic$gp.sd,
                             dp=somatic$dp,
-                            nt=nt.na[1,],
-                            na=nt.na[2,],
-                            target.fdr=target.fdr, div=factor,
+                            nt=nt.na[1,], na=nt.na[2,],
+                            target.fdr=target.fdr, div=4,
                             cap.alpha=cap.alpha)))
 
-    cat("step 5: applying alignment filters (CIGAR.ID, CIGAR.HS)\n")
-    if (missing(somatic.cigars) | missing(hsnp.cigars)) {
-        cat("    WARNING: skipping alignment filtration. will increase FP rate\n")
+
+    cat("step 5: applying optional alignment filters\n")
+    if (missing(gatk.lowmq)) {
+        cat("        WARNING: skipping low MQ filters. will increase FP rate\n")
+        somatic$lowmq.test <- TRUE
     } else {
-        somatic <- merge(somatic, somatic.cigars, by=c('chr', 'pos'), all.x=T)
-        hsnp.cigars <- merge(hsnp.cigars, germline[,c('chr', 'pos', 'dp')], all.x=T)
+        cat(sprintf("        attaching low MQ data..\n"))
+        lmq <- gatk.lowmq[,c('chr', 'pos', 'refnt', 'altnt',
+                             colnames(gatk.lowmq)[c(scref,scalt,bulkref,bulkalt)])]
+        somatic <- merge(somatic, lmq, by=c('chr', 'pos', 'refnt', 'altnt'),
+            all.x=TRUE, suffixes=c('', '.lowmq'))
+        # At the moment only removing sites that have bulk support when
+        # the MQ threshold is lowered.
+        cn <- paste0(colnames(gatk.lowmq)[bulkalt], '.lowmq')
+        # In spikein mode, known hSNPs are being treated like somatics,
+        # so it is necessary to short circuit this test.
+        somatic$lowmq.test <- is.na(somatic[,cn]) | somatic[,cn] == 0 | spikein
+    }
+    if (missing(somatic.cigars) | missing(hsnp.cigars)) {
+        cat("        WARNING: skipping CIGAR filters. will increase FP rate\n")
+        somatic$cg.id.test <- TRUE
+        somatic$cg.hs.test <- TRUE
+    } else {
+        somatic <- merge(somatic, somatic.cigars,
+            by=c('chr', 'pos'), all.x=T)
+        hsnp.cigars <- merge(hsnp.cigars, gatk[,c('chr', 'pos', 'dp')], all.x=T)
         hsnp.cigars <- hsnp.cigars[hsnp.cigars$dp > 0,]
+        cat("        Excessive indel CIGAR ops\n")
         somatic$cg.id.test <-
-            test.against.germline(hsnp.cigars$ID/hsnp.cigars$dp,
+            test.against.hsnps(hsnp.cigars$ID/hsnp.cigars$dp,
                 somatic=somatic$ID/somatic$dp, max.q=cg.id.q)
+        cat("        Excessive clipped read CIGAR ops\n")
         somatic$cg.hs.test <-
-            test.against.germline(hsnp.cigars$HS/hsnp.cigars$dp,
+            test.against.hsnps(hsnp.cigars$HS/hsnp.cigars$dp,
                 somatic=somatic$HS/somatic$dp, max.q=cg.hs.q)
     }
     
@@ -398,14 +377,14 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx, somatic.ab,
         somatic$abc.pv > 0.05 &
         somatic$lysis.pv <= somatic$lysis.alpha &
         somatic$mda.pv <= somatic$mda.alpha &
-        somatic$cg.id.test & somatic$cg.hs.test
+        somatic$cg.id.test & somatic$cg.hs.test &
+        somatic$lowmq.test
     cat(sprintf("        %d passing somatic SNVs\n", sum(somatic$pass)))
     cat(sprintf("        %d filtered somatic SNVs\n", sum(!somatic$pass)))
 
     # return non-data parameters and the output
     # the final RDA files are already large enough to be painful to work with
-    return(c(call.fingerprint, burden=burden,
-        list(fcs=fcs, somatic=somatic, germline=germline)))
+    return(c(call.fingerprint, list(somatic=somatic)))
 }
 
 # probability distribution of seeing y variant reads at a site with
@@ -547,7 +526,7 @@ fcontrol <- function(germ.df, som.df, min.dp=10, jit.amt=0.0000001, bins=20, dou
         rough.interval=rough.interval)
 
     pops <- lapply(approx.ns, function(n) {
-        nt <- n*(g/sum(g))*1*(s > 0)
+        nt <- pmax(n*(g/sum(g))*1*(s > 0), 0.1)
         # ensure na > 0, since FDR would be 0 for any alpha for na=0
         # XXX: the value 0.1 is totally arbitrary and might need to be
         # more carefully thought out.
@@ -555,37 +534,9 @@ fcontrol <- function(germ.df, som.df, min.dp=10, jit.amt=0.0000001, bins=20, dou
         cbind(nt=nt, na=na)
     })
 
-    if (!doublet)
-        return(list(est.somatic.burden=approx.ns,
-             binmids=as.numeric(names(g)),
-             g=g, s=s, pops=pops, doublet=doublet))
-
-    # get the expected VAF distributions for UNSHARED mutations
-    # (e.g., mean VAF=half of typical heterozygote
-    # it is not correct to simply divide all AFs by 2.
-    # use binomial sampling instead.
-    gdf <- germ.df[germ.df$dp >= min.dp & !is.na(germ.df$af),]
-    new.alt <- rbinom(n=nrow(gdf), size=round(gdf$af*gdf$dp), prob=1/2)
-    germ.afs.unshared <- new.alt/gdf$dp
-    g2 <- bin.afs(germ.afs.unshared, jit.amt=jit.amt, bins=bins)
-    g2 <- g2*1*(s > 0)
-
-    # remove the mutations already attributed to VAF=50% (i.e., shared)
-    new.s <- pmax(s - pops$max[,1], 0)
-    approx.ns2 <- estimate.somatic.burden(fc=list(g=g2, s=new.s),
-        min.s=1, max.s=nrow(som.df), n.subpops=min(nrow(som.df), 100),
-        rough.interval=rough.interval)
-
-    pops <- lapply(approx.ns2, function(n) {
-        nt <- n*(g2/sum(g2))*1*(new.s > 0)
-        # ensure na > 0, since FDR would be 0 for any alpha for na=0
-        na <- pmax(new.s - nt, 0.1)
-        cbind(nt=nt, na=na)
-    })
-
-    list(est.somatic.burden=approx.ns2,
-         binmids=as.numeric(names(g2)),
-         g=g2, s=new.s, pops=pops, doublet=doublet)
+    return(list(est.somatic.burden=approx.ns,
+         binmids=as.numeric(names(g)),
+         g=g, s=s, pops=pops, doublet=doublet))
 }
 
 # SUMMARY
@@ -618,7 +569,7 @@ match.fdr2 <- function(gp.mu, gp.sd, dp, nt, na, target.fdr=0.1, div=2, cap.alph
     x <- data.frame(alpha=alphabeta$alphas, beta=alphabeta$betas,
                fdr=ifelse(alphabeta$alphas*na + alphabeta$betas*nt > 0,
                           alphabeta$alphas*na / (alphabeta$alphas*na + alphabeta$betas*nt), 0))
-    x <- rbind(c(0, 0, 0), x)  # when no parameter meet target fdr
+    x <- rbind(c(0, 0, 0), x)  # when no parameter meets target fdr
     # use (a,) from the highest FDR <= target.fdr
     x <- x[x$fdr <= target.fdr,] 
     if (cap.alpha)

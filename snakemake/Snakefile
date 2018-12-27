@@ -21,7 +21,7 @@ chrs = []
 wildcard_constraints:
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    hsnp_type="cigar|control"
+    hsnp_type="cigar|control|spikein"
 
 
 
@@ -82,7 +82,7 @@ rule shapeit_gather:
     input:
         expand("shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs)
     output:
-        vcf="phased_hsnps.vcf"
+        vcf="shapeit/phased_hsnps.vcf"
     params:
         vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs))
     shell:
@@ -104,7 +104,9 @@ rule shapeit_scatter:
         excludefile="shapeit/chr{chr}/shapeit_check.snp.strand.exclude",
         tmpout="shapeit/chr{chr}/chr{chr}.phased",
         tmpout2="shapeit/chr{chr}/phased.vcf",
-        log="shapeit/chr{chr}/shapeit_check.log",
+        checklog="shapeit/chr{chr}/shapeit_check.log",
+        phaselog="shapeit/chr{chr}/shapeit_phase.log",
+        convertlog="shapeit/chr{chr}/shapeit_convert.log",
         gmap="genetic_map_chr{chr}",
         hap="1000GP_Phase3_chr{chr}",
         leg="1000GP_Phase3_chr{chr}",
@@ -118,13 +120,14 @@ rule shapeit_scatter:
         # detection method.
         "shapeit -check"
         "    --input-vcf={input}"
-        "    --output-log {params.log}"
+        "    --output-log {params.checklog}"
         "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
         "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
         "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
         "        {config[shapeit_refpanel]}/1000GP_Phase3.sample || true ; "
         "shapeit"
         "    --input-vcf={input}"
+        "    --output-log {params.phaselog}"
         "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
         "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
         "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
@@ -133,6 +136,7 @@ rule shapeit_scatter:
         "    {params.xflag}"
         "    -O {params.tmpout} ; "
         "shapeit -convert "
+        "    --output-log {params.convertlog}"
         "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
         "awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
         "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}"
@@ -163,7 +167,7 @@ rule shapeit_prepare:
 rule training_hsnps_helper:
     input:
         joint_vcf="gatk/hc_raw.mmq60.vcf",
-        phased_vcf="phased_hsnps.vcf"
+        phased_vcf="shapeit/phased_hsnps.vcf"
     output:
         tab="ab_model/{sample}/hsnps.tab",
         combined_vcf="ab_model/{sample}/hsnps.vcf",
@@ -358,7 +362,7 @@ rule scansnv_vcftotab:
 
 rule scansnv_sample_hsnps:
     input:
-        "phased_hsnps.vcf"
+        "shapeit/phased_hsnps.vcf"
     output:
         "scansnv/hsnp_{hsnp_type}_positions.chr{chr}.tab"
     params:
@@ -369,7 +373,7 @@ rule scansnv_sample_hsnps:
         R("""
             vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
                             comment="#", colClasses=c(V1='character'))
-            vcf <- vcf[vcf[,1] == "{params.chr}",]
+            vcf <- vcf[vcf$V1 == "{params.chr}",]
             hsnp.sample <- vcf[sample(nrow(vcf), size={params.nsamples}),]
             colnames(hsnp.sample)[c(1:2,4:5)] <- c('chr', 'pos', 'refnt', 'altnt')
             write.table(hsnp.sample[,c(1:2,4:5)], file="{output}", quote=F,
@@ -380,7 +384,7 @@ rule scansnv_sample_hsnps:
 
 rule scansnv_somatic_sites:
     input:
-        expand("scansnv/mmq60.tab")
+        "scansnv/mmq60.tab"
     output:
         "scansnv/somatic_positions.chr{chr}.tab"
     params:
@@ -431,6 +435,27 @@ rule scansnv_count_cigars:
 
 
 
+rule scansnv_cigar_gather:
+    input:
+        lambda wildcards:
+            expand("scansnv/{sample}/{vartype}_cigars.chr{chr}.tab",
+                sample=wildcards.sample, vartype=wildcards.vartype, chr=chrs)
+    output:
+        "scansnv/{sample}/{vartype}_cigars.tab"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+    run:
+        R("""
+            cigars <- do.call(rbind, lapply({params.infiles}, function(f) {{
+                read.table(f, header=T)
+            }}))
+            write.table(cigars, file="{output}", quote=FALSE, row.names=FALSE,
+                sep="\t")
+        """)
+
+
+
 rule scansnv_estimate_ab_scatter:
     input:
         fits="ab_model/{sample}/fits.rda",
@@ -439,10 +464,11 @@ rule scansnv_estimate_ab_scatter:
     output:
         "scansnv/{sample}/{type}_ab.chr{chr}.rda"
     params:
-        type=lambda wildcards: wildcards.type
+        flag=lambda wildcards:
+            "somatic" if wildcards.type == 'somatic' else 'hsnp_control'
     shell:
         "{config[scripts]}/estimate_ab.R"
-        "   {input.fits} {input.training} {input.sites} {params.type} {output}"
+        "   {input.fits} {input.training} {input.sites} {params} {output}"
         
 
 
@@ -468,47 +494,64 @@ rule scansnv_estimate_ab_gather:
 rule scansnv_fdr_tuning:
     input:
         mmq60="scansnv/mmq60.tab",
-        hsnps="ab_model/{sample}/training.rda",
+        snps="ab_model/{sample}/training.rda",
         som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
     output:
         "scansnv/{sample}/fdr_tuning.rda"
     params:
         sample="{sample}",
-        site_files=lambda wildcards, input:
-            "c(" + ", ".join([ "'" + f + "'" for f in input.som_sites ]) + ")"
+    shell:
+        "{config[scripts]}/fdr_tuning.R"
+        "   {input.mmq60}"
+        "   {input.hsnps}"
+        "   {params.sample}"
+        "   {output}"
+        "   {input.som_sites}"
+
+
+
+rule scansnv_hsnp_make_spikeins:
+    input:
+        "scansnv/{sample}/hsnp_spikein_ab.rda"
+    output:
+        abrda="scansnv/{sample}/hsnp_spikein{n}_ab.rda",
+        postab="scansnv/{sample}/hsnp_spikein{n}_positions.tab"
+    params:
+        n="{n}",
+        abfiles=lambda wildcards, input:
+            "c(" + ', '.join([ '"' + f + '"' for f in input ]) + ")"
     run:
         R("""
-            library(scansnv)
-            sc.sample <- make.names("{params.sample}")
-            bulk.sample <- make.names("{config[bulk_sample]}")
-
-            somatic.sites <- do.call(rbind, lapply({params.site_files},
-                function(f)
-                    read.table(f, header=T, stringsAsFactors=FALSE,
-                        colClasses=c(chr='character'))
-            ))
-
-            load("{input.hsnps}")  # loads 'data'
-
-            hmq <- read.table("{input.mmq60}", header=T, stringsAsFactors=T,
-                colClasses=c(chr='character'))
-
-            sc.idx <- which(colnames(hmq) == sc.sample)
-            bulk.idx <- which(colnames(hmq) == bulk.sample)
-            cat("Using data:\n")
-            for (i in 1:ncol(hmq)) {{
-                s <- ifelse(i == sc.idx, "[SC]", ifelse(i == bulk.idx, "[BULK]", ""))
-                cat(sprintf("%8s %s\n", s, colnames(hmq)[i]))
-            }}
-            hmq$dp <- hmq[,sc.idx+1] + hmq[,sc.idx+2]
-            hmq$af <- hmq[,sc.idx+2] / hmq$dp
-
-            somatic.candidates <- merge(somatic.sites, hmq, all.x=T)
-            hsnps <- merge(data[,c('chr', 'pos')], hmq, all.x=T)
-
-            fdr.tuning <- get.fdr.tuning.parameters(somatic.candidates, hsnps)
-            save(fdr.tuning, file="{output}")
+            load("{input}") # loads 'ab'
+            n <- {params.n}
+            step <- {config[hsnp_spikein_size]}
+            ab <- ab[(1 + (n - 1)*step):(n*step),]
+            write.table(ab[,c(1:4)], sep="\t",
+                quote=FALSE, row.names=FALSE, file="{output.postab}")
+            save(ab, file="{output.abrda}")
         """)
+
+
+
+rule scansnv_fdr_tuning_spikein:
+    input:
+        mmq60="scansnv/mmq60.tab",
+        hsnps="ab_model/{sample}/training.rda",
+        spikein="scansnv/{sample}/hsnp_spikein{n}_positions.tab",
+        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
+    output:
+        "scansnv/{sample}/fdr_tuning_spikein{n}.rda"
+    params:
+        sample="{sample}",
+    shell:
+        "{config[scripts]}/fdr_tuning.R"
+        "   {input.mmq60}"
+        "   {input.hsnps}"
+        "   {params.sample}"
+        "   {output}"
+        "   {input.spikein}"
+        "   {input.som_sites}"
+    
 
 
 rule scansnv_genotype_scatter:
@@ -517,7 +560,7 @@ rule scansnv_genotype_scatter:
         mmq1="scansnv/mmq1.tab",
         som_ab="scansnv/{sample}/{type}_ab.chr{chr}.rda",
         som_cigars="scansnv/{sample}/{type}_cigars.chr{chr}.tab",
-        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.chr{chr}.tab",
+        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.tab",
         fdr_tuning="scansnv/{sample}/fdr_tuning.rda",
     output:
         "scansnv/{sample}/{type}_genotypes.chr{chr}.rda"
@@ -528,17 +571,17 @@ rule scansnv_genotype_scatter:
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]}"
         "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
-        "   {output} {config[fdr]} {input.fdr_tuning}"
+        "   {output} {config[fdr]} {input.fdr_tuning} somatic"
 
 
 
 rule scansnv_genotype_gather:
     input:
         lambda wildcards:
-            expand("scansnv/{sample}/{type}_genotypes.chr{chr}.rda",
-                sample=wildcards.samples, type=wildcards.type, chr=chrs)
+            expand("scansnv/{sample}/somatic_genotypes.chr{chr}.rda",
+                sample=wildcards.sample, chr=chrs)
     output:
-        "scansnv/{sample}/{type}_genotypes.rda"
+        "scansnv/{sample}/somatic_genotypes.rda"
     params:
         files=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
@@ -552,4 +595,48 @@ rule scansnv_genotype_gather:
             )
 
             save(somatic, file="{output}")
+        """)
+
+
+
+rule scansnv_genotype_spikein_scatter:
+    input:
+        mmq60="scansnv/mmq60.tab",
+        mmq1="scansnv/mmq1.tab",
+        som_ab="scansnv/{sample}/hsnp_spikein{n}_ab.rda",
+        som_cigars="scansnv/{sample}/hsnp_spikein_cigars.tab",
+        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.tab",
+        fdr_tuning="scansnv/{sample}/fdr_tuning_spikein{n}.rda",
+    output:
+        "scansnv/{sample}/hsnp_spikein{n}_genotypes.rda"
+    params:
+        sc_sample="{sample}"
+    shell:
+        "{config[scripts]}/genotype.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {params.sc_sample} {config[bulk_sample]}"
+        "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
+        "   {output} {config[fdr]} {input.fdr_tuning} spikein"
+
+
+rule scansnv_genotype_spikein_gather:
+    input:
+        lambda wildcards:
+            expand("scansnv/{sample}/hsnp_spikein{n}_genotypes.rda",
+                sample=wildcards.sample, n=range(1, config['spikein_replicates']+1))
+    output:
+        "scansnv/{sample}/hsnp_spikein_genotypes.rda"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+    run:
+        R("""
+            spikeins <- do.call(rbind, lapply({params.infiles},
+                function(f) {{
+                    load(f)
+                    gt$somatic
+                }}
+            ))
+
+            save(spikeins, file="{output}")
         """)

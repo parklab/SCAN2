@@ -5,8 +5,8 @@
 #SBATCH -p park
 #SBATCH --mem-per-cpu=12G
 
-if [ $# -ne 8 ]; then
-    echo "usage: $0 mmq60_vcf mmq1_vcf sc_dir sc_sample bulk_sample output_dir fdr nhsnps"
+if [ $# -ne 9 ]; then
+    echo "usage: $0 mmq60_vcf mmq1_vcf sc_dir sc_sample bulk_sample output_dir fdr nhsnps abdir"
     echo "nhsnps - the number of hSNPs to sample to get CIGAR indel and clipping distributions"
     exit 1
 fi
@@ -19,6 +19,7 @@ bulk=$5
 outdir=$6
 fdr=$7
 nhsnps=$8
+abdir=$9
 
 mkdir -p $outdir
 
@@ -26,25 +27,37 @@ tmpfile=`mktemp -p $outdir`
 
 echo "Step 0: converting VCFs to tables"
 mmq60="$outdir/$(basename $mmq60_vcf .vcf).tab"
-java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
-    -T SelectVariants \
-    -V $mmq60_vcf \
-    -selectType SNP -restrictAllelesTo BIALLELIC \
-    -env -trimAlternates \
-    -select 'vc.getGenotype("'$bulk'").isCalled()' \
-    -o $tmpfile
-totab.sh $tmpfile $mmq60
+if [ ! -f $mmq60 ]; then
+    java -Xmx10G -Xms10G \
+        -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
+        -T SelectVariants \
+        -V $mmq60_vcf \
+        -selectType SNP -restrictAllelesTo BIALLELIC \
+        -env -trimAlternates \
+        -select 'vc.getGenotype("'$bulk'").isCalled()' \
+        -o $tmpfile
+    totab.sh $tmpfile $mmq60
+else
+    echo "    skipping file $mmq60, already exists"
+fi
 
 mmq1="$outdir/$(basename $mmq1_vcf .vcf).tab"
-java -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
-    -T SelectVariants \
-    -V $mmq1_vcf \
-    -selectType SNP -restrictAllelesTo BIALLELIC \
-    -env -trimAlternates \
-    -select 'vc.getGenotype("'$bulk'").isCalled()' \
-    -o $tmpfile
-totab.sh $tmpfile $mmq1
+if [ ! -f $mmq1 ]; then
+    java -Xmx10G -Xms10G \
+        -jar $GATK_PATH/gatk.jar -R $GATK_PATH/human_g1k_v37_decoy.fasta \
+        -T SelectVariants \
+        -V $mmq1_vcf \
+        -selectType SNP -restrictAllelesTo BIALLELIC \
+        -env -trimAlternates \
+        -select 'vc.getGenotype("'$bulk'").isCalled()' \
+        -o $tmpfile
+    totab.sh $tmpfile $mmq1
+else
+    echo "    skipping file $mmq1, already exists"
+fi
+
 rm $tmpfile
+
 
 echo "Step 1: finding somatic sites"
 get_somatic_positions.sh $mmq60 $mmq1 $sc $bulk $outdir
@@ -72,7 +85,7 @@ count_cigars.py $cigartxt > $cigarfile
 
 echo "Step 3: sampling $nhsnps hSNPs for CIGAR op distribution comparison"
 echo "This can take a while.."
-get_hsnp_positions.sh $scdir $outdir $nhsnps
+get_hsnp_positions.sh $abdir $outdir $nhsnps
 hsnp_posfile=$outdir/hsnp_positions.txt
 if [ ! -f $hsnp_posfile ]; then
     echo "ERROR: expected positions file not created: $hsnp_posfile"
@@ -95,7 +108,7 @@ count_cigars.py $hsnp_cigartxt > $hsnp_cigarfile
 
 echo "Step 5: estimating AB at each somatic candidate"
 # creates outdir/somatic_ab.rda
-get_somatic_ab.sh $scdir $outdir
+get_somatic_ab.sh $abdir $outdir
 abfile=$outdir/somatic_ab.rda
 if [ ! -f $abfile ]; then
     echo "ERROR: expected AB estimate file not created: $abfile"

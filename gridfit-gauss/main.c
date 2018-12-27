@@ -115,13 +115,13 @@ main(int argc, char **argv)
     //int d[] = { 46, 14, 7, 12, 23, 31, 37, 11, 21, 16 };
     int i;
     int *x, *y, *d, N;
-    int chunksize = 250; //100;  // for strategy=1, number of subdiagonals
     int strategy = 0;
 
-    if (argc != 13) {
-        printf("usage: %s bindata output.bin amin amax bmin bmax cmin cmax dmin dmax Nsamples seed\n", argv[0]);
-        printf("  output - write binary format results to this file.\n");
-        printf("  seed   - random seed.\n");
+    if (argc != 14) {
+        printf("usage: %s bindata output.bin amin amax bmin bmax cmin cmax dmin dmax Nsamples seed chunksize\n", argv[0]);
+        printf("    output - write binary format results to this file.\n");
+        printf("    seed   - random seed.\n");
+        printf(" chunksize - number of hSNPs to consider in separate, independent chunks.\n");
         exit(1);
     }
     const char *filename = argv[1];
@@ -136,6 +136,7 @@ main(int argc, char **argv)
     double dmax = strtod(argv[10], NULL);
     int Nsamples = strtol(argv[11], NULL, 10);
     int seed = strtol(argv[12], NULL, 10);
+    int chunksize = strtol(argv[13], NULL, 10);
     FILE *outfile;
 
     srand48(seed);
@@ -152,6 +153,7 @@ main(int argc, char **argv)
     printf("      dmax = %0.6f\n", dmax);
     printf("  Nsamples = %d\n", Nsamples);
     printf("      seed = %d\n", seed);
+    printf(" chunksize = %d\n", chunksize);
 
     outfile = fopen(output, "wb");
     if (outfile == NULL) {

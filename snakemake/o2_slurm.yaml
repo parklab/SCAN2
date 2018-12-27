@@ -42,7 +42,7 @@ scansnv_somatic_sites:
 scansnv_count_cigars:
     mempercpu: 1000
 
-scansnv_estimate_ab_scatter:
+scansnv_cigar_gather:
     mempercpu: 4000
 
 scansnv_estimate_ab_scatter:
@@ -54,8 +54,26 @@ scansnv_estimate_ab_gather:
 scansnv_fdr_control:
     mempercpu: 8000
 
-scansnv_genotype:
-    mempercpu: 12000
-
 scansnv_sample_hsnps:
+    mempercpu: 4000
+
+scansnv_fdr_tuning:
+    mempercpu: 4000
+
+scansnv_genotype_scatter:
+    mempercpu: 4000
+
+scansnv_genotype_gather:
+    mempercpu: 4000
+
+scansnv_hsnp_make_spikeins:
+    mempercpu: 4000
+
+scansnv_fdr_tuning_spikein:
+    mempercpu: 4000
+
+scansnv_genotype_spikein_scatter:
+    mempercpu: 4000
+
+scansnv_genotype_spikein_gather:
     mempercpu: 4000

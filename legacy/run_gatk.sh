@@ -2,6 +2,7 @@
 #SBATCH -c 1
 #SBATCH -t 12:00:00
 #SBATCH -p park
+#SBATCH -A park_contrib
 #SBATCH --array=1-396
 #SBATCH --mem-per-cpu=10G
 
@@ -34,7 +35,6 @@ if [ ! -z ${SLURM_ARRAY_TASK_ID+x} ]; then
 fi
 
 java -Xms8G -Xmx8G -jar $GATK \
-        -nct $ncores \
         -mmq $mmq \
         -T HaplotypeCaller \
         -R $HG19 \

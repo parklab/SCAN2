@@ -89,7 +89,8 @@ def runstep(session, args, k, gridrange, grids_to_run):
     print("STEP %d: computing grid" % k)
     rungridC(session, args.queue, args.bindata,
         args.laplace, fmtpre + ".%d",
-        gridrange, grids_to_run, args.points_per_grid)
+        gridrange, grids_to_run, args.points_per_grid,
+        args.chunksize, args.adj_seed)
 
     # It is possible that the cluster file system has not yet updated and
     # discover_reruns is based on the expected files produced by each grid.
@@ -108,7 +109,8 @@ def runstep(session, args, k, gridrange, grids_to_run):
             print("retry #%d, grid step %d" % (i+1, k))
             rungridC(session, args.queue, args.bindata,
                 args.laplace, fmtpre + ".%d",
-                gridrange, grids_to_rerun, args.points_per_grid)
+                gridrange, grids_to_rerun, args.points_per_grid,
+                args.chunksize, args.adj_seed)
             steps, grids_to_rerun = \
                     discover_reruns(steps, args.ngrids, args.outprefix)
 
@@ -122,7 +124,7 @@ def runstep(session, args, k, gridrange, grids_to_run):
 
 # uses the C program gridfit-gauss rather than the R script
 # gridrange format: length=4, [amin, amax, bmin, bmax]
-def rungridC(session, queue, bindata, prog, fmt, gridrange, grids_to_run, ppg):
+def rungridC(session, queue, bindata, prog, fmt, gridrange, grids_to_run, ppg, chunksize, adj_seed):
     """Responsible for deciding if jobs should be submitted to a DRM
        (via DRMAA) or run locally."""
 
@@ -132,7 +134,7 @@ def rungridC(session, queue, bindata, prog, fmt, gridrange, grids_to_run, ppg):
             [ "-o0", "-e0", prog ] + \
             [ bindata, fmt.replace("%d", str(i)) + ".bin" ] +  \
             [ str(x) for x in gridrange ] + \
-            [ str(ppg), str(i) ]
+            [ str(ppg), str(i + adj_seed), str(chunksize) ]
 
         if session is None:  # running locally
             outputPath = fmt.replace("%d", str(i)) + '.local_log'
@@ -243,6 +245,10 @@ ap.add_argument("--retries", default=3, metavar="INT", type=int,
     help="When a grid failure is detected, try to rerun that grid INT times before giving up.")
 ap.add_argument("--local", default=False, action='store_true',
     help='Run grid search on the local machine; do not submit to a cluster through DRMAA. IMPORTANT: when --local is specified, --ngrids threads will be run in parallel.')
+ap.add_argument("--chunksize", default=250, metavar="INT", type=int,
+    help='Group hSNPs into non-overlapping windows containing INT hSNPs. Larger chunksizes produce more accurate parameter estimates; however, runtime increases by O(N^3).')
+ap.add_argument("--adj-seed", default=0, metavar="INT", type=int,
+    help="Change the random seed used for selecting random points in (a,b,c,d) parameter space. By default, the seed is equal to the grid ID.  I.e., if parallelizing over 20 grids, grid N would be given seed N + INT (default: INT=0). This option is intended for testing the stability of parameter estimation and is not of practical use.")
 args = ap.parse_args()
 
 args.outprefix = os.path.realpath(args.outprefix) + '/'

@@ -100,7 +100,7 @@ alg3.2 <- function(a, b, c, d, Xfit, Xnew, Yfit, Dfit, alg3.1ret, Dnew) {
 # sites within the block, then infer the same approximate distribution
 # on B*|Y*, the balances at the candidate variant sites.
 # returns the mean and variance of the GP at the candidate sites.
-infer.gp.block <- function(ssnvs, fit, hsnps, flank=1e5) {
+infer.gp.block <- function(ssnvs, fit, hsnps, flank=1e5, max.hsnps=150) {
     a <- fit$a
     b <- fit$b
     c <- fit$c
@@ -108,9 +108,15 @@ infer.gp.block <- function(ssnvs, fit, hsnps, flank=1e5) {
 
     # row index of the (lower, upper) bounds in hsnps, containing
     # ssnvs$pos +/- flank
-    print(range(ssnvs$pos))
-    window <- findInterval(range(ssnvs$pos) + c(-flank, flank), hsnps$pos)
+    left <- findInterval(range(ssnvs$pos)[1], hsnps$pos)
+    up <- findInterval(range(ssnvs$pos)[1] - flank, hsnps$pos)
+    up <- max(up, left - max.hsnps)
+    right <- findInterval(range(ssnvs$pos)[2], hsnps$pos)
+    down <- findInterval(range(ssnvs$pos)[2] + flank, hsnps$pos)
+    down <- min(down, right + max.hsnps)
+    window <- c(up, down)
     print(window)
+
     d <- hsnps[max(window[1], 1):min(window[2], nrow(hsnps)),]
     cat(sprintf("infer.gp.block: %d nearby hets\n", nrow(d)))
 

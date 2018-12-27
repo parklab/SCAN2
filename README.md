@@ -13,7 +13,7 @@ the results in the manuscript. They are not necessarily required to run.
 
 **Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
     Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837), samtools (v1.3),
-fastGHQuad (R package)
+fastGHQuad (R package), Python DRMAA (0.7.8)
 
 **Optional dependencies**: Intel C compiler (2016)
 
@@ -89,16 +89,32 @@ $ mkdir shapeit
 $ cd shapeit
 $ wget https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
 $ tar xzvf shapeit.v2.r904.glibcv2.12.linux.tar.gz
-$ wget https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
-$ tar xzvf ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
+$ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz
+$ tar xzvf 1000GP_Phase3.tgz
 $ export SHAPEIT_ROOT=`realpath shapeit.v2.904.2.6.32-696.18.7.el6.x86_64`
-$ export REFPANEL_ROOT=`realpath ALL.integrated_phase1_SHAPEIT_16-06-14.nosing`
+$ export REFPANEL_ROOT=`realpath 1000GP_Phase3`
 ```
 6. Install `fastGHQuad`. This is a standard R package. To install:
 ```
 $ R
 R> install.packages("fastGHQuad")
 # follow the prompts to install..
+```
+7. Install Python DRMAA if you intend to parallelize on a DRMAA-compatible
+cluster (e.g., LSF, Sun Grid Engine, SLURM, ...). This is not necessary for
+running the demo script.
+*Note:* Provided scripts depend
+on SLURM but must be modified to run on your cluster (e.g., partitionn names).
+We do not
+provide scripts for non-SLURM clusters, though modifying the current scripts
+is relatively straightforward.
+```
+pip install drmaa
+```
+The following path must always be set before running the pipeline. It should
+point to the libdrmaa shared object `libdrmaa.so`.
+```
+export DRMAA_LIBRARY_PATH=/usr/lib/libdrmaa.so
 ```
 
 

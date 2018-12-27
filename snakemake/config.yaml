@@ -12,5 +12,7 @@ abmodel_hsnp_chunksize: 100
 abmodel_samples_per_chunk: 1000
 abmodel_steps: 4
 hsnp_cigar_nsamples: 20000
-hsnp_control_nsamples: 500
+hsnp_spikein_nsamples: 1000
 fdr: 0.1
+spikein_replicates: 40
+hsnp_spikein_size: 25

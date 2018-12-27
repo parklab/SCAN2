@@ -14,8 +14,8 @@ outfile <- args[5]
 if (file.exists(outfile))
     stop(sprintf("output file %s already exists, please delete it first", outfile))
 
-if (analysis.type != "hsnp" & analysis.type != "somatic")
-    stop("analysis type (argument 4) must be either 'hsnp' or 'somatic'")
+if (analysis.type != "hsnp_control" & analysis.type != "somatic")
+    stop("analysis type (argument 4) must be either 'hsnp_control' or 'somatic'")
 
 load(fitfile)    # loads 'fits'
 load(trainfile)  # loads 'data'
@@ -34,11 +34,11 @@ ab <- do.call(rbind, lapply(unique(sites$chr), function(chrom) {
     # to fit the correlation function parameters; however, as long as a
     # small fraction of hSNPs are used here, the fit would not have been
     # affected noticeably anyway.
-    if (analysis.type == 'hsnp') {
+    if (analysis.type == 'hsnp_control') {
         exclusion <- paste(hsnps$chr, hsnps$pos, hsnps$altnt) %in%
                      paste(sites$chr, sites$pos, sites$altnt)
         hsnps <- hsnps[!exclusion,]
-        cat(sprintf("hsnp control analysis: withheld %d sites on chromosome %s\n",
+        cat(sprintf("hsnp_control analysis: withheld %d sites on chromosome %s\n",
             sum(exclusion), chrom))
     }
     fit <- fits[[chrom]]
