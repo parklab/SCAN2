@@ -1,11 +1,3 @@
-# return strings appropriate for analyzing multiset overlaps with upset
-# gatk is a gatk-like matrix with only (genotype, ref, alt) triplets
-cell.inclusion <- function(gatk, min.alt=1) {
-    cn <- colnames(gatk[,seq(1, ncol(gatk), 3)])
-    apply(gatk[,seq(3, ncol(gatk), 3)], 1,
-        function(row) paste(cn[!is.na(row) & row >= min.alt], collapse='&'))
-}
-
 # given two data frames of somatic and germline locations, annotate
 # the somatic data frame with the position of the nearest germline entry.
 find.nearest.germline <- function(som, germ) {
@@ -136,34 +128,6 @@ get.3mer <- function(df) {
     x
 }
 
-plot.3mer <- function(x, ...) {
-    bases <- c("A", 'C', 'G', 'T')
-
-    # need to make a table of all possible contexts because they may not
-    # be observed after filtering.
-    t <- rep(0, 96)
-    names(t) <- paste0(rep(bases, each=4),
-                      rep(c('C', 'T'), each=48),
-                      rep(bases, times=4),
-                      ":",
-                      rep(c('C', 'T'), each=48),
-                      ">",
-                      c(rep(c('A', 'G', 'T'), each=16),
-                        rep(c('A', 'C', 'G'), each=16)))
-    print(table(x$ctx))
-    t2 <- table(x$type.and.ctx)
-    t[names(t2)] <- t2
-    tn <- do.call(rbind, strsplit(names(t), ":"))
-    t <- t[order(tn[,2])]
-    print(t)
-    p <- barplot(t, las=3, col=mutsig.cols, names.arg=tn[order(tn[,2]), 1], space=0.5, border=NA, ...)
-    abline(v=(p[seq(4,length(p)-1,4)] + p[seq(5,length(p),4)])/2, col='grey')
-    legend('topright', ncol=2, legend=sort(unique(tn[,2])),
-        fill=mutsig.cols[seq(1, length(mutsig.cols), 16)])
-}
-
-
-
 # somatic and hsnps must have 'af' and 'dp' columns
 get.fdr.tuning.parameters <- function(somatic, hsnps, bins=20)
 {
@@ -207,29 +171,6 @@ apply.fdr.tuning.parameters <- function(somatic, fdr.tuning) {
     }, somatic$dp, somatic$popbin)
 
     nt.na
-}
-
-# Previously part of genotype.somatic, but will be done externally
-# for now.
-lowmq <- function() {
-    # annotate each variant with the counts of supporting reads allowing
-    # for low mapping quality.
-    cat(sprintf("        attaching low MQ data..\n"))
-    old.bulkref <- bulkref
-    old.bulkalt <- bulkalt
-    bulkref <- ncol(gatk) + bulkref - 2
-    bulkalt <- ncol(gatk) + bulkalt - 2
-    gatk <- merge(gatk, gatk.lowmq, by=c('chr', 'pos'),
-        suffixes=c('', '.lmq'), all.x=TRUE)
-    cat(sprintf("        adjusted bulk ref and alt columns to\n"))
-    cat(sprintf("          -> ref=%s, alt=%s\n", colnames(gatk)[bulkref],
-        colnames(gatk)[bulkalt]))
-    cat(sprintf("        replacing %d NA low MQ counts with high MQ counts\n",
-        sum(is.na(gatk[,bulkalt]))))
-    gatk[,bulkref] <- ifelse(is.na(gatk[,bulkref]),
-                             gatk[,old.bulkref], gatk[,bulkref])
-    gatk[,bulkalt] <- ifelse(is.na(gatk[,bulkalt]),
-                             gatk[,old.bulkalt], gatk[,bulkalt])
 }
 
 # UPDATE ME: Most of the comments below no longer apply.
@@ -671,14 +612,6 @@ plot.fdr <- function(fc, dps=c(10,20,30,60,100,200), target.fdr=0.1, div=2) {
         matplot(x=afs, sapply(l, function(ll) ll[2,]), type='l', lty=1,
             xlab="AF (binned)", ylab="Power", ylim=0:1)
     }
-}
-
-
-# must have a column named 'cells', produced by cell.inclusion above
-# or can be specified by 'colname'
-plot.cell.sharing <- function(df, nsamples=13, colname='cells') {
-    require(UpSetR)
-    upset(fromExpression(table(df[[colname]])), nsets=nsamples, order.by='freq')
 }
 
 

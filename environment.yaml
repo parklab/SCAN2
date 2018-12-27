@@ -1,0 +1,16 @@
+name: scansnv
+channels:
+  - local
+  - anaconda
+  - conda-forge
+  - bioconda
+  - defaults
+  - jluquette
+dependencies:
+  - snakemake
+  - gatk=3.8=py36_0
+  - bedtools
+  - shapeit
+  - rpy2
+  - openblas
+  - samtools
