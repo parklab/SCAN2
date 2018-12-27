@@ -21,14 +21,14 @@ chrs = []
 wildcard_constraints:
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    hsnp_type="cigar|control|spikein"
+    hsnp_type="cigar|spikein"
 
 
 
 rule all:
     input:
-        "scansnv/h25/somatic_genotypes.rda" #,
-        #"scansnv/h25/hsnp_control_genotypes.chr22.rda"
+        "scansnv/h25/somatic_genotypes.rda",
+        "scansnv/h25/hsnp_spikein_genotypes.rda"
 
 
 
@@ -56,7 +56,6 @@ rule gatk_gather:
 rule gatk_scatter:
     input:
         bam=expand("{sample}.bam", sample=config['samples']),
-        regions="regions.txt"
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
     params:
@@ -494,7 +493,7 @@ rule scansnv_estimate_ab_gather:
 rule scansnv_fdr_tuning:
     input:
         mmq60="scansnv/mmq60.tab",
-        snps="ab_model/{sample}/training.rda",
+        hsnps="ab_model/{sample}/training.rda",
         som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
     output:
         "scansnv/{sample}/fdr_tuning.rda"
