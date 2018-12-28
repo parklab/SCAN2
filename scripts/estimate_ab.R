@@ -3,7 +3,7 @@
 require('scansnv')
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 5)
-    stop("usage: somatic_ab.R fits.rda training.rda positions.txt { hsnp | somatic } output.rda\n")
+    stop("usage: somatic_ab.R fits.rda training.rda positions.txt { hsnp_spikein | somatic } output.rda\n")
 
 fitfile <- args[1]
 trainfile <- args[2]
@@ -14,8 +14,8 @@ outfile <- args[5]
 if (file.exists(outfile))
     stop(sprintf("output file %s already exists, please delete it first", outfile))
 
-if (analysis.type != "hsnp_control" & analysis.type != "somatic")
-    stop("analysis type (argument 4) must be either 'hsnp_control' or 'somatic'")
+if (analysis.type != "hsnp_spikein" & analysis.type != "somatic")
+    stop("analysis type (argument 4) must be either 'hsnp_spikein' or 'somatic'")
 
 load(fitfile)    # loads 'fits'
 load(trainfile)  # loads 'data'
@@ -34,11 +34,13 @@ ab <- do.call(rbind, lapply(unique(sites$chr), function(chrom) {
     # to fit the correlation function parameters; however, as long as a
     # small fraction of hSNPs are used here, the fit would not have been
     # affected noticeably anyway.
-    if (analysis.type == 'hsnp_control') {
+    if (analysis.type == 'hsnp_spikein') {
+str(hsnps)
+str(sites)
         exclusion <- paste(hsnps$chr, hsnps$pos, hsnps$altnt) %in%
                      paste(sites$chr, sites$pos, sites$altnt)
         hsnps <- hsnps[!exclusion,]
-        cat(sprintf("hsnp_control analysis: withheld %d sites on chromosome %s\n",
+        cat(sprintf("hsnp_spikein analysis: withheld %d sites on chromosome %s\n",
             sum(exclusion), chrom))
     }
     fit <- fits[[chrom]]

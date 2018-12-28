@@ -10,7 +10,7 @@ outtab=$2
 
 awk 'BEGIN {
     OFS = "\t";
-    print "chr", "pos", "ref", "alt", "gt", "hap1", "hap2", "dp", "phgt";
+    print "chr", "pos", "refnt", "altnt", "gt", "hap1", "hap2", "dp", "phgt";
 }
 {
     if ($1 !~ /^#/) {
