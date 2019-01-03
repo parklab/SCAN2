@@ -46,6 +46,7 @@ abmodel.sample <- function(n=1000, alim=c(-7,2), blim=c(2,4), clim=c(-7,2), dlim
 }
 
 
+# must match the kernel function in src/laplace.c
 K.func <- function(x, y, a, b, c, d) exp(a - (x - y)^2 / b^2) + exp(c - (x-y)^2 / d^2)
 
 # From Rasmussen & Williams 2006.  Calculates the conditional distn of

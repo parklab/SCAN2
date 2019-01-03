@@ -24,18 +24,6 @@ test.against.hsnps <- function(hsnps, somatic, min.q=0, max.q=1) {
     somatic >= min.cutoff & somatic <= max.cutoff
 }
 
-read.gatk.tab <- function(filename) {
-    read.table(filename, header=T, stringsAsFactors=F)
-}
-
-# if n is specified, a random subsample of size n will be written instead
-# used for estimating distributions for germline sites
-write.gatk.positions <- function(filename, gatk, n=nrow(gatk)) {
-    gatk <- gatk[sort(sample(nrow(gatk), size=n)),]
-    write.table(cbind(sprintf("%d:%d-%d", gatk$chr, gatk$pos, gatk$pos), gatk$altnt),
-        file=filename, quote=F, row.names=F, col.names=F, sep='\t')
-}
-
 muttype.map <- c(
     'A>C'='T>G',
     'A>G'='T>C',
@@ -50,62 +38,6 @@ muttype.map <- c(
     'T>C'='T>C',
     'T>G'='T>G'
 )
-
-# build a truth set by requiring presence in some samples and absence
-# in others.
-# hmq and lmq can be either gatk or samtools formatted tables but must
-# have exactly the same column layout.
-# for samtools, ignore columns XXX
-get.nonbulk.sites <- function(hmq, lmq, bulkgt, bulkref, bulkalt,
-    bulk.min.dp=11, table.type='gatk')
-{
-    if (table.type == 'samtools')
-        stop("samtools tables not supported at the moment")
-
-    # strip data set of any site with evidence in bulk
-    if (!missing(lmq)) {
-        cat("using low mapping quality data. variant is only unsupported if neither low nor high mq reads allow it\n")
-        # make lmq rows mirror hmq rows. lmq is NOT a proper superset of hmq
-        lmq.aligned <- merge(hmq[,c('chr', 'pos', 'refnt', 'altnt')], lmq, all.x=T)
-
-        newtab <- NULL
-        if (table.type == 'gatk') {
-            # gatk column format is repeated triples of (genotype, #ref, #alt)
-            # first 7 columns are not sample data
-            newtab <- hmq
-            non.readcount.cols <- c(1:7,seq(8, ncol(hmq), 3))
-            newtab[,-non.readcount.cols] <-
-                pmax(hmq[,-non.readcount.cols], lmq.aligned[,-non.readcount.cols], na.rm=T)
-
-            # sites missing in the lmq table might be poorly mappable and perhaps
-            # should not be trusted
-            newtab$missing.lmq <- is.na(lmq.aligned[,9])
-        }
-    } else {
-        cat("no low mapping quality dataset supplied\n")
-        newtab <- hmq
-    }
-
-    newtab <- newtab[newtab[,bulkref] + newtab[,bulkalt] >= bulk.min.dp &
-                     newtab[,bulkalt] == 0 &
-                     !grepl(",", newtab$altnt) &    # biallelic
-                     newtab$dbsnp == '.',]
-
-    if (table.type == 'gatk' & !missing(bulkgt))
-        newtab <- newtab[newtab[,bulkgt] == '0/0',]
-
-    cat("classifying sites..\n")
-    k <- adapt.gatk(newtab)
-    newtab$type <- k$type
-    newtab$cells <- k$cells
-    newtab$ncells <- k$ncells
-    newtab$nout <- k$nout
-
-    return(newtab)
-}
-
-# for 96 dimensional mut sigs
-mutsig.cols <- rep(c('deepskyblue', 'black', 'firebrick2', 'grey', 'chartreuse3', 'pink2'), each=16)
 
 get.3mer <- function(df) {
     require(BSgenome)
@@ -173,38 +105,6 @@ apply.fdr.tuning.parameters <- function(somatic, fdr.tuning) {
     nt.na
 }
 
-# UPDATE ME: Most of the comments below no longer apply.
-# gatk is a dataframe containing GATK derived ref and alt counts
-# genome-wide. it must contain the output of at least one single
-# cell jointly called with at least one bulk.
-# gatk.lowmq should contain the same data as 'gatk', but using a
-#       very permissive mapping quality filter. This is to correct
-#       for different read lengths between bulk and single cells.
-#       IMPORTANT: the column layout of gatk and gatk.lowmq must match!
-# sc.idx - column index of the single cell genotypes.  assumed
-#          that columns sc.idx+1 and +2 are the ref and alt read
-#          counts, respectively.
-# bulk.idx - same as sc.idx, but for the jointly called bulk
-# balprof.path - path to balance estimates. must contain files
-#                named balprof.chrN.rda for N=1..22.
-# chrs - only genotype chromosomes in this array. must be numeric
-#        in {1..22}
-#      NO LONGER WORKS
-# call parameters
-# bins - number of bins to use when determining artifact prevalence
-# target.fdr - objective false discovery rate. no guarantee to
-#              be matched.
-# {sc,bulk}.min.dp - minimum read depth for calls
-# sc.min.alt - minimum variant read support for calling sSNV
-# bulk.max.alt - maximum variant read support tolerated in bulk
-# max.gp.sd - sqrt(2) is where the transformation from a unimodal
-#   distribution in normal space (where the gaussian process lives)
-#   produces a bimodal distribution in allele fraction space [0,1].
-#   for this reason, it is recommended to remove any larger SD.
-#   removing the cutoff can improve sensitivity, but must
-#   be used at your own risk.
-#   be aware, however, that capping gp.sd can cause a large fraction
-#   of the genome to be excluded (10-20%).
 genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
     sites.with.ab, somatic.cigars, hsnp.cigars, fdr.tuning, spikein=FALSE,
     cap.alpha=TRUE, cg.id.q=0.9, cg.hs.q=0.9, random.seed=0, target.fdr=0.1,
@@ -254,8 +154,6 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
         cat(sprintf("        cap.alpha=TRUE: alpha <= %0.3f enforced despite artifact prevalence\n", target.fdr))
 
     nt.na <- apply.fdr.tuning.parameters(somatic, fdr.tuning)
-str(somatic)
-str(nt.na)
 
     cat("        lysis artifact FDR\n")
     somatic <- cbind(somatic,
@@ -543,6 +441,9 @@ plot.ab <- function(ab) {
     abline(h=0, lty='dotted')
 }
 
+
+# for 96 dimensional mut sigs
+mutsig.cols <- rep(c('deepskyblue', 'black', 'firebrick2', 'grey', 'chartreuse3', 'pink2'), each=16)
 
 plot.3mer <- function(x, ...) {
     bases <- c("A", 'C', 'G', 'T')
