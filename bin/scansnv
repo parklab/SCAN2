@@ -1,0 +1,235 @@
+#!/usr/bin/env python
+# vim: set syntax=python
+# This is a wrapper script for executing Snakemake on the SCAN-SNV Snakefile.
+
+import argparse
+import os.path
+import re
+from sys import exit
+
+
+
+def error(str):
+    print("ERROR: " + str)
+    exit(1)
+
+
+
+# Only checks that a file path can be read.
+def readable_file(path):
+    try:
+        with open(path, 'r') as f:
+            return os.path.abspath(path)
+    except IOError as err:
+        error("file {0} could not be read:\n    {1}".format(path, err))
+
+
+
+def check_refgenome(refgenome):
+    """Check for FASTA index (.fai) and dictionary (.dict) files.
+       Assumes refgenome has already been checked."""
+    readable_file(refgenome + '.fai')
+    readable_file(re.sub('.fasta$', '.dict', refgenome))
+
+
+
+def check_dbsnp(dbsnp):
+    """Check for the VCF index file (.idx).  Assumes dbsnp has already
+       been checked."""
+    readable_file(dbsnp + '.idx')
+
+
+
+def check_shapeit(shapeit_panel):
+    """Check all required SHAPEIT haplotype panel files. Exit if any are missing."""
+    if not os.path.exists(shapeit_panel):
+        print("SHAPEIT panel path does not exist: " + shapeit_panel)
+    if not os.path.isdir(shapeit_panel):
+        print("SHAPEIT panel path is not a directory; " + shapeit_panel)
+    for i in range(1, 23):
+        fname = 'genetic_map_chr{0}_combined_b37.txt'.format(i)
+        readable_file(os.path.join(shapeit_panel, fname))
+        for suf in [ 'hap', 'legend' ]:
+            fname = "1000GP_Phase3_chr{0}.{1}.gz".format(i, suf)
+            readable_file(os.path.join(shapeit_panel, fname))
+
+    # chrX is not consistently named
+    readable_file(os.path.join(shapeit_panel, "1000GP_Phase3_chrX_NONPAR.hap.gz"))
+    readable_file(os.path.join(shapeit_panel, "1000GP_Phase3_chrX_NONPAR.legend.gz"))
+    readable_file(os.path.join(shapeit_panel, "genetic_map_chrX_nonPAR_combined_b37.txt"))
+
+
+
+def check_bams(sblist):
+    samples = []
+    bams = []
+    for sample, bam in sblist:
+        samples.append(sample)
+        bams.append(readable_file(bam))
+
+    return (samples, bams)
+
+
+
+def check_regions(args):
+    """Check the user specified regions or region file."""
+    regions = []
+    if args.regions is None and args.regions_file is None:
+        regions = [ str(x) for x in range(1, 23) ]
+
+    if not args.regions is None and not args.regions_file is None:
+        error("only one of --regions or --regions-file can be supplied")
+
+    if not args.regions is None:
+        regions = args.regions.split(',')
+
+    if not args.regions_file is None:
+        with open(args.regions_file) as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue
+
+                chrom, start, stop = line.strip().split('\t')[0:3]
+                regions.append("{0}:{1}-{2}".format( chrom, int(start)+1, stop))
+
+    chrs = []
+    # retains order
+    rchrs = [ r.split(":")[0] for r in regions ]
+    for c in rchrs:
+        if chrs.count(c) == 0:
+            chrs.append(c)
+
+    return (chrs, regions)
+
+
+
+def make_yaml(args, samples, bams, chrs, regions):
+    """Assumes reasonable checking has been performed on arguments and files.
+       Returns a string containing the full YAML configuration file necessary
+       for running Snakemake."""
+    return '\n'.join(
+        [ 'bams:' ] +
+        [ '  {0}: {1}'.format(s, b) for s, b in zip(samples, bams) ] +
+        [ 'sc_samples:' ] +
+        [ '  - ' + s for s in samples if s != args.bulk_sample ] +
+        [
+        'bulk_sample: ' + args.bulk_sample,
+        'humref: ' + args.ref,
+        'dbsnp: ' + args.dbsnp,
+        'shapeit_refpanel: ' + args.shapeit_panel,
+        'abmodel_chunks: ' + str(args.abmodel_chunks),
+        'abmodel_samples_per_chunk: ' + str(args.abmodel_samples_per_chunk),
+        'abmodel_hsnp_chunksize: ' + str(args.abmodel_hsnp_chunk_size),
+        'abmodel_steps: ' + str(args.abmodel_steps),
+        'hsnp_cigar_nsamples: ' + str(args.hsnp_cigar_n),
+        'fdr: ' + str(args.target_fdr),
+        'spikein_replicates: ' + str(args.hsnp_spikein_replicates),
+        'hsnp_spikein_size: ' + str(args.hsnp_spikein_replicate_size),
+        'hsnp_spikein_nsamples: ' + str(args.hsnp_spikein_replicates * args.hsnp_spikein_replicate_size),
+        'gatk_chunks: ' + str(len(regions)),
+        'gatk_regions: '
+        ] +
+        [ '  - ' + r for r in regions ] +
+        [
+        'chrs: '
+        ] +
+        [ '  - ' + c for c in chrs ] +
+        [
+        '#TODO scripts: ' + 'somewhere'
+        ]
+    )
+
+
+
+ap = argparse.ArgumentParser(description='Somatic SNV genotyper for whole genome amplified single cell sequencing experiments.',
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+# required arguments
+req = ap.add_argument_group("Required arguments")
+req.add_argument('--ref', type=readable_file, metavar='PATH', required=True,
+    help='Path to reference genome FASTA file.  As required by GATK, two additional files must be present: an index (.fai) and a dictionary (.dict).')
+req.add_argument('--dbsnp', type=readable_file, metavar='PATH', required=True,
+    help='Path to an indexed dbSNP VCF.')
+req.add_argument('--shapeit-panel', metavar='DIR', required=True,
+    help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported.')
+req.add_argument('--output-dir', metavar='DIR', required=True,
+    help='Write all output files to DIR.')
+
+
+
+infiles = ap.add_argument_group('Input sequencing data',
+    'At least two BAM files must be specified via --bam arguments.  Exactly one sample must be identified as bulk and at least one as single cell.  Samples not identified as either bulk or single cell will be used for GATK joint calling.  This can be useful for, e.g., including related single cells for building a truth set.')
+infiles.add_argument('--bam',  nargs=2, action='append', required=True, metavar=('SAMPLE_ID', 'BAM_FILE'),
+    help='BAM_FILE must be indexed and may contain reads from only one sample.  The SAMPLE_ID *must* match the SM: tag in the corresponding BAM_FILE.  May be specified several times.')
+infiles.add_argument('--bulk-sample', metavar='SAMPLE_ID', required=True,
+    help='Non-single cell (bulk) sample for removing germline or clonal SNVs.  Only one sample may be designated as the bulk sample.')
+infiles.add_argument('--sc-sample', metavar='SAMPLE_ID', action='append', required=True,
+    help='Mark SAMPLE_ID as a single cell to be genotyped.  May be specified multiple times.')
+
+
+
+gatk = ap.add_argument_group('Genotyping intervals',
+    'These parameters allow the user to specify which portions of the genome should be genotyped.  By default, all autosomal regions will be analyzed.  Regions MUST be specified in the same order as the reference genome and should not overlap!!  The maximum target region is chrs 1-22 and X, due to the SHAPEIT reference panel.  Non-pseudoautosomal regions (PARs) on chrX may also be analyzed, but male samples may fail due to lack of hSNPs.  Initial GATK calling will be performed on each region in parallel if possible, which can greatly decrease runtime.')
+gatk.add_argument('--regions', metavar="STRING", default=None,
+    help='A comma separated list of chromosomes.  Cannot be specified in addition to --regions-file.')
+gatk.add_argument('--regions-file', metavar='PATH', default=None,
+    help='A BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.')
+# NOT YET IMPLEMENTED
+# Convenience function to autogenerate the region list
+#gatk.add_argument('--gatk-window-size', default=10000000, type=int, metavar='INT',
+#    help='Split the genome into windows no larger than INT basepairs.  Run GATK on each window in parallel.  On a system with many cores or a cluster, decreasing the window size will speed up the initial GATK step.  Because windows are interrupted at chromosome boundaries, one window per chromosome may be much smaller than INT.  REQUIRES BEDTOOLS.  Cannot be specified in conjunction with --regions.')
+
+
+
+caller = ap.add_argument_group("Somatic SNV calling parameters")
+caller.add_argument('--target-fdr', type=float, default=0.1, metavar='FLOAT',
+    help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
+caller.add_argument('--hsnp-cigar-n', type=int, default=20000, metavar='INT',
+    help='To build the two CIGAR string filters (indels and read clipping), sample the CIGAR strings of INT hSNPs.')
+
+
+
+abmodel = ap.add_argument_group("AB model fitting",
+    "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
+abmodel.add_argument('--abmodel-chunks', type=int, default=20, metavar='INT',
+    help='Split each AB model sampling stage into INT jobs per chromosome.  If multiple threads or a cluster, this will drastically shorten total runtime.')
+abmodel.add_argument('--abmodel-samples-per-chunk', type=int, default=1000, metavar='INT',
+    help='Sample the AB model log-likelihood function INT times for each chunk.  The total number of samples for each chromosome will be (--abmodel-chunks) * (--abmodel-samples-per-chunk).')
+abmodel.add_argument('--abmodel-hsnp-chunk-size', type=int, default=100, metavar='INT',
+    help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping chunks of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).')
+abmodel.add_argument('--abmodel-steps', type=int, default=4, metavar='INT',
+    help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
+
+
+
+spikein = ap.add_argument_group("hSNP spike-ins",
+    'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spike-ins should be performed in many small batches for two reasons: (1) spike-ins are withheld from AB inference and (2) too many spike-ins will skew the hSNP-sSNV VAF distribution comparison.  See the SCAN-SNV paper for details.')
+spikein.add_argument('--hsnp-spikein-replicates', type=int, default=40, metavar='INT',
+    help='Perform INT separate hSNP spike in experiments, each with (--hsnp-spikein-replicate-size) spiked-in hSNPs.')
+spikein.add_argument('--hsnp-spikein-replicate-size', type=int, default=25, metavar='INT',
+    help='Number of hSNPs to spike-in for each replicate.')
+args = ap.parse_args()
+
+# got rid of: hsnp_spikein_nsamples
+
+os.makedirs(args.output_dir, exist_ok=True)
+
+# Some input files must be paired with auxiliary files like indexes. Ensure
+# these files exist before starting the pipeline to reduce possible headaches.
+check_refgenome(args.ref)
+
+check_dbsnp(args.dbsnp)
+
+args.shapeit_panel = os.path.abspath(args.shapeit_panel)
+check_shapeit(args.shapeit_panel)
+
+(samples, bams) = check_bams(args.bam)
+for sc in args.sc_sample:
+    if not sc in samples:
+        error("single cell sample {0} is not associated with a BAM file.".format(sc))
+if not args.bulk_sample in samples:
+    error("bulk sample {0} is not associated with a BAM file.".format(args.bulk_sample))
+
+(chrs, regions) = check_regions(args)
+
+print(make_yaml(args, samples, bams, chrs, regions))

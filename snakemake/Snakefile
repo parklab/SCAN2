@@ -1,21 +1,4 @@
-import pandas as pd
 from snakemake.utils import R
-
-
-# Read in the GATK parallelization regions file
-gatk_region_tab = pd.read_table(config["gatk_region_file"])
-gatk_region_chrs = gatk_region_tab['chr']
-gatk_region_starts = gatk_region_tab['start']
-gatk_region_stops = gatk_region_tab['stop']
-
-# Determine the number of chunks and get GATK compatible region strings
-gatk_chunks = range(1, 1 + len(gatk_region_chrs))
-gatk_regions = [ "%s:%d-%s" % (gatk_region_chrs[i], int(gatk_region_starts[i])+1, gatk_region_stops[i]) for i in range(0, len(gatk_region_chrs)) ]
-
-# Get the list of unique chromosome names in the region list, preserving order
-chrs = []
-[ chrs.append(s) for s in gatk_region_chrs if not chrs.count(s) ]
-
 
 
 wildcard_constraints:
@@ -27,8 +10,8 @@ wildcard_constraints:
 
 rule all:
     input:
-        "scansnv/h25/somatic_genotypes.rda",
-        "scansnv/h25/hsnp_spikein_genotypes.rda"
+        expand("scansnv/{sample}/somatic_genotypes.rda", sample=config['sc_samples']),
+        expand("scansnv/{sample}/hsnp_spikein_genotypes.rda", sample=config['sc_samples'])
 
 
 
@@ -36,13 +19,15 @@ rule gatk_gather:
     input:
         vcf=lambda wildcards:
                 expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                       gatk_mmq=wildcards.gatk_mmq, gatk_chunk=gatk_chunks)
+                       gatk_mmq=wildcards.gatk_mmq,
+                       gatk_chunk=config['gatk_chunks'])
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
     params:
         lambda wildcards:
             ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                            gatk_mmq=wildcards.gatk_mmq, gatk_chunk=gatk_chunks))
+                            gatk_mmq=wildcards.gatk_mmq,
+                            gatk_chunk=config['gatk_chunks']))
     shell:
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
@@ -55,13 +40,13 @@ rule gatk_gather:
 
 rule gatk_scatter:
     input:
-        bam=expand("{sample}.bam", sample=config['samples']),
+        bam=expand("{bam}", bam=config['bams'].values()),
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
     params:
-        bamlist=expand("-I {sample}.bam", sample=config['samples']),
+        bamlist=expand("-I {bam}", bam=config['bams'].values()),
         regionflag=lambda wildcards:
-            "-L " + gatk_regions[int(wildcards.gatk_chunk) - 1],
+            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
         mmq="{gatk_mmq}"
     shell:
         "gatk -Xmx8G -Xms8G "
@@ -79,11 +64,11 @@ rule gatk_scatter:
 
 rule shapeit_gather:
     input:
-        expand("shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs)
+        expand("shapeit/chr{chr}/phased_hsnps.vcf", chr=config['chrs'])
     output:
         vcf="shapeit/phased_hsnps.vcf"
     params:
-        vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=chrs))
+        vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=config['chrs']))
     shell:
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
@@ -215,7 +200,7 @@ rule abmodel_fit:
     input:
         lambda wildcards: 
             expand("ab_model/{sample}/chr{chr}/fit_step{abmodel_steps}.rda",
-                sample=wildcards.sample, chr=chrs,
+                sample=wildcards.sample, chr=config['chrs'],
                 abmodel_steps=config['abmodel_steps'])
     output:
         "ab_model/{sample}/fits.rda"
@@ -424,7 +409,7 @@ rule scansnv_somatic_sites:
 rule scansnv_count_cigars:
     input:
         sites="scansnv/{vartype}_positions.chr{chr}.tab",
-        bam="{sample}.bam"
+        bam=lambda wildcards: config['bams'][wildcards.sample]
     output:
         txt="scansnv/{sample}/{vartype}_cigars.chr{chr}.txt",
         tab="scansnv/{sample}/{vartype}_cigars.chr{chr}.tab"
@@ -438,7 +423,7 @@ rule scansnv_cigar_gather:
     input:
         lambda wildcards:
             expand("scansnv/{sample}/{vartype}_cigars.chr{chr}.tab",
-                sample=wildcards.sample, vartype=wildcards.vartype, chr=chrs)
+                sample=wildcards.sample, vartype=wildcards.vartype, chr=config['chrs'])
     output:
         "scansnv/{sample}/{vartype}_cigars.tab"
     params:
@@ -475,7 +460,7 @@ rule scansnv_estimate_ab_gather:
     input:
         lambda wildcards:
             expand("scansnv/{sample}/{type}_ab.chr{chr}.rda",
-                type=wildcards.type, sample=wildcards.sample, chr=chrs)
+                type=wildcards.type, sample=wildcards.sample, chr=config['chrs'])
     output:
         "scansnv/{sample}/{type}_ab.rda"
     params:
@@ -494,7 +479,7 @@ rule scansnv_fdr_tuning:
     input:
         mmq60="scansnv/mmq60.tab",
         hsnps="ab_model/{sample}/training.rda",
-        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
+        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
     output:
         "scansnv/{sample}/fdr_tuning.rda"
     params:
@@ -537,7 +522,7 @@ rule scansnv_fdr_tuning_spikein:
         mmq60="scansnv/mmq60.tab",
         hsnps="ab_model/{sample}/training.rda",
         spikein="scansnv/{sample}/hsnp_spikein{n}_positions.tab",
-        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=chrs)
+        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
     output:
         "scansnv/{sample}/fdr_tuning_spikein{n}.rda"
     params:
@@ -578,7 +563,7 @@ rule scansnv_genotype_gather:
     input:
         lambda wildcards:
             expand("scansnv/{sample}/somatic_genotypes.chr{chr}.rda",
-                sample=wildcards.sample, chr=chrs)
+                sample=wildcards.sample, chr=config['chrs'])
     output:
         "scansnv/{sample}/somatic_genotypes.rda"
     params:
