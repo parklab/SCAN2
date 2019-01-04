@@ -1,18 +1,23 @@
+scripts: /n/data1/hms/dbmi/park/jluquette/genotyper1/paper/tester/scripts
+
 samples:
     - h25
     - hunamp
 bulk_sample: hunamp
+
 humref: /home/ljl11/balance/resources/human_g1k_v37_decoy.fasta
 dbsnp: /home/ljl11/balance/resources/dbsnp_147_b37_common_all_20160601.vcf
-gatk_region_file: /n/data1/hms/dbmi/park/jluquette/genotyper1/paper/tester/snakemake/regions.txt
 shapeit_refpanel: /n/data1/hms/dbmi/park/jluquette/genotyper1/paper/tester/shapeit/1000GP_Phase3
-scripts: /n/data1/hms/dbmi/park/jluquette/genotyper1/paper/tester/scripts
+gatk_region_file: /n/data1/hms/dbmi/park/jluquette/genotyper1/paper/tester/snakemake/regions.txt # optional
+
 abmodel_chunks: 20
 abmodel_hsnp_chunksize: 100
 abmodel_samples_per_chunk: 1000
 abmodel_steps: 4
+
 hsnp_cigar_nsamples: 20000
-hsnp_spikein_nsamples: 1000
 fdr: 0.1
+
+hsnp_spikein_nsamples: 1000 # removed
 spikein_replicates: 40
 hsnp_spikein_size: 25

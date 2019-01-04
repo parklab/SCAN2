@@ -1,3 +1,5 @@
+# vim: syntax=python
+#
 from snakemake.utils import R
 
 
@@ -20,14 +22,16 @@ rule gatk_gather:
         vcf=lambda wildcards:
                 expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
                        gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=config['gatk_chunks'])
+                       gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
     params:
         lambda wildcards:
             ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
                             gatk_mmq=wildcards.gatk_mmq,
-                            gatk_chunk=config['gatk_chunks']))
+                            gatk_chunk=range(1, config['gatk_chunks']+1)))
+    resources:
+        mem=4000
     shell:
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
@@ -48,8 +52,10 @@ rule gatk_scatter:
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
         mmq="{gatk_mmq}"
+    resources:
+        mem=5000
     shell:
-        "gatk -Xmx8G -Xms8G "
+        "gatk -Xmx4G -Xms4G "
         "    -T HaplotypeCaller"
         "    -R {config[humref]}"
         "    --dontUseSoftClippedBases -l INFO"
@@ -69,6 +75,8 @@ rule shapeit_gather:
         vcf="shapeit/phased_hsnps.vcf"
     params:
         vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=config['chrs']))
+    resources:
+        mem=4000
     shell:
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
@@ -97,6 +105,10 @@ rule shapeit_scatter:
         gmap_extra_x=lambda wildcards: '_nonPAR' if wildcards.chr == 'X' else '',
         extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
         xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
+    benchmark:
+        "shapeit/chr{chr}/benchmark.tsv"
+    resources:
+        mem=4000
     shell:
         # Note the "|| true" after shapeit -check: this is because shapeit
         # -check returns non-0 when it finds any number of problematic SNPs.
@@ -134,8 +146,10 @@ rule shapeit_prepare:
         "shapeit/chr{chr}/hc_raw.mmq60.chr{chr}.vcf"
     params:
         chr="{chr}"
+    resources:
+        mem=4000
     shell:
-        "gatk -Xmx6G -Xms6G"
+        "gatk -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[humref]}"
         "    -V {input}"
@@ -158,14 +172,16 @@ rule training_hsnps_helper:
         tmp_vcf="ab_model/{sample}/hsnps_helper_tmp.vcf",
     params:
         sn="{sample}"
+    resources:
+        mem=4000
     shell:
-        "gatk -Xmx6G -Xms6G"
+        "gatk -Xmx3G -Xms3G"
         "    -R {config[humref]}"
         "    -T CombineVariants"
         "    -V {input.joint_vcf}"
         "    -V {input.phased_vcf}"
         "    -o {output.tmp_vcf} ;"
-        "gatk -Xmx6G -Xms6G"
+        "gatk -Xmx3G -Xms3G"
         "    -R {config[humref]}"
         "    -T SelectVariants"
         "    -V {output.tmp_vcf}"
@@ -186,6 +202,8 @@ rule training_hsnps:
         "ab_model/{sample}/hsnps.tab"
     output:
         rda="ab_model/{sample}/training.rda"
+    resources:
+        mem=4000
     run:
         R("""
             data <- read.table("{input}",
@@ -204,6 +222,8 @@ rule abmodel_fit:
                 abmodel_steps=config['abmodel_steps'])
     output:
         "ab_model/{sample}/fits.rda"
+    resources:
+        mem=1000
     params:
         infiles=lambda wildcards, input:
             "c(" + ', '.join([ "'" + f + "'" for f in input ]) + ")",
@@ -235,6 +255,8 @@ rule abmodel_gather_by_chrom:
         infiles=lambda wildcards, input:
             "c(" + ', '.join("'" + f + "'" for f in input) + ")",
         chr="{chr}"
+    resources:
+        mem=1000
     run:
         R("""
             x <- do.call(rbind, 
@@ -284,7 +306,6 @@ def abmodel_scatter_input(wildcards):
 rule abmodel_scatter:
     input:
         unpack(abmodel_scatter_input)  
-        #"ab_model/{sample}/training.rda"
     output:
         "ab_model/{sample}/chr{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda"
     params:
@@ -295,6 +316,8 @@ rule abmodel_scatter:
             input.param_ranges if wildcards.abmodel_step != '1' else ''
     benchmark:
         "ab_model/{sample}/chr{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv"
+    resources:
+        mem=1000
     run:
         R("""
             library(scansnv)
@@ -331,8 +354,10 @@ rule scansnv_vcftotab:
     output:
         vcf="scansnv/mmq{gatk_mmq}.vcf",
         tab="scansnv/mmq{gatk_mmq}.tab"
+    resources:
+        mem=4000
     shell:
-        "gatk -Xmx10G -Xms10G"
+        "gatk -Xmx3G -Xms3G"
         "   -T SelectVariants"
         "   -R {config[humref]}"
         "   -V {input}"
@@ -348,20 +373,38 @@ rule scansnv_sample_hsnps:
     input:
         "shapeit/phased_hsnps.vcf"
     output:
-        "scansnv/hsnp_{hsnp_type}_positions.chr{chr}.tab"
+        "scansnv/hsnp_{hsnp_type}_positions.rda"
     params:
-        chr="{chr}",
         nsamples=lambda wildcards:
-            int(config['hsnp_' + wildcards.hsnp_type + '_nsamples'])
+            int(config['hsnp_' + wildcards.hsnp_type + '_nsamples']),
+    resources:
+        mem=4000
     run:
         R("""
             vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
                             comment="#", colClasses=c(V1='character'))
-            vcf <- vcf[vcf$V1 == "{params.chr}",]
             hsnp.sample <- vcf[sample(nrow(vcf), size={params.nsamples}),]
             colnames(hsnp.sample)[c(1:2,4:5)] <- c('chr', 'pos', 'refnt', 'altnt')
-            write.table(hsnp.sample[,c(1:2,4:5)], file="{output}", quote=F,
-                row.names=FALSE, sep='\t')
+            save(hsnp.sample, file="{output}")
+        """)
+
+
+
+rule scansnv_sample_hsnps_scatter:
+    input:
+        "scansnv/hsnp_{hsnp_type}_positions.rda"
+    output:
+        "scansnv/hsnp_{hsnp_type}_positions.chr{chr}.tab"
+    params:
+        chr="{chr}"
+    resources:
+        mem=1000
+    run:
+        R("""
+            load("{input}")  # loads 'hsnp.sample'
+            chr <- "{params.chr}"
+            write.table(hsnp.sample[hsnp.sample$chr == chr,c(1:2,4:5)],
+                file="{output}", quote=F, row.names=FALSE, sep='\t')
         """)
 
 
@@ -373,6 +416,8 @@ rule scansnv_somatic_sites:
         "scansnv/somatic_positions.chr{chr}.tab"
     params:
         chr="{chr}"
+    resources:
+        mem=6000
     run:
         R("""
             # Use a very sensitive definition of somatic site here
@@ -413,6 +458,8 @@ rule scansnv_count_cigars:
     output:
         txt="scansnv/{sample}/{vartype}_cigars.chr{chr}.txt",
         tab="scansnv/{sample}/{vartype}_cigars.chr{chr}.tab"
+    resources:
+        mem=1000
     shell:
         "{config[scripts]}/get_cigars.sh {input.sites} {input.bam} {output.txt} ; "
         "{config[scripts]}/count_cigars.py {output.txt} > {output.tab}"
@@ -429,6 +476,8 @@ rule scansnv_cigar_gather:
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+    resources:
+        mem=1000
     run:
         R("""
             cigars <- do.call(rbind, lapply({params.infiles}, function(f) {{
@@ -450,6 +499,8 @@ rule scansnv_estimate_ab_scatter:
     params:
         flag=lambda wildcards:
             "somatic" if wildcards.type == 'somatic' else 'hsnp_spikein'
+    resources:
+        mem=1000
     shell:
         "{config[scripts]}/estimate_ab.R"
         "   {input.fits} {input.training} {input.sites} {params} {output}"
@@ -466,6 +517,8 @@ rule scansnv_estimate_ab_gather:
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
+    resources:
+        mem=1000
     run:
         R("""
             ab <- do.call(rbind, lapply({params.infiles},
@@ -484,6 +537,8 @@ rule scansnv_fdr_tuning:
         "scansnv/{sample}/fdr_tuning.rda"
     params:
         sample="{sample}",
+    resources:
+        mem=4000
     shell:
         "{config[scripts]}/fdr_tuning.R"
         "   {input.mmq60}"
@@ -504,6 +559,8 @@ rule scansnv_hsnp_make_spikeins:
         n="{n}",
         abfiles=lambda wildcards, input:
             "c(" + ', '.join([ '"' + f + '"' for f in input ]) + ")"
+    resources:
+        mem=1000
     run:
         R("""
             load("{input}") # loads 'ab'
@@ -527,6 +584,8 @@ rule scansnv_fdr_tuning_spikein:
         "scansnv/{sample}/fdr_tuning_spikein{n}.rda"
     params:
         sample="{sample}",
+    resources:
+        mem=4000
     shell:
         "{config[scripts]}/fdr_tuning.R"
         "   {input.mmq60}"
@@ -550,6 +609,8 @@ rule scansnv_genotype_scatter:
         "scansnv/{sample}/{type}_genotypes.chr{chr}.rda"
     params:
         sc_sample="{sample}"
+    resources:
+        mem=4000
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
@@ -569,6 +630,8 @@ rule scansnv_genotype_gather:
     params:
         files=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
+    resources:
+        mem=1000
     run:
         R("""
             somatic <- do.call(rbind,
@@ -595,6 +658,8 @@ rule scansnv_genotype_spikein_scatter:
         "scansnv/{sample}/hsnp_spikein{n}_genotypes.rda"
     params:
         sc_sample="{sample}"
+    resources:
+        mem=4000
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
@@ -613,6 +678,8 @@ rule scansnv_genotype_spikein_gather:
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+    resources:
+        mem=1000
     run:
         R("""
             spikeins <- do.call(rbind, lapply({params.infiles},
