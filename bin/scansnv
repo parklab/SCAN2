@@ -193,7 +193,7 @@ infiles.add_argument('--sc-sample', metavar='SAMPLE_ID', action='append', requir
 gatk = ap.add_argument_group('Genotyping intervals',
     'These parameters allow the user to specify which portions of the genome should be genotyped.  By default, all autosomal regions will be analyzed.  Regions MUST be specified in the same order as the reference genome and should not overlap!!  The maximum target region is chrs 1-22 and X, due to the SHAPEIT reference panel.  Non-pseudoautosomal regions (PARs) on chrX may also be analyzed, but male samples may fail due to lack of hSNPs.  Initial GATK calling will be performed on each region in parallel if possible, which can greatly decrease runtime.')
 gatk.add_argument('--regions', metavar="STRING", default=None,
-    help='A comma separated list of chromosomes.  Cannot be specified in addition to --regions-file.')
+    help='A comma separated list of regions in GATK format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.')
 gatk.add_argument('--regions-file', metavar='PATH', default=None,
     help='A BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.')
 # NOT YET IMPLEMENTED
@@ -217,7 +217,7 @@ caller.add_argument('--min-bulk-dp', type=int, default=10, metavar='INT',
 abmodel = ap.add_argument_group("AB model fitting",
     "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
 abmodel.add_argument('--abmodel-chunks', type=int, default=20, metavar='INT',
-    help='Split each AB model sampling stage into INT jobs per chromosome.  If multiple threads or a cluster, this will drastically shorten total runtime.')
+    help='Split each AB model sampling stage into INT jobs per chromosome.  When multiple threads or a cluster are available, this will drastically shorten total runtime.')
 abmodel.add_argument('--abmodel-samples-per-chunk', type=int, default=1000, metavar='INT',
     help='Sample the AB model log-likelihood function INT times for each chunk.  The total number of samples for each chromosome will be (--abmodel-chunks) * (--abmodel-samples-per-chunk).')
 abmodel.add_argument('--abmodel-hsnp-chunk-size', type=int, default=100, metavar='INT',
