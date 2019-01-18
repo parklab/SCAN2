@@ -2,7 +2,6 @@
 # vim: set syntax=python
 # This is a wrapper script for executing Snakemake on the SCAN-SNV Snakefile.
 
-import signal
 import subprocess
 import argparse
 import os.path
@@ -126,6 +125,8 @@ def make_yaml(args, samples, bams, chrs, regions):
         'abmodel_steps: ' + str(args.abmodel_steps),
         'hsnp_cigar_nsamples: ' + str(args.hsnp_cigar_n),
         'fdr: ' + str(args.target_fdr),
+        'min_sc_dp: ' + str(args.min_sc_dp),
+        'min_bulk_dp: ' + str(args.min_bulk_dp),
         'spikein_replicates: ' + str(args.hsnp_spikein_replicates),
         'hsnp_spikein_size: ' + str(args.hsnp_spikein_replicate_size),
         'hsnp_spikein_nsamples: ' + str(args.hsnp_spikein_replicates * args.hsnp_spikein_replicate_size),
@@ -149,16 +150,16 @@ ap = argparse.ArgumentParser(description='Somatic SNV genotyper for whole genome
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 ap.add_argument('--cluster', default=None, type=str, metavar='ARGS',
-    help="Pass ARGS to Snakemake's --cluster parameter.  Do not use --snakemake-args to access --cluster.  Memory requirements for each job can be accessed via {resources.mem} and any instance of '%logdir' in ARGS will be replaced by --output-dir/cluster-logs.")
+    help="Pass ARGS to Snakemake's --cluster parameter.  Do not use --snakemake-args to access --cluster.  Memory requirements for each job can be accessed via {resources.mem} and any instance of '%%logdir' in ARGS will be replaced by --output-dir/cluster-logs.")
 ap.add_argument('--drmaa', default=None, type=str, metavar='ARGS',
-    help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use --snakemake-args to access --drmaa.  Memory requirements for each job can be accessed via {resources.mem} and any instance of '%logdir' in ARGS will be replaced by --output-dir/cluster-logs.")
+    help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use --snakemake-args to access --drmaa.  Memory requirements for each job can be accessed via {resources.mem} and any instance of '%%logdir' in ARGS will be replaced by --output-dir/cluster-logs.")
 
 ap.add_argument('--joblimit', default=1, metavar='INT',
     help='Allow at most INT jobs to execute at any given time.  For multicore machines or clusters, this can greatly decrease runtime.')
 ap.add_argument('--memlimit', default=None, metavar='INT', type=int,
     help="Total available memory in MB.  If unspecified, memory is treated as unlimited.")
-ap.add_argument('--restart', action='store_true', default=False,
-    help='Restart a previously running analysis.  --output-dir should point to a directory created by scansnv.  IMPORTANT: any new parameters specified in a restart run WILL BE IGNORED unless --overwrite is also given.')
+ap.add_argument('--resume', action='store_true', default=False,
+    help='Restart a previously running analysis.  --output-dir should point to a directory created by scansnv.  IMPORTANT: any new parameters specified in a resume run WILL BE IGNORED unless --overwrite is also given.')
 ap.add_argument('--overwrite', default=False, action='store_true',
     help='Overwrite a previously-generated Snakemake configuration file. The old file will be renamed to {--output-dir/config.yaml.old}, but this could cause loss of information.')
 # XXX: CHANGME: to /opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile
@@ -209,7 +210,10 @@ caller.add_argument('--target-fdr', type=float, default=0.1, metavar='FLOAT',
     help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
 caller.add_argument('--hsnp-cigar-n', type=int, default=20000, metavar='INT',
     help='To build the two CIGAR string filters (indels and read clipping), sample the CIGAR strings of INT hSNPs.')
-
+caller.add_argument('--min-sc-dp', type=int, default=5, metavar='INT',
+    help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
+caller.add_argument('--min-bulk-dp', type=int, default=10, metavar='INT',
+    help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
 
 
 abmodel = ap.add_argument_group("AB model fitting",
@@ -275,10 +279,10 @@ if args.configfile is not None:
 else:
     configfile = os.path.abspath(os.path.join(args.output_dir, "config.yaml"))
     if os.path.exists(configfile):
-        if args.restart and not args.overwrite:
+        if args.resume and not args.overwrite:
             print("WARNING: new parameters are IGNORED because --overwrite was not given.")
-        if not args.overwrite and not args.restart:
-            error("configuration file {0} exists already. Please use --restart or --overwrite to proceed.".format(configfile))
+        if not args.overwrite and not args.resume:
+            error("configuration file {0} exists already. Please use --resume or --overwrite to proceed.".format(configfile))
         if args.overwrite:
             os.rename(configfile, configfile + ".old")
 
@@ -299,7 +303,7 @@ snakemake_command = [
 if args.memlimit:
     snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
 
-if args.restart:
+if args.resume:
     snakemake_command.append("--rerun-incomplete")
 
 if args.cluster is not None or args.drmaa is not None:
