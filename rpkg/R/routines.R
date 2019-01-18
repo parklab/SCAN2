@@ -108,7 +108,8 @@ apply.fdr.tuning.parameters <- function(somatic, fdr.tuning) {
 genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
     sites.with.ab, somatic.cigars, hsnp.cigars, fdr.tuning, spikein=FALSE,
     cap.alpha=TRUE, cg.id.q=0.9, cg.hs.q=0.9, random.seed=0, target.fdr=0.1,
-    bulkref=bulk.idx+1, bulkalt=bulk.idx+2, scref=sc.idx+1, scalt=sc.idx+2)
+    bulkref=bulk.idx+1, bulkalt=bulk.idx+2, scref=sc.idx+1, scalt=sc.idx+2,
+    min.bulk.dp=0, min.sc.dp=0)
 {
     call.fingerprint <- as.list(environment())
     # almost all of this information is saved in the results
@@ -121,6 +122,7 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
     gatk$muttype <- muttype.map[paste(gatk$refnt, gatk$altnt, sep=">")]
     gatk$dp <- gatk[,scalt] + gatk[,scref]
     gatk$af <- gatk[,scalt] / gatk$dp
+    gatk$bulk.dp <- gatk[,bulkalt] + gatk[,bulkref]
 
     # sites only has columns 'chr','pos','refnt','altnt', which match gatk.
     # so this merge call is really just subsetting gatk.
@@ -210,6 +212,7 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
                 somatic=somatic$HS/somatic$dp, max.q=cg.hs.q)
     }
     
+    somatic$dp.test <- somatic$dp > min.sc.dp & somatic$bulk.dp > min.bulk.dp
 
     cat("step 6: calling somatic SNVs\n")
     somatic$pass <-
@@ -217,7 +220,7 @@ genotype.somatic <- function(gatk, gatk.lowmq, sc.idx, bulk.idx,
         somatic$lysis.pv <= somatic$lysis.alpha &
         somatic$mda.pv <= somatic$mda.alpha &
         somatic$cg.id.test & somatic$cg.hs.test &
-        somatic$lowmq.test
+        somatic$lowmq.test & somatic$dp.test
     cat(sprintf("        %d passing somatic SNVs\n", sum(somatic$pass)))
     cat(sprintf("        %d filtered somatic SNVs\n", sum(!somatic$pass)))
 

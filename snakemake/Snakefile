@@ -32,6 +32,8 @@ rule gatk_gather:
                             gatk_chunk=range(1, config['gatk_chunks']+1)))
     resources:
         mem=4000
+    benchmark:
+        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
     shell:
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
@@ -54,6 +56,8 @@ rule gatk_scatter:
         mmq="{gatk_mmq}"
     resources:
         mem=5000
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     shell:
         "gatk -Xmx4G -Xms4G "
         "    -T HaplotypeCaller"
@@ -204,6 +208,8 @@ rule training_hsnps:
         rda="ab_model/{sample}/training.rda"
     resources:
         mem=4000
+    benchmark:
+        "ab_model/{sample}/training_benchmark.tsv"
     run:
         R("""
             data <- read.table("{input}",
@@ -501,6 +507,8 @@ rule scansnv_estimate_ab_scatter:
             "somatic" if wildcards.type == 'somatic' else 'hsnp_spikein'
     resources:
         mem=1000
+    benchmark:
+        "scansnv/{sample}/benchmark_{type}_ab.chr{chr}.tsv"
     shell:
         "{config[scripts]}/estimate_ab.R"
         "   {input.fits} {input.training} {input.sites} {params} {output}"
@@ -539,6 +547,8 @@ rule scansnv_fdr_tuning:
         sample="{sample}",
     resources:
         mem=4000
+    benchmark:
+        "ab_model/{sample}/benchmark_fdr_tuning.tsv"
     shell:
         "{config[scripts]}/fdr_tuning.R"
         "   {input.mmq60}"
@@ -611,12 +621,15 @@ rule scansnv_genotype_scatter:
         sc_sample="{sample}"
     resources:
         mem=4000
+    benchmark:
+        "scansnv/{sample}/benchmark_{type}_genotypes.chr{chr}.tsv"
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]}"
         "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
         "   {output} {config[fdr]} {input.fdr_tuning} somatic"
+        "   {config[min_bulk_dp]} {config[min_sc_dp]}"
 
 
 
@@ -666,6 +679,7 @@ rule scansnv_genotype_spikein_scatter:
         "   {params.sc_sample} {config[bulk_sample]}"
         "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
         "   {output} {config[fdr]} {input.fdr_tuning} spikein"
+        "   {config[min_bulk_dp]} {config[min_sc_dp]}"
 
 
 rule scansnv_genotype_spikein_gather:

@@ -3,8 +3,8 @@
 require('scansnv')
 args <- commandArgs(trailingOnly=TRUE)
 
-if (length(args) != 11)
-    stop("usage: Rscript genotype.R mmq60.tab mmq1.tab sc.sample bulk.sample somatic_ab.rda somatic_cigars.rda hsnp_cigars.rda outfile.rda fdr fdr_tuning.rda { somatic | spikein }")
+if (length(args) != 13)
+    stop("usage: Rscript genotype.R mmq60.tab mmq1.tab sc.sample bulk.sample somatic_ab.rda somatic_cigars.rda hsnp_cigars.rda outfile.rda fdr fdr_tuning.rda { somatic | spikein } min.bulk.dp min.sc.dp")
 
 hmq.file <- args[1]
 lmq.file <- args[2]
@@ -17,6 +17,8 @@ outfile <- args[8]
 fdr <- as.numeric(args[9])
 fdr.tuning.file <- args[10]
 spikein <- args[11]
+min.bulk.dp <- as.integer(args[12])
+min.sc.dp <- as.integer(args[13])
 
 if (file.exists(outfile))
     stop(sprintf("output file %s already exists. please delete it first", outfile))
@@ -49,7 +51,8 @@ gt <- genotype.somatic(gatk=hmq, gatk.lowmq=lmq,
     sc.idx=sc.idx, bulk.idx=bulk.idx,
     sites.with.ab=somatic.ab, fdr.tuning=fdr.tuning,
     somatic.cigars=somatic.cigar, hsnp.cigars=hsnp.cigar,
-    target.fdr=fdr, spikein=spikein == 'spikein')
+    target.fdr=fdr, spikein=spikein == 'spikein',
+    min.bulk.dp=min.bulk.dp, min.sc.dp=min.sc.dp)
 
 #gt$somatic <- get.3mer(gt$somatic)
 
