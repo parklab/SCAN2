@@ -546,7 +546,7 @@ rule scansnv_fdr_tuning:
     params:
         sample="{sample}",
     resources:
-        mem=4000
+        mem=8000
     benchmark:
         "ab_model/{sample}/benchmark_fdr_tuning.tsv"
     shell:
@@ -570,7 +570,7 @@ rule scansnv_hsnp_make_spikeins:
         abfiles=lambda wildcards, input:
             "c(" + ', '.join([ '"' + f + '"' for f in input ]) + ")"
     resources:
-        mem=1000
+        mem=2000
     run:
         R("""
             load("{input}") # loads 'ab'
@@ -595,7 +595,7 @@ rule scansnv_fdr_tuning_spikein:
     params:
         sample="{sample}",
     resources:
-        mem=4000
+        mem=8000
     shell:
         "{config[scripts]}/fdr_tuning.R"
         "   {input.mmq60}"
@@ -620,7 +620,7 @@ rule scansnv_genotype_scatter:
     params:
         sc_sample="{sample}"
     resources:
-        mem=4000
+        mem=8000
     benchmark:
         "scansnv/{sample}/benchmark_{type}_genotypes.chr{chr}.tsv"
     shell:
@@ -644,7 +644,7 @@ rule scansnv_genotype_gather:
         files=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
     resources:
-        mem=1000
+        mem=2000
     run:
         R("""
             somatic <- do.call(rbind,
@@ -672,7 +672,7 @@ rule scansnv_genotype_spikein_scatter:
     params:
         sc_sample="{sample}"
     resources:
-        mem=4000
+        mem=8000
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
@@ -693,7 +693,7 @@ rule scansnv_genotype_spikein_gather:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
     resources:
-        mem=1000
+        mem=2000
     run:
         R("""
             spikeins <- do.call(rbind, lapply({params.infiles},
