@@ -112,7 +112,7 @@ def make_yaml(args, samples, bams, chrs, regions):
         [ 'bams:' ] +
         [ '  {0}: {1}'.format(s, b) for s, b in zip(samples, bams) ] +
         [ 'sc_samples:' ] +
-        [ '  - ' + s for s in samples if s != args.bulk_sample ] +
+        [ '  - ' + s for s in args.sc_sample ] +
         [
         'bulk_sample: ' + args.bulk_sample,
         'humref: ' + args.ref,
@@ -122,8 +122,8 @@ def make_yaml(args, samples, bams, chrs, regions):
         'abmodel_samples_per_chunk: ' + str(args.abmodel_samples_per_chunk),
         'abmodel_hsnp_chunksize: ' + str(args.abmodel_hsnp_chunk_size),
         'abmodel_steps: ' + str(args.abmodel_steps),
-        'hsnp_cigar_nsamples: ' + str(args.hsnp_cigar_n),
         'fdr: ' + str(args.target_fdr),
+        'min_sc_alt: ' + str(args.min_sc_alt),
         'min_sc_dp: ' + str(args.min_sc_dp),
         'min_bulk_dp: ' + str(args.min_bulk_dp),
         'spikein_replicates: ' + str(args.hsnp_spikein_replicates),
@@ -203,14 +203,14 @@ gatk.add_argument('--regions-file', metavar='PATH', default=None,
 
 
 
-caller = ap.add_argument_group("Somatic SNV calling parameters")
+caller = ap.add_argument_group("Somatic SNV calling parameters. A minimum requirement of 2 reads supporting a putative mutation is probably good practice at most sequencing depths.  However, the minimum total depth for single cell and bulk may need to be altered.  The defaults of 6 and 11, respectively, were successful on single cells with >25x and bulk with >30x mean coverage.")
 caller.add_argument('--target-fdr', type=float, default=0.1, metavar='FLOAT',
     help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
-caller.add_argument('--hsnp-cigar-n', type=int, default=20000, metavar='INT',
-    help='To build the two CIGAR string filters (indels and read clipping), sample the CIGAR strings of INT hSNPs.')
-caller.add_argument('--min-sc-dp', type=int, default=5, metavar='INT',
+caller.add_argument('--min-sc-alt', type=int, default=2, metavar='INT',
+    help='Reject somatic SNVs with fewer than INT reads carrying the mutation in single cells.')
+caller.add_argument('--min-sc-dp', type=int, default=6, metavar='INT',
     help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
-caller.add_argument('--min-bulk-dp', type=int, default=10, metavar='INT',
+caller.add_argument('--min-bulk-dp', type=int, default=11, metavar='INT',
     help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
 
 
@@ -228,10 +228,10 @@ abmodel.add_argument('--abmodel-steps', type=int, default=4, metavar='INT',
 
 
 spikein = ap.add_argument_group("hSNP spike-ins",
-    'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spike-ins should be performed in many small batches for two reasons: (1) spike-ins are withheld from AB inference and (2) too many spike-ins will skew the hSNP-sSNV VAF distribution comparison.  See the SCAN-SNV paper for details.')
-spikein.add_argument('--hsnp-spikein-replicates', type=int, default=40, metavar='INT',
+    'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins should be used.  However, hSNP spike-ins must be performed in many small batches for two reasons: (1) spike-ins hSNPs are not included in the list of hSNPs used to infer AB and (2) spike-ins are treated as sSNVs in the parameter tuning process which compares sSNV vs. hSNP VAF distributions.  See the SCAN-SNV paper for details.')
+spikein.add_argument('--hsnp-spikein-replicates', type=int, default=100, metavar='INT',
     help='Perform INT separate hSNP spike in experiments, each with (--hsnp-spikein-replicate-size) spiked-in hSNPs.')
-spikein.add_argument('--hsnp-spikein-replicate-size', type=int, default=25, metavar='INT',
+spikein.add_argument('--hsnp-spikein-replicate-size', type=int, default=40, metavar='INT',
     help='Number of hSNPs to spike-in for each replicate.')
 
 

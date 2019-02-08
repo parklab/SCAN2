@@ -6,15 +6,16 @@ import sys
 
 def count_line(cigars):
     if cigars.strip() == '':
-        return (0, 0, 0, 0)
+        return (0, 0, 0, 0,  0)
 
+    dp = len(cigars.split(' '))
     # reduce just to cigar operations
     s = ''.join([ re.sub('[0-9\ ]', '', cigar) for cigar in cigars ])
     m = s.count('M')
     indel = s.count('I') + s.count('D')
     clips = s.count('S') + s.count('H')
     other = len(s) - m - indel - clips
-    return (m, indel, clips, other)
+    return (m, indel, clips, other, dp)
 
 
 ap = argparse.ArgumentParser()
@@ -30,7 +31,7 @@ with open(args.raw_cigars, 'r') as f:
             header = 'chr\tpos'
             for s in samples[2:]:
                 header = header + '\t' + \
-                    '\t'.join([ x + '.' + s for x in [ 'M', 'ID', 'HS', 'other' ] ])
+                    '\t'.join([ x + '.' + s for x in [ 'M', 'ID', 'HS', 'other', 'dp' ] ])
             print(header)
             firstline = False
             continue

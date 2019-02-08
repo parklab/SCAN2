@@ -1,7 +1,0 @@
-Package: scansnv
-Version: 0.1
-Date: 2018-10-22
-Title: Single Cell ANalysis of sSNVs
-Description: Single cell genotyper using a spatial model of allele balance.
-Author: Lovelace J. Luquette <luquette@g.harvard.edu>
-Maintainer: Lovelace J. Luquette <luquette@g.harvard.edu>

@@ -27,7 +27,7 @@ echo "chrom"$'\t'"pos"$'\t'"cigars" >> $outfile
         array=($line)
         chrom=${array[0]}
         pos=${array[1]}
-        x=$(samtools view $bam $chrom:$pos-$pos| cut -f6)
+        x=$(samtools view -q 60 $bam $chrom:$pos-$pos| cut -f6)
         echo "$chrom"$'\t'"$pos"$'\t'$x
     done
 } < $infile >> $outfile

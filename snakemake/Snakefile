@@ -6,7 +6,6 @@ from snakemake.utils import R
 wildcard_constraints:
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    hsnp_type="cigar|spikein"
 
 
 
@@ -379,17 +378,14 @@ rule scansnv_sample_hsnps:
     input:
         "shapeit/phased_hsnps.vcf"
     output:
-        "scansnv/hsnp_{hsnp_type}_positions.rda"
-    params:
-        nsamples=lambda wildcards:
-            int(config['hsnp_' + wildcards.hsnp_type + '_nsamples']),
+        "scansnv/hsnp_spikein_positions.rda"
     resources:
         mem=4000
     run:
         R("""
             vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
                             comment="#", colClasses=c(V1='character'))
-            hsnp.sample <- vcf[sample(nrow(vcf), size={params.nsamples}),]
+            hsnp.sample <- vcf[sample(nrow(vcf), size={config[hsnp_spikein_nsamples]}),]
             colnames(hsnp.sample)[c(1:2,4:5)] <- c('chr', 'pos', 'refnt', 'altnt')
             save(hsnp.sample, file="{output}")
         """)
@@ -398,9 +394,9 @@ rule scansnv_sample_hsnps:
 
 rule scansnv_sample_hsnps_scatter:
     input:
-        "scansnv/hsnp_{hsnp_type}_positions.rda"
+        "scansnv/hsnp_spikein_positions.rda"
     output:
-        "scansnv/hsnp_{hsnp_type}_positions.chr{chr}.tab"
+        "scansnv/hsnp_spikein_positions.chr{chr}.tab"
     params:
         chr="{chr}"
     resources:
@@ -449,7 +445,7 @@ rule scansnv_somatic_sites:
                 tab[tab[,bulk.alt] == 0 &
                     tab[,bulk.idx] == '0/0' &
                     tab$dbsnp == '.' &
-                    rowSums(as.matrix(tab[,sc.alts])) > 1 &
+                    rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
                     tab$chr == "{params.chr}",]
             write.table(candidate.somatics[,c(1:2, 4:5)], sep="\t",
                 quote=FALSE, row.names=FALSE, file="{output}")
@@ -472,6 +468,21 @@ rule scansnv_count_cigars:
 
 
 
+rule scansnv_count_bulk_cigars:
+    input:
+        sites="scansnv/{vartype}_positions.chr{chr}.tab",
+        bam=config['bams'][config['bulk_sample']]
+    output:
+        txt="scansnv/{vartype}_bulk_cigars.chr{chr}.txt",
+        tab="scansnv/{vartype}_bulk_cigars.chr{chr}.tab"
+    resources:
+        mem=1000
+    shell:
+        "{config[scripts]}/get_cigars.sh {input.sites} {input.bam} {output.txt} ; "
+        "{config[scripts]}/count_cigars.py {output.txt} > {output.tab}"
+
+
+
 rule scansnv_cigar_gather:
     input:
         lambda wildcards:
@@ -479,6 +490,29 @@ rule scansnv_cigar_gather:
                 sample=wildcards.sample, vartype=wildcards.vartype, chr=config['chrs'])
     output:
         "scansnv/{sample}/{vartype}_cigars.tab"
+    params:
+        infiles=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+    resources:
+        mem=1000
+    run:
+        R("""
+            cigars <- do.call(rbind, lapply({params.infiles}, function(f) {{
+                read.table(f, header=T)
+            }}))
+            write.table(cigars, file="{output}", quote=FALSE, row.names=FALSE,
+                sep="\t")
+        """)
+
+
+
+rule scansnv_bulk_cigar_gather:
+    input:
+        lambda wildcards:
+            expand("scansnv/{vartype}_bulk_cigars.chr{chr}.tab",
+                vartype=wildcards.vartype, chr=config['chrs'])
+    output:
+        "scansnv/{vartype}_bulk_cigars.tab"
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
@@ -536,30 +570,75 @@ rule scansnv_estimate_ab_gather:
 
 
 
+rule scansnv_cigar_tuning:
+    input:
+        sc="scansnv/{sample}/hsnp_spikein_cigars.tab",
+        bulk="scansnv/hsnp_spikein_bulk_cigars.tab"
+    output:
+        "scansnv/{sample}/cigar_tuning.rda"
+    resources:
+        mem=1000
+    run:
+        R("""
+            sc <- read.table("{input.sc}", header=T, stringsAsFactors=F)
+            bulk <- read.table("{input.bulk}", header=T, stringsAsFactors=F)
+            cd <- merge(sc, bulk, by=c('chr', 'pos'), suffixes=c('', '.bulk'))
+str(cd)
+
+            cigar.emp.score <- function(training, test, which=c('id', 'hs')) {{
+                xt <- training[,paste0(which, '.score.x')]
+                yt <- training[,paste0(which, '.score.y')]
+                x <- test[,paste0(which, '.score.x')]
+                y <- test[,paste0(which, '.score.y')]
+                mapply(function(xi, yi) mean(xt >= xi & yt >= yi, na.rm=T), x, y)
+            }}
+print('im not crazy')
+
+            cd$id.score.y <- cd$ID.cigars / cd$dp.cigars
+            cd$id.score.x <- cd$ID.cigars.bulk / cd$dp.cigars.bulk
+            str( cigar.emp.score(training=cd, test=cd, which='id'))
+            cd$id.score <- cigar.emp.score(training=cd, test=cd, which='id')
+            cd$hs.score.y <- cd$HS.cigars / cd$dp.cigars
+            cd$hs.score.x <- cd$HS.cigars.bulk / cd$dp.cigars.bulk
+            str( cigar.emp.score(training=cd, test=cd, which='hs'))
+            cd$hs.score <- cigar.emp.score(training=cd, test=cd, which='hs')
+
+            cigar.training <- cd
+            save(cigar.emp.score, cigar.training, file="{output}")
+        """)
+
+
+
 rule scansnv_fdr_tuning:
     input:
         mmq60="scansnv/mmq60.tab",
+        mmq1="scansnv/mmq1.tab",
         hsnps="ab_model/{sample}/training.rda",
         som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
     output:
         "scansnv/{sample}/fdr_tuning.rda"
     params:
         sample="{sample}",
+        bulk_sample=config['bulk_sample']
     resources:
         mem=8000
     benchmark:
         "ab_model/{sample}/benchmark_fdr_tuning.tsv"
     shell:
         "{config[scripts]}/fdr_tuning.R"
-        "   {input.mmq60}"
+        "   {input.mmq60} {input.mmq1}"
         "   {input.hsnps}"
-        "   {params.sample}"
-        "   {output}"
+        "   {params.bulk_sample} {params.sample}"
+        "   {output} somatic"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
         "   {input.som_sites}"
 
 
 
-rule scansnv_hsnp_make_spikeins:
+# Lumping all spikeins together would overwhelm the true somatic burden,
+# breaking the FDR tuning procedure.  To avoid this, spikeins are split
+# into several small batches.
+rule scansnv_hsnp_divide_spikeins:
     input:
         "scansnv/{sample}/hsnp_spikein_ab.rda"
     output:
@@ -587,6 +666,7 @@ rule scansnv_hsnp_make_spikeins:
 rule scansnv_fdr_tuning_spikein:
     input:
         mmq60="scansnv/mmq60.tab",
+        mmq1="scansnv/mmq1.tab",
         hsnps="ab_model/{sample}/training.rda",
         spikein="scansnv/{sample}/hsnp_spikein{n}_positions.tab",
         som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
@@ -598,10 +678,11 @@ rule scansnv_fdr_tuning_spikein:
         mem=8000
     shell:
         "{config[scripts]}/fdr_tuning.R"
-        "   {input.mmq60}"
+        "   {input.mmq60} {input.mmq1}"
         "   {input.hsnps}"
-        "   {params.sample}"
-        "   {output}"
+        "   {config[bulk_sample]} {params.sample}"
+        "   {output} spikein"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
         "   {input.spikein}"
         "   {input.som_sites}"
     
@@ -612,8 +693,9 @@ rule scansnv_genotype_scatter:
         mmq60="scansnv/mmq60.tab",
         mmq1="scansnv/mmq1.tab",
         som_ab="scansnv/{sample}/{type}_ab.chr{chr}.rda",
-        som_cigars="scansnv/{sample}/{type}_cigars.chr{chr}.tab",
-        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.tab",
+        sc_cigars="scansnv/{sample}/{type}_cigars.chr{chr}.tab",
+        bulk_cigars="scansnv/{type}_bulk_cigars.chr{chr}.tab",
+        cigar_tuning="scansnv/{sample}/cigar_tuning.rda",
         fdr_tuning="scansnv/{sample}/fdr_tuning.rda",
     output:
         "scansnv/{sample}/{type}_genotypes.chr{chr}.rda"
@@ -626,10 +708,10 @@ rule scansnv_genotype_scatter:
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
-        "   {params.sc_sample} {config[bulk_sample]}"
-        "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
+        "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
+        "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
         "   {output} {config[fdr]} {input.fdr_tuning} somatic"
-        "   {config[min_bulk_dp]} {config[min_sc_dp]}"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
 
 
 
@@ -664,8 +746,9 @@ rule scansnv_genotype_spikein_scatter:
         mmq60="scansnv/mmq60.tab",
         mmq1="scansnv/mmq1.tab",
         som_ab="scansnv/{sample}/hsnp_spikein{n}_ab.rda",
-        som_cigars="scansnv/{sample}/hsnp_spikein_cigars.tab",
-        hsnp_cigars="scansnv/{sample}/hsnp_cigar_cigars.tab",
+        sc_cigars="scansnv/{sample}/hsnp_spikein_cigars.tab",
+        bulk_cigars="scansnv/hsnp_spikein_bulk_cigars.tab",
+        cigar_tuning="scansnv/{sample}/cigar_tuning.rda",
         fdr_tuning="scansnv/{sample}/fdr_tuning_spikein{n}.rda",
     output:
         "scansnv/{sample}/hsnp_spikein{n}_genotypes.rda"
@@ -677,9 +760,11 @@ rule scansnv_genotype_spikein_scatter:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]}"
-        "   {input.som_ab} {input.som_cigars} {input.hsnp_cigars}"
+        "   {input.som_ab} {input.sc_cigars} {input.bulk_cigars}"
+        "   {input.cigar_tuning}"
         "   {output} {config[fdr]} {input.fdr_tuning} spikein"
-        "   {config[min_bulk_dp]} {config[min_sc_dp]}"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
+
 
 
 rule scansnv_genotype_spikein_gather:
