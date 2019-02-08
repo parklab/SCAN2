@@ -8,11 +8,24 @@ wildcard_constraints:
     gatk_mmq="\d+",
 
 
+# Always output somatic_genotype files for all samples.
+# If there are 2 or more single cell samples, output joint genotypes.
+def determine_pipeline_output(wildcards):
+    prf = ''
+    d = dict()
+    d['somatic_genotypes'] = expand("scansnv/{sample}/somatic_genotypes.rda",
+        sample=config['sc_samples'])
+    d['hsnp_spikein_genotypes'] = expand("scansnv/{sample}/hsnp_spikein_genotypes.rda",
+        sample=config['sc_samples'])
+
+    if len(config['sc_samples']) > 1:
+        d['joint_somatic_genotypes'] = expand("scansnv/{sample}/joint_somatic_genotypes.rda",
+            sample=config['sc_samples'])
+    return d
 
 rule all:
     input:
-        expand("scansnv/{sample}/somatic_genotypes.rda", sample=config['sc_samples']),
-        expand("scansnv/{sample}/hsnp_spikein_genotypes.rda", sample=config['sc_samples'])
+        unpack(determine_pipeline_output)
 
 
 
@@ -789,4 +802,30 @@ rule scansnv_genotype_spikein_gather:
             ))
 
             save(spikeins, file="{output}")
+        """)
+
+
+rule scansnv_joint_calls:
+    input:
+        somatic=expand("scansnv/{sample}/somatic_genotypes.rda", sample=config['sc_samples']),
+        spikeins=expand("scansnv/{sample}/hsnp_spikein_genotypes.rda", sample=config['sc_samples'])
+    output:
+        expand('scansnv/{sample}/joint_somatic_genotypes.rda', sample=config['sc_samples'])
+    params:
+        somatic=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input.somatic ]) + ")",
+        spikeins=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input.spikeins ]) + ")",
+        outfiles=lambda wildcards, input:
+            "c(" + ", ".join([ '"' + f + '"' for f in input.spikeins ]) + ")"
+    run:
+        R("""
+            library(scansnv)
+            dfs <- lapply({somatic}, function(f) { load(f); somatic })
+            hdfs <- lapply({spikeins}, function(f) { load(f); spikeins })
+            joint.calls <- joint.caller(dfs, hdfs)
+            for (i in 1:length(joint.calls)) {
+                joint.somatic <- joint.calls[[i]]
+                save(joint.somatic, file="{outfiles[i]}")
+            }
         """)
