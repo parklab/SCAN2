@@ -817,15 +817,17 @@ rule scansnv_joint_calls:
         spikeins=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input.spikeins ]) + ")",
         outfiles=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input.spikeins ]) + ")"
+            "c(" + ", ".join([ '"' + f + '"' for f in expand('scansnv/{sample}/joint_somatic_genotypes.rda', sample=config['sc_samples']) ]) + ")"
+    resources:
+        mem=8000
     run:
         R("""
             library(scansnv)
-            dfs <- lapply({somatic}, function(f) { load(f); somatic })
-            hdfs <- lapply({spikeins}, function(f) { load(f); spikeins })
+            dfs <- lapply({params.somatic}, function(f) {{ load(f); somatic }})
+            hdfs <- lapply({params.spikeins}, function(f) {{ load(f); spikeins }})
             joint.calls <- joint.caller(dfs, hdfs)
-            for (i in 1:length(joint.calls)) {
+            for (i in 1:length(joint.calls)) {{
                 joint.somatic <- joint.calls[[i]]
-                save(joint.somatic, file="{outfiles[i]}")
-            }
+                save(joint.somatic, file={params.outfiles}[i])
+            }}
         """)
