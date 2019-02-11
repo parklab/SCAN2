@@ -605,7 +605,6 @@ str(cd)
                 y <- test[,paste0(which, '.score.y')]
                 mapply(function(xi, yi) mean(xt >= xi & yt >= yi, na.rm=T), x, y)
             }}
-print('im not crazy')
 
             cd$id.score.y <- cd$ID.cigars / cd$dp.cigars
             cd$id.score.x <- cd$ID.cigars.bulk / cd$dp.cigars.bulk
