@@ -8,7 +8,7 @@ fi
 INPUT=$1
 OUTPUT=$2
 
-if [ -f $OUTPUT ]; then
+if [ -f $OUTPUT ] && [ $OUTPUT != '/dev/stdout' ]; then
     echo "output file $OUTPUT already exists, please delete it first"
     exit 1
 fi
