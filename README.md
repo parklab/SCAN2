@@ -8,261 +8,132 @@ Single cell somatic genotyper
 **Installation time**: installation should take only a few minutes on a modern
 computer.
 
-Version numbers in parentheses are the tested versions and were used to produce
-the results in the manuscript. They are not necessarily required to run.
+SCAN-SNV is distributed as a conda package. To install, first Miniconda must
+be downloaded and installed as follows:
 
-**Dependencies**: Python (v2.7), R (v3.3.3), LAPACKE (v3.6.1), OpenBLAS (v0.2.19),
-    Java (v1.8), GATK (v3.8-0-ge9d806836), SHAPEIT2 (v2-r837), samtools (v1.3),
-fastGHQuad (R package), Python DRMAA (0.7.8)
+## Installing miniconda
+```
+$ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+$ bash Miniconda3-latest-Linux-x86_64.sh
+# Accept the license by typing "yes"
+# Choose an install prefix (the default is often fine)
+# Choose to run conda init (enter yes a second time during script)
+# Log-out and back in to source .bashrc and put conda on $PATH
+```
 
-**Optional dependencies**: Intel C compiler (2016)
+## Installing SCAN-SNV
+```
+# Create an environment for SCAN-SNV
+$ conda deactivate   # The "base" environment will be active after login
+$ conda create -n scansnv
+$ conda activate scansnv
+# Install the scansnv package
+$ conda install -c bioconda -c conda-forge/label/cf201901 -c jluquette scansnv
+# Register GATK installation
+$ wget 'https://software.broadinstitute.org/gatk/download/auth?package=GATK-archive&version=3.8-1-0-gf15c1c3ef' -O GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
+$ tar xjvf GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
+$ gatk-register GenomeAnalysisTK-3.8-1-0-gf15c1c3ef/GenomeAnalysisTK.jar
+# Test the install
+$ gatk --version
+# Above should print 3.8-1-0-gf15c1c3ef
+```
 
-**Data dependencies**:
+## Downloading external data dependencies
+SCAN-SNV has only been tested on NCBI build 37.
 
-* Human reference genome version GRCh37 with decoy
-  e.g. ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz and associated \*.fai and \*.dict files.
-* dbSNP (v147, b37)
-  e.g. ftp://ftp.ncbi.nlm.nih.gov/snp/organisms/human_9606_b150_GRCh37p13/VCF/common_all_20170710.vcf.gz
-* SHAPEIT2 formatted 1000 genomes reference haplotype panel
-  e.g., https://mathgen.stats.ox.ac.uk/impute/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing.tgz
+Download reference genome.
+```
+$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
+$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.fai.gz
+$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
+```
 
-> **IMPORTANT!** The environment variables listed below (`LD_LIBRARY_PATH`,
-> `PATH`, `GATK_PATH`, `SHAPEIT_ROOT`, `REFPANEL_ROOT`) must always be set
-> appropriately before running SCAN-SNV. The `samtools`, `Rscript`, `python`
-> and `java` binaries must also be in your $PATH.
+Download dbSNP. Note that dbSNP build 147 (common variants only) was used in
+the publication. However, NCBI
+does not guarantee long term hosting of dbSNP builds, so we recommend
+downloading the version of dbSNP included in the Broad's GATK resource
+bundle. To use other builds of dbSNP, you will need to generate a tribble
+index (see below).
+```
+$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/dbsnp_138.b37.vcf.gz
+$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/dbsnp_138.b37.vcf.idx.gz
+```
 
-1. Build and install the SCAN-SNV R package
+Download SHAPEIT's haplotype reference panel.
 ```
-$ cd /root/of/git/repo
-$ R CMD build rpkg
-$ R CMD INSTALL scansnv_0.1.tar.gz
-```
-2. Install the Laplace approximator. First edit `gridfit-gauss/Makefile.gcc`
-   if you are compiling with gcc (`gridfit-gauss/Makefile.icc if you are
-   using Intel's C compiler) and set the paths to OpenBLAS and LAPACKE by
-   modifying these two lines:
-```
-OPENBLAS=/n/app/openblas/0.2.19
-LAPACKE=/n/app/lapacke/3.6.1
-```
-   Add the OpenBLAS library path to the linker path.
-```
-# Should be the same as $OPENBLAS with /lib appended
-$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/openblas/lib  
-```
-   Compile the approximator program.
-```
-$ cd gridfit-gauss
-$ make -f Makefile.gcc   # or -f Makefile.icc if Intel C compiler is available
-```
-3. Add the helper scripts and laplace approximator binary to the global path
-```
-# Return to the git repo root
-$ cd ..
-$ export PATH=$PATH:`realpath scripts`:`realpath bin`
-```
-4. Make a GATK .jar file and relevant databases available in a single path.
-   You may place this directory anywhere you'd like. It is important,
-   however, that the files in this directory are named as stated below
-   (i.e., gatk.jar, dbsnp.vcf, human_g1k_v37_decoy.fasta).
-```
-$ mkdir gatkpath
-$ cd gatkpath
-$ cp /path/to/gatk.jar gatk.jar
-$ cp /path/to/ref.fasta human_g1k_v37_decoy.fasta
-$ cp /path/to/ref.fasta.fai human_g1k_v37_decoy.fasta.fai
-$ cp /path/to/ref.dict human_g1k_v37_decoy.dict
-$ cp /path/to/dbsnp dbsnp.vcf
-$ cp /path/to/dbsnp/index dbsnp.vcf.idx
-$ export GATK_PATH=`pwd`
-```
-5. Install SHAPEIT2 and the 1000 genomes haplotype panel.
-    * Download and unzip SHAPEIT.  The path to the top level of the unzipped archive
-      is `SHAPEIT_ROOT`.
-    * Download and unzip the 1000 genomes haplotype panel. The path to the top
-      level of the unzipped archive is `REFPANEL_ROOT`.
-    * Set the environment variables `SHAPEIT_ROOT` and `REFPANEL_ROOT`.
-```
-# For example, using the version of SHAPEIT2 available on 10/22/2018
-$ cd /path/to/git/repo
-$ mkdir shapeit
-$ cd shapeit
-$ wget https://mathgen.stats.ox.ac.uk/genetics_software/shapeit/shapeit.v2.r904.glibcv2.12.linux.tar.gz
-$ tar xzvf shapeit.v2.r904.glibcv2.12.linux.tar.gz
 $ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz
+$ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz
+```
+
+Unzip everything and move the chrX SHAPEIT files into the main SHAPEIT
+directory.
+```
+$ gunzip *.gz
 $ tar xzvf 1000GP_Phase3.tgz
-$ export SHAPEIT_ROOT=`realpath shapeit.v2.904.2.6.32-696.18.7.el6.x86_64`
-$ export REFPANEL_ROOT=`realpath 1000GP_Phase3`
-```
-6. Install `fastGHQuad`. This is a standard R package. To install:
-```
-$ R
-R> install.packages("fastGHQuad")
-# follow the prompts to install..
-```
-7. Install Python DRMAA if you intend to parallelize on a DRMAA-compatible
-cluster (e.g., LSF, Sun Grid Engine, SLURM, ...). This is not necessary for
-running the demo script.
-*Note:* Provided scripts depend
-on SLURM but must be modified to run on your cluster (e.g., partitionn names).
-We do not
-provide scripts for non-SLURM clusters, though modifying the current scripts
-is relatively straightforward.
-```
-pip install drmaa
-```
-The following path must always be set before running the pipeline. It should
-point to the libdrmaa shared object `libdrmaa.so`.
-```
-export DRMAA_LIBRARY_PATH=/usr/lib/libdrmaa.so
+$ tar xzvf 1000GP_Phase3_chrX.tgz
+$ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
-
-
-# Running the demo
-**Approximate run time**: 5 hours with 8 threads (cores).
-
-The provided demo shows how the pipeline is run in practice. However,
-because parameter fitting (step 3) requires significant compute time,
-the demo only analyzes reads from chromosome 22.
-Because some properties of hSNPs and sSNVs (e.g., VAF distributions) are
-normally measured from sites across all chromosomes, the demo's output will
-not exactly match the findings reported in the manuscript. In addition, a
-smaller number of grid points are used in the parameter MLE estimation,
-meaning the correlation function will also differ from the manuscript.
-For reference, the demo script computes 250 points times the number of
-requested threads, while 20,000 points per chromosome are used for normal
-analyses.
-
-Before running `demo.sh`, ensure that environment variables are set as
-described in **Installation**. A script to check the integrity of your
-environment variables is available in `utils`. It is recommended to run
-this script before attempting the demo.
+# Running the SCAN-SNV demo
+Download the demo chr22 BAMs.
 ```
-$ utils/check_env.sh
-Checking environment for necessary variables, PATH augmentations and libraries.
--------------------------------------------------------------------------------
-Using laplace_cpu_gcc
-Using OpenBLAS:     libopenblas.so.0 -> libopenblas_core2p-r0.2.19.so
-Using GATK_PATH=/path/to/scan-snv/gatkpath
-Using SHAPEIT_ROOT=/path/to/scan-snv/shapeit/shapeit.v2.904.2.6.32-696.18.7.el6.x86_64
-Using REFPANEL_ROOT=/path/to/scan-snv/shapeit/ALL.integrated_phase1_SHAPEIT_16-06-14.nosing
-Using /n/app/samtools/1.9/bin/samtools
-Using /n/app/R/3.3.3/bin/Rscript
-Using /usr/bin/python
-Using /n/app/java/jdk-1.8u112/bin/java
-Using /path/to/scan-snv/scripts/demo.sh
-Using /path/to/scan-snv/scripts/run_gatk.sh
-Using /path/to/scan-snv/scripts/run_shapeit.sh
-Using /path/to/scan-snv/scripts/scan_snv.sh
-```
-**Ensure that no ERROR lines are printed before running the demo.**
-
-To run the demo:
-```
-$ cd /path/to/scan-snv
-$ demo.sh 8              # Run with 8 cores
+$ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
+$ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
+$ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam
+$ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
-The final output is stored in Rdata format in `demo/scan-snv/somatic_gt.rda`.
-The set of final, called sSNVs can be printed using
+Run SCAN-SNV. Replace instances of /path/to/... with the paths
+downloaded above. This demo runs in about 5 minutes on a single core
+machine by restricting analysis to a 1 MB segment of chr22 and by
+using an impractically coarse grid for covariance function fitting.
 ```
-$ Rscript -e 'load("demo/scan-snv/somatic_gt.rda"); gt$somatic[gt$somatic$pass,]'
-```
-The expected output is a matrix of ~5-10 PASSed variants with several
-covariates.
-
-
-
-# Step by step usage
-### STEP 0: Configure environment
-1. See **Installation**. Set all necessary environment variables and
-   ensure the necessary dependencies are on your $PATH.
-2. `utils/check_env.sh` can be run to check the environment. If no ERROR
-   lines are emitted, then all dependencies are present.
-
-### STEP 1: Run GATK HaplotypeCaller on single cell and matched bulk data
-1. Configure parallelism for GATK. Region-based parallelization was used for the
-   manuscript's analysis, although an alternative and simpler method to
-   parallelize is to increase thread count.
-   * Region-based parallelization is only supported for clusters with
-     SLURM installed.
-   * The first parameter of the `run_gatk.sh` script sets the number of
-     compute threads for GATK HaplotypeCaller.
-2. Run GATK two times: once using MMQ=60 and once using MMQ=1.
-```
-$ run_gatk.sh n_threads 60 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
-$ run_gatk.sh n_threads 1 output_directory input_bam1 input_bam2 [ input_bam3 ... ]
+scansnv \
+    --ref /path/to/human_g1k_v37_decoy.fasta \
+    --dbsnp /path/to/dbsnp_138.b37.vcf \
+    --shapeit-panel /path/to/1000GP_Phase3 \
+    --regions 22:30000001-31000000 \
+    --output-dir demo \
+    --bam hunamp hunamp.chr22.bam \
+    --bam h25 il-12.chr22.bam  \
+    --sc-sample h25 \
+    --bulk-sample hunamp \
+    --abmodel-chunks 1 \
+    --abmodel-samples-per-chunk 10000 \
+    --abmodel-hsnp-chunk-size 50 \
+    --hsnp-spikein-replicates 5 \
+    --joblimit 1 --resume
 ```
 
+See `scansnv -h` for more details on arguments.
 
-### STEP 2: Define and phase hSNPs
-1. Run SHAPEIT2 on potential heterozygous SNPs found in the bulk sample. The
-   `hc_raw.mmq60.vcf` below refers to the VCF produced by `run_gatk.sh 60 ...`.
-   `bulk_sample_name` should be the sample string in the VCF corresponding to
-   the bulk sample.
+After SCAN-SNV completes, single sample results are available in the
+Rdata file
 ```
-$ for chrom in `seq 1 22`; do
->   run_shapeit.sh hc_raw.mmq60.vcf output_directory bulk_sample_name $chrom
-> done
-```
-   If successful, files named `phased_hsnps.chr[1-22].vcf` should exist in
-   the specified output directory.
-2. Combine the chromosome-specific VCFs into a single VCF. For example, using
-   GATK:
-```
-$ java -cp /path/to/gatk.jar org.broadinstitute.gatk.tools.CatVariants \
-      -R /path/to/human/reference.fasta  \
-      $(for chrom in `seq 1 22`; do echo -V phased_hsnps.chr$chrom.vcf; done) \
-      -out phased_hsnps.vcf \
-      -assumeSorted
+demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda
+# Called sSNVs can be extracted from the data frame via
+R> load('demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda')
+R> somatic[somatic$pass,]
+# The demo should not produce any passing variants.
 ```
 
-
-### STEP 3: Fit covariance function parameters via grid search
-1. Create training data files. `single_cell_sample` is the string found in
-   the mmq60 VCF corresponding to the single cell sample.
-```
-$ get_hsnps_singlecell.sh single_cell_sample hc_raw.mmq60.snp.vcf phased_hsnps.vcf output_directory
-```
-
-2. Run the grid searching algorithm to find parameter MLEs. In a typical
-   analysis, we use 20,000 points per grid level (ngrids=20,
-   points-per-grid=1000). For each chromosome, run:
-```
-mkdir -p output_directory/gridfit/chr22
-
-gridfit_chr.py \
-    --bindata=training_chr22.bin \
-    --local \
-    --ngrids 8 \                 # Set this to the number of cores available
-    --points-per-grid 400 \
-    --resume \
-    --laplace=laplace_cpu_gcc \  # Or laplace_cpu_icc if Intel C compiler was used
-    --outprefix=output_directory/gridfit/chr22
-```
-   If the run is successful, the files
-   `output_directory/gridfit/chr[1-22]/fit.rda` will be created.
-
-3. Make the final fit file.
-```
-make_fits.R demo/gridfit demo/fits.rda
-```
+# WARNING!
+* Sample names associated with BAMs *MUST* match the SM tag in the BAM.
+* You must always run conda activate scansnv before running SCAN-SNV.
+* Real world analyses will require parallelization.
+    * On a machine with multiple cores, increasing the --joblimit parameter
+      will run multiple parts of the analysis in parallel.
+    * For clusters with distributed resource management software (e.g., SLURM),
+      Snakemake provides the parallelization options --cluster and --drmaa.
 
 
-### STEP 4: Run SCAN-SNV
-1. Convert GATK VCFs into table format.
+# Using a custom dbSNP version
+## Generating a Tribble index for dbSNP
+dbSNP VCFs must be indexed by Tribble (*not* tabix) for GATK. The dbSNP
+found in the GATK's resource bundle is already indexed. If you wish to use
+a different dbSNP version, the file can be indexed by `igvtools`.
+
 ```
-# Make expected symlinks to the single cell BAMs
-$ cd output_directory
-$ ln -s /path/to/single/cell/BAM wg.bam
-$ ln -s /path/to/single/cell/BAI wg.bam.bai
-$ cd ..
-```
-2. Run SCAN-SNV. The final parameters are the target FDR and the number of
-   hSNPs to use to approximate the CIGAR indel and read clipping filters.
-```
-# Run SCAN-SNV
-$ scan_snv.sh hc_raw.mmq60.vcf hc_raw.mmq1.vcf output_directory \
-    single_cell_sample bulk_sample output_directory 0.1 10000
+$ conda install -c bioconda igvtools
+$ igvtools index /path/to/your/dbsnp.vcf
 ```
