@@ -1,15 +1,18 @@
 # scan-snv
-Single cell somatic genotyper
+Somatic genotyper for SNV discovery in whole genome amplified single cells.
 
 
 # Installation
-**Operating systems tested**: GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
+SCAN-SNV is distributed as a conda package. Installation requires the conda
+package management tool and a Linux-flavored OS.
 
-**Installation time**: installation should take only a few minutes on a modern
-computer.
+**Operating systems tested**
+* GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
+* Ubuntu 16.04.4 LTS AWS instance.
 
-SCAN-SNV is distributed as a conda package. To install, first Miniconda must
-be downloaded and installed as follows:
+
+**NOTE** This installation process and demo have been successfully run on
+an Amazon Web Services Ubuntu 16.04.4 LTS instance.
 
 ## Installing miniconda
 ```
@@ -22,14 +25,18 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
 ## Installing SCAN-SNV
+Create a conda environment for SCAN-SNV
 ```
-# Create an environment for SCAN-SNV
 $ conda deactivate   # The "base" environment will be active after login
 $ conda create -n scansnv
 $ conda activate scansnv
-# Install the scansnv package
+```
+Install the scansnv package
+```
 $ conda install -c bioconda -c conda-forge/label/cf201901 -c jluquette scansnv
-# Register GATK installation
+```
+Register your GATK installation
+```
 $ wget 'https://software.broadinstitute.org/gatk/download/auth?package=GATK-archive&version=3.8-1-0-gf15c1c3ef' -O GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
 $ tar xjvf GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
 $ gatk-register GenomeAnalysisTK-3.8-1-0-gf15c1c3ef/GenomeAnalysisTK.jar
@@ -39,7 +46,7 @@ $ gatk --version
 ```
 
 ## Downloading external data dependencies
-SCAN-SNV has only been tested on NCBI build 37.
+SCAN-SNV has been tested on the NCBI human reference build 37.
 
 Download reference genome.
 ```
@@ -118,13 +125,15 @@ R> somatic[somatic$pass,]
 ```
 
 # WARNING!
-* Sample names associated with BAMs *MUST* match the SM tag in the BAM.
-* You must always run conda activate scansnv before running SCAN-SNV.
+* Sample names associated with BAMs **MUST** match the SM tag in the BAM.
+* The conda environment (named scansnv in these instructiosn) must always
+  be `conda activate`d before running SCAN-SNV.
 * Real world analyses will require parallelization.
-    * On a machine with multiple cores, increasing the --joblimit parameter
+    * On a machine with multiple cores, increasing the `--joblimit` parameter
       will run multiple parts of the analysis in parallel.
     * For clusters with distributed resource management software (e.g., SLURM),
-      Snakemake provides the parallelization options --cluster and --drmaa.
+      SCAN-SNV exposes Snakemake's parallelization options
+      `--cluster` and `--drmaa`.
 
 
 # Using a custom dbSNP version
