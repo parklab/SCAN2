@@ -115,9 +115,12 @@ scansnv \
 See `scansnv -h` for more details on arguments.
 
 After SCAN-SNV completes, single sample results are available in the
-Rdata file
+Rdata file `demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda`.
+SNVs that pass SCAN-SNV's calling thresholds will have `pass=TRUE` in the
+`somatic` data frame (see below).
+
+**NOTE**: a VCF output option is forthcoming.
 ```
-demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda
 # Called sSNVs can be extracted from the data frame via
 R> load('demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda')
 R> somatic[somatic$pass,]
