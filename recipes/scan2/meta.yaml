@@ -1,6 +1,6 @@
 package:
-    name: scansnv
-    version: "0.9"
+    name: scan2
+    version: "2.0"
 
 requirements:
     run:
