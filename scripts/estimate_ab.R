@@ -28,27 +28,13 @@ sites <- read.table(posfile, sep="\t", header=TRUE,
 # correlation function, so the correct parameters must be supplied.
 ab <- do.call(rbind, lapply(unique(sites$chr), function(chrom) {
     hsnps <- data[data$chr == chrom,]
-    # We're predicting AB at hSNPs as a control. These hSNPs are derived
-    # from the training data, so we need to exclude them in this computation.
-    # N.B. this isn't a perfect control scenario: the hSNPs were still used
-    # to fit the correlation function parameters; however, as long as a
-    # small fraction of hSNPs are used here, the fit would not have been
-    # affected noticeably anyway.
-    if (analysis.type == 'hsnp_spikein') {
-str(hsnps)
-str(sites)
-        exclusion <- paste(hsnps$chr, hsnps$pos, hsnps$altnt) %in%
-                     paste(sites$chr, sites$pos, sites$altnt)
-        hsnps <- hsnps[!exclusion,]
-        cat(sprintf("hsnp_spikein analysis: withheld %d sites on chromosome %s\n",
-            sum(exclusion), chrom))
-    }
     fit <- fits[[chrom]]
 
     cat(sprintf("inferring AB for %d sites on chr%s:%d-%d\n", 
         nrow(sites), chrom, min(sites$pos), max(sites$pos)))
     system.time(z <- infer.gp(ssnvs=sites, fit=fit,
-        hsnps=hsnps, chunk=1, flank=1e5, verbose=FALSE))
+        hsnps=hsnps, chunk=1, flank=1e5, verbose=FALSE,
+        spikein=analysis.type == 'hsnp_spikein'))
     cbind(sites, z)
 }))
 

@@ -4,8 +4,12 @@ from snakemake.utils import R
 
 
 wildcard_constraints:
+    chr='|'.join(str(x) for x in config['chrs']),
     gatk_chunk="\d+",
     gatk_mmq="\d+",
+    muttype="snv|indel|mosaic_snv",
+    phaser="shapeit|eagle"
+
 
 
 # Always output somatic_genotype files for all samples.
@@ -13,19 +17,137 @@ wildcard_constraints:
 def determine_pipeline_output(wildcards):
     prf = ''
     d = dict()
-    d['somatic_genotypes'] = expand("scansnv/{sample}/somatic_genotypes.rda",
-        sample=config['sc_samples'])
-    d['hsnp_spikein_genotypes'] = expand("scansnv/{sample}/hsnp_spikein_genotypes.rda",
-        sample=config['sc_samples'])
 
-    if len(config['sc_samples']) > 1:
-        d['joint_somatic_genotypes'] = expand("scansnv/{sample}/joint_somatic_genotypes.rda",
+    # Somatic SNVs
+    if config['analyze_snvs']:
+        print("adding somatic SNVs to schedule")
+        d['somatic_genotypes'] = expand("snv/{sample}/somatic_genotypes.rda",
             sample=config['sc_samples'])
+        d['hsnp_spikein_genotypes'] = expand("snv/{sample}/hsnp_spikein_genotypes.rda",
+            sample=config['sc_samples'])
+        if config['permute']:
+            d['permuted_snvs'] = expand("snv/{sample}/permuted_sites.rda",
+                sample=config['sc_samples'])
+
+    # Somatic indels
+    if config['analyze_indels']:
+        print("adding somatic indels to schedule")
+        d['indel_somatic_genotypes'] = expand("indel/{sample}/somatic_genotypes.pon_filter.rda",
+            sample=config['sc_samples'])
+        d['indel_hsnp_spikein_genotypes'] = expand("indel/{sample}/hsnp_spikein_genotypes.rda",
+            sample=config['sc_samples'])
+        if config['permute']:
+            d['permuted_indels'] = expand("indel/{sample}/permuted_sites.rda",
+                sample=config['sc_samples'])
+
+    # Mosaic SNVs
+    if config['analyze_mosaic_snvs']:
+        print("adding mosaic SNVs to schedule")
+        d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
+            sample=config['sc_samples'])
+
+    # Find bases passing minimum depth thresholds
+    if config['callable_regions']:
+        print("adding region callability to schedule")
+        d['callable_beds'] = expand("callable_regions/{sample}/callable_regions.bed",
+            sample=config['sc_samples'])
+
+    '''
+    # Joint calling for SNVs
+    if config['analyze_snvs'] and len(config['sc_samples']) > 1:
+        print("adding joint somatic SNV calling to schedule")
+        d['joint_somatic_genotypes'] = expand("snv/{sample}/joint_somatic_genotypes.rda",
+            sample=config['sc_samples'])
+    '''
     return d
+
+
 
 rule all:
     input:
         unpack(determine_pipeline_output)
+
+
+
+rule callable_region_gather:
+    input:
+        beds=lambda wildcards:
+            expand("callable_regions/{{sample}}/callable_regions.bulk_intersect.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix']),
+            sample=wildcards.sample, chr=config['chrs']),
+    output:
+        bed="callable_regions/{sample}/callable_regions.bed"
+    resources:
+        mem=4000
+    shell:
+        "cat {input.beds} > {output.bed}"
+
+
+
+rule callable_region_bulk_intersect:
+    input:
+        scbed="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix']),
+        bulkbed="callable_regions/{bulk_sample}/callable_regions.{chr_prefix}{{chr}}.bed".format(bulk_sample=config['bulk_sample'], chr_prefix=config['chr_prefix'])
+    output:
+        bed="callable_regions/{{sample}}/callable_regions.bulk_intersect.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix'])
+    resources:
+        mem=4000
+    shell:
+        "bedtools intersect -a {input.scbed} -b {input.bulkbed} > {output.bed}"
+
+
+
+rule callable_region_scatter:
+    input:
+        bam=lambda wildcards: config['bams'][wildcards.sample]
+    output:
+        txt="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.txt".format(chr_prefix=config['chr_prefix']),
+        bed="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix'])
+    params:
+        chrom='{chr}',
+        min_dp=lambda wildcards: config['min_bulk_dp'] if wildcards.sample == config['bulk_sample'] else config['min_sc_dp']
+    resources:
+        mem=4500
+    shell:
+        "gatk -T DepthOfCoverage"
+        "    -Xmx4G -Xms4G "
+        "    -R {config[humref]} "
+        "    -I {input.bam} "
+        "    -L {params.chrom}"
+        "    -mmq 60 "
+        "    -o {output.txt} ; "
+        " tail -n +2 {output.txt} "
+        " | awk 'BEGIN {{ OFS=\"\t\"; }} {{"
+        "        if ($2 >= {params.min_dp}) {{"
+        "         split($1, chrpos, \":\");"
+        "         print chrpos[1], chrpos[2]-1, chrpos[2], \"+\";"
+        "     }} }}'"
+        " | bedtools merge > {output.bed}"
+
+
+
+rule permute_snvs:
+    input:
+        rda="snv/{sample}/somatic_genotypes.rda",
+        bed="callable_regions/{sample}/callable_regions.bed"
+    output:
+        "snv/{sample}/permuted_sites.rda"
+    resources:
+        mem=4000
+    shell:
+        "{config[scripts]}/permute.r 1000 {input.rda} {input.bed} {output}"
+
+
+
+rule permute_indels:
+    input:
+        rda="indel/{sample}/somatic_genotypes.pon_filter.rda",
+        bed="callable_regions/{sample}/callable_regions.bed"
+    output:
+        "indel/{sample}/permuted_sites.rda"
+    resources:
+        mem=4000
+    shell:
+        "{config[scripts]}/permute.r 1000 {input.rda} {input.bed} {output}"
 
 
 
@@ -39,6 +161,7 @@ rule gatk_gather:
         vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
     params:
         lambda wildcards:
+            #'\n'.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
             ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
                             gatk_mmq=wildcards.gatk_mmq,
                             gatk_chunk=range(1, config['gatk_chunks']+1)))
@@ -47,12 +170,17 @@ rule gatk_gather:
     benchmark:
         "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
     shell:
+        #"xargs cat > gatk/catvariants_args.txt << 'EOF'\n"
+        #"{params}\n"
+        #"EOF\n"
         "gatk org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
-        "    -R {config[humref]}"
         "    {params}"
+        "    -R {config[humref]}"
         "    -out {output.vcf}"
         "    -assumeSorted"
+        #"    --args-file gatk/catvariants_args.txt"
+        #"    {params}"
 
 
 
@@ -67,11 +195,11 @@ rule gatk_scatter:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
         mmq="{gatk_mmq}"
     resources:
-        mem=5000
+        mem=10000
     benchmark:
         "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     shell:
-        "gatk -Xmx4G -Xms4G "
+        "gatk -Xmx3500M -Xms3500M"
         "    -T HaplotypeCaller"
         "    -R {config[humref]}"
         "    --dontUseSoftClippedBases -l INFO"
@@ -81,40 +209,75 @@ rule gatk_scatter:
         "    {params.bamlist}"
         "    {params.regionflag}"
         "    -o {output.vcf}"
+        #"    -ploidy 100"
 
 
 
-rule shapeit_gather:
+rule shapeit_prepare:
     input:
-        expand("shapeit/chr{chr}/phased_hsnps.vcf", chr=config['chrs'])
+        "gatk/hc_raw.mmq60.vcf"
     output:
-        vcf="shapeit/phased_hsnps.vcf"
+        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
     params:
-        vcfs=' '.join(expand("-V shapeit/chr{chr}/phased_hsnps.vcf", chr=config['chrs']))
+        chr="{chr}"
     resources:
         mem=4000
     shell:
-        "gatk org.broadinstitute.gatk.tools.CatVariants"
-        "    -Xmx3G -Xms3G"
+        "gatk -Xmx3G -Xms3G"
+        "    -T SelectVariants"
         "    -R {config[humref]}"
-        "    {params.vcfs}"
-        "    -out {output}"
-        "    -assumeSorted"
+        "    -V {input}"
+        "    -selectType SNP"
+        "    -selectType INDEL"
+        "    -sn {config[bulk_sample]}"
+        "    -restrictAllelesTo BIALLELIC"
+        "    -env -trimAlternates"
+        "    -L {params.chr}"
+        "    -o {output}"
 
 
 
+rule eagle_prepare:
+    input:
+        "gatk/hc_raw.mmq60.vcf"
+    output:
+        out="eagle/{chr}/hc_raw.mmq60.{chr}.vcf",
+        gzout="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+    params:
+        chr="{chr}"
+    resources:
+        mem=4000
+    shell:
+        "gatk -Xmx3G -Xms3G"
+        "    -T SelectVariants"
+        "    -R {config[humref]}"
+        "    -V {input}"
+        "    -selectType SNP"
+        "    -selectType INDEL"
+        "    -sn {config[bulk_sample]}"
+        "    -restrictAllelesTo BIALLELIC"
+        "    -env -trimAlternates"
+        "    -L {params.chr}"
+        "    -o {output.out} ;"
+        "bgzip -c {output.out} > {output.gzout} ; "
+        "tabix {output.gzout}"
+
+
+
+# {chr_prefix} is an ugly hack to allow analysis of old workflows.
+# one day soon, it can be removed.
 rule shapeit_scatter:
     input:
-        "shapeit/chr{chr}/hc_raw.mmq60.chr{chr}.vcf"
+        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
     output:
-        "shapeit/chr{chr}/phased_hsnps.vcf"
+        "shapeit/{chr_prefix}{{chr}}/phased_hsnps.vcf".format(chr_prefix=config['chr_prefix'])
     params:
-        excludefile="shapeit/chr{chr}/shapeit_check.snp.strand.exclude",
-        tmpout="shapeit/chr{chr}/chr{chr}.phased",
-        tmpout2="shapeit/chr{chr}/phased.vcf",
-        checklog="shapeit/chr{chr}/shapeit_check.log",
-        phaselog="shapeit/chr{chr}/shapeit_phase.log",
-        convertlog="shapeit/chr{chr}/shapeit_convert.log",
+        excludefile="shapeit/{chr_prefix}{{chr}}/shapeit_check.snp.strand.exclude".format(chr_prefix=config['chr_prefix']),
+        tmpout="shapeit/{chr_prefix}{{chr}}/{chr_prefix}{{chr}}.phased".format(chr_prefix=config['chr_prefix']),
+        tmpout2="shapeit/{chr_prefix}{{chr}}/phased.vcf".format(chr_prefix=config['chr_prefix']),
+        checklog="shapeit/{chr_prefix}{{chr}}/shapeit_check.log".format(chr_prefix=config['chr_prefix']),
+        phaselog="shapeit/{chr_prefix}{{chr}}/shapeit_phase.log".format(chr_prefix=config['chr_prefix']),
+        convertlog="shapeit/{chr_prefix}{{chr}}/shapeit_convert.log".format(chr_prefix=config['chr_prefix']),
         gmap="genetic_map_chr{chr}",
         hap="1000GP_Phase3_chr{chr}",
         leg="1000GP_Phase3_chr{chr}",
@@ -122,7 +285,7 @@ rule shapeit_scatter:
         extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
         xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
     benchmark:
-        "shapeit/chr{chr}/benchmark.tsv"
+        "shapeit/{chr_prefix}{{chr}}/benchmark.tsv".format(chr_prefix=config['chr_prefix'])
     resources:
         mem=4000
     shell:
@@ -155,33 +318,77 @@ rule shapeit_scatter:
     
 
 
-rule shapeit_prepare:
+rule eagle_scatter:
     input:
-        "gatk/hc_raw.mmq60.vcf"
+        "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
     output:
-        "shapeit/chr{chr}/hc_raw.mmq60.chr{chr}.vcf"
+        "eagle/{chr}/phased_hsnps.vcf"
     params:
-        chr="{chr}"
+        tmpout="eagle/{chr}/phased_hsnps_tmp.vcf",
+        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
+        refbcf=lambda wildcards:
+            config['eagle_refpanel'][wildcards.chr],
+        outprefix="eagle/{chr}/phased_hsnps_tmp"
+    benchmark:
+        "eagle/{chr}/benchmark.tsv"
+    resources:
+        mem=8000
+    shell:
+        """
+        eagle --vcfTarget {params.zippedinput} \
+            --vcfRef {params.refbcf} \
+            --geneticMapFile {config[eagle_genmap]} \
+            --vcfOutFormat v \
+            --outPrefix {params.outprefix} ;
+        awk '$10 ~ /^1\|0/ || $10 ~ /^0\|1/ || $1 ~ /^#/' {params.tmpout} \
+            | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}
+        """
+
+
+
+rule phasing_gather:
+    input:
+        expand("{phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs'])
+    output:
+        vcf=config['phaser'] + "/phased_all.vcf",
+        snv=config['phaser'] + "/phased_hsnps.vcf",
+        indel=config['phaser'] + "/phased_indels.vcf"
+    params:
+        vcfs=' '.join(expand("-V {phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs']))
     resources:
         mem=4000
     shell:
+        "gatk org.broadinstitute.gatk.tools.CatVariants"
+        "    -Xmx3G -Xms3G"
+        "    -R {config[humref]}"
+        "    {params.vcfs}"
+        "    -out {output.vcf}"
+        "    -assumeSorted ;"
         "gatk -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[humref]}"
-        "    -V {input}"
+        "    -V {output.vcf}"
         "    -selectType SNP"
-        "    -sn {config[bulk_sample]}"
-        "    -restrictAllelesTo BIALLELIC"
-        "    -env -trimAlternates"
-        "    -L {params.chr}"
-        "    -o {output}"
+        "    -o {output.snv} ;"
+        "gatk -Xmx3G -Xms3G"
+        "    -T SelectVariants"
+        "    -R {config[humref]}"
+        "    -V {output.vcf}"
+        "    -selectType INDEL"
+        "    -o {output.indel} ;"
 
 
 
 rule training_hsnps_helper:
     input:
         joint_vcf="gatk/hc_raw.mmq60.vcf",
-        phased_vcf="shapeit/phased_hsnps.vcf"
+        phased_vcf=config['phaser'] + "/phased_hsnps.vcf"
     output:
         tab="ab_model/{sample}/hsnps.tab",
         combined_vcf="ab_model/{sample}/hsnps.vcf",
@@ -213,6 +420,41 @@ rule training_hsnps_helper:
 
 
 
+rule training_indels_helper:
+    input:
+        joint_vcf="gatk/hc_raw.mmq60.vcf",
+        phased_vcf=config['phaser'] + "/phased_indels.vcf"
+    output:
+        tab="indel/{sample}/hsnps.tab",
+        combined_vcf="indel/{sample}/hsnps.vcf",
+        tmp_vcf="indel/{sample}/hsnps_helper_tmp.vcf",
+    params:
+        sn="{sample}"
+    resources:
+        mem=4000
+    shell:
+        "gatk -Xmx3G -Xms3G"
+        "    -R {config[humref]}"
+        "    -T CombineVariants"
+        "    -V {input.joint_vcf}"
+        "    -V {input.phased_vcf}"
+        "    -o {output.tmp_vcf} ;"
+        "gatk -Xmx3G -Xms3G"
+        "    -R {config[humref]}"
+        "    -T SelectVariants"
+        "    -V {output.tmp_vcf}"
+        "    -sn {params.sn}"
+        "    -sn phasedgt"
+        "    -env -trimAlternates"
+        "    -select 'vc.getGenotype(\"'{params.sn}'\").isCalled()'"
+        "    -select 'vc.getGenotype(\"phasedgt\").isCalled()'"
+        "    -select 'vc.isBiallelic()'"
+        "    -selectType INDEL"
+        "    -o {output.combined_vcf} ; "
+        "{config[scripts]}/totab.phase.sh {output.combined_vcf} {output.tab}"
+
+
+
 rule training_hsnps:
     input:
         "ab_model/{sample}/hsnps.tab"
@@ -232,11 +474,29 @@ rule training_hsnps:
 
 
 
+rule training_indels:
+    input:
+        "indel/{sample}/hsnps.tab"
+    output:
+        rda="indel/{sample}/training.rda"
+    resources:
+        mem=4000
+    run:
+        R("""
+            data <- read.table("{input}",
+                header=TRUE, stringsAsFactors=FALSE,
+                colClasses=c(chr='character'))
+            save(data, file="{output}")
+        """)
+
+
+
 rule abmodel_fit:
     input:
         lambda wildcards: 
-            expand("ab_model/{sample}/chr{chr}/fit_step{abmodel_steps}.rda",
-                sample=wildcards.sample, chr=config['chrs'],
+            expand("ab_model/{sample}/{chr_prefix}{chr}/fit_step{abmodel_steps}.rda",
+                sample=wildcards.sample, chr_prefix=config['chr_prefix'],
+                chr=config['chrs'],
                 abmodel_steps=config['abmodel_steps'])
     output:
         "ab_model/{sample}/fits.rda"
@@ -261,14 +521,15 @@ rule abmodel_fit:
 rule abmodel_gather_by_chrom:
     input:
         lambda wildcards:
-            expand("ab_model/{sample}/chr{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda",
+            expand("ab_model/{sample}/{chr_prefix}{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda",
                 sample=wildcards.sample,
                 chr=wildcards.chr,
+                chr_prefix=config['chr_prefix'],
                 abmodel_step=wildcards.abmodel_step,
                 abmodel_chunk=range(1, config["abmodel_chunks"]+1))
     output:
-        fit="ab_model/{sample}/chr{chr}/fit_step{abmodel_step}.rda",
-        range="ab_model/{sample}/chr{chr}/param_ranges_step{abmodel_step}.rda"
+        fit="ab_model/{sample}/%s{chr}/fit_step{abmodel_step}.rda" % config['chr_prefix'],
+        range="ab_model/{sample}/%s{chr}/param_ranges_step{abmodel_step}.rda" % config['chr_prefix']
     params:
         infiles=lambda wildcards, input:
             "c(" + ', '.join("'" + f + "'" for f in input) + ")",
@@ -314,9 +575,10 @@ def abmodel_scatter_input(wildcards):
     d = dict()
     d['training'] = "ab_model/{sample}/training.rda",
     if int(wildcards.abmodel_step) > 1:
-         prf = expand("ab_model/{sample}/chr{chr}/param_ranges_step{abmodel_prev_step}.rda",
+         prf = expand("ab_model/{sample}/{chr_prefix}{chr}/param_ranges_step{abmodel_prev_step}.rda",
                 sample=wildcards.sample,
                 chr=wildcards.chr,
+                chr_prefix=config['chr_prefix'],
                 abmodel_prev_step=int(wildcards.abmodel_step) - 1)
          d['param_ranges'] = prf
     return d
@@ -325,7 +587,7 @@ rule abmodel_scatter:
     input:
         unpack(abmodel_scatter_input)  
     output:
-        "ab_model/{sample}/chr{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda"
+        "ab_model/{sample}/%s{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda" % config['chr_prefix']
     params:
         chr="{chr}",
         seed="{abmodel_chunk}",
@@ -333,7 +595,7 @@ rule abmodel_scatter:
         paramfile=lambda wildcards, input: \
             input.param_ranges if wildcards.abmodel_step != '1' else ''
     benchmark:
-        "ab_model/{sample}/chr{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv"
+        "ab_model/{sample}/%s{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv" % config['chr_prefix']
     resources:
         mem=1000
     run:
@@ -370,8 +632,8 @@ rule scansnv_vcftotab:
     input:
         "gatk/hc_raw.mmq{gatk_mmq}.vcf"
     output:
-        vcf="scansnv/mmq{gatk_mmq}.vcf",
-        tab="scansnv/mmq{gatk_mmq}.tab"
+        vcf="snv/mmq{gatk_mmq}.vcf",
+        tab="snv/mmq{gatk_mmq}.tab"
     resources:
         mem=4000
     shell:
@@ -387,52 +649,77 @@ rule scansnv_vcftotab:
 
 
 
-rule scansnv_sample_hsnps:
+# Probably want some additional parsing here
+rule scansnv_vcftotab_indel:
     input:
-        "shapeit/phased_hsnps.vcf"
+        "gatk/hc_raw.mmq{gatk_mmq}.vcf"
     output:
-        "scansnv/hsnp_spikein_positions.rda"
+        vcf="indel/mmq{gatk_mmq}.vcf",
+        tab="indel/mmq{gatk_mmq}.tab"
     resources:
         mem=4000
-    run:
-        R("""
-            vcf <- read.table("{input}", stringsAsFactors=TRUE, header=F,
-                            comment="#", colClasses=c(V1='character'))
-            hsnp.sample <- vcf[sample(nrow(vcf), size={config[hsnp_spikein_nsamples]}),]
-            colnames(hsnp.sample)[c(1:2,4:5)] <- c('chr', 'pos', 'refnt', 'altnt')
-            save(hsnp.sample, file="{output}")
-        """)
+    shell:
+        "gatk -Xmx3G -Xms3G"
+        "   -T SelectVariants"
+        "   -R {config[humref]}"
+        "   -V {input}"
+        "   -selectType INDEL -restrictAllelesTo BIALLELIC"
+        "   -env -trimAlternates"
+        "   -select 'vc.getGenotype(\"{config[bulk_sample]}\").isCalled()'"
+        "   -o {output.vcf} ; "
+        "{config[scripts]}/totab.indel.sh {output.vcf} {output.tab}"
 
 
-
-rule scansnv_sample_hsnps_scatter:
+rule scansnv_sample_hsnps:
     input:
-        "scansnv/hsnp_spikein_positions.rda"
+        vcf=lambda wildcards:
+            config['phaser'] + ("/phased_hsnps.vcf" if wildcards.muttype == 'snv' else "/phased_indels.vcf"),
+        somatic_pos="{muttype}/somatic_positions.%s{chr}.tab" % config['chr_prefix']
     output:
-        "scansnv/hsnp_spikein_positions.chr{chr}.tab"
+        rda="{muttype}/hsnp_spikein_positions.%s{chr}.rda" % config['chr_prefix'],
+        resample_rda="{muttype}/hsnp_spikein_resample.%s{chr}.rda" % config['chr_prefix'],
+        pdf="{muttype}/hsnp_spikein_resample.%s{chr}.pdf" % config['chr_prefix'],
+        tab="{muttype}/hsnp_spikein_positions.%s{chr}.tab" % config['chr_prefix']
     params:
-        chr="{chr}"
+        chrom='{chr}',
     resources:
-        mem=1000
+        mem=8000
     run:
         R("""
-            load("{input}")  # loads 'hsnp.sample'
-            chr <- "{params.chr}"
-            write.table(hsnp.sample[hsnp.sample$chr == chr,c(1:2,4:5)],
-                file="{output}", quote=F, row.names=FALSE, sep='\t')
+            library(scansnv) # provides resample.hsnps()
+            vcf <- read.table("{input.vcf}", stringsAsFactors=TRUE, header=F,
+                            comment="#", colClasses=c(V1='character'))
+            colnames(vcf)[c(1:5)] <- c('chr', 'pos', 'dbsnp', 'refnt', 'altnt')
+            vcf <- vcf[vcf$chr == "{params.chrom}", c(1:2,4:5)]
+
+            som <- read.table("{input.somatic_pos}", header=T,
+                stringsAsFactors=FALSE, colClasses=c(chr='character'))
+            rs <- resample.hsnps(som, vcf, chrom="{params.chrom}", M={config[resample_M]})
+            pdf("{output.pdf}")
+            plot(rs$dist.s$mids, rs$dist.s$density,
+                type='l', col='red', lwd=2, xlab='log10(dist between sites)',
+                ylab='Density', main='Intra-hSNP distances; hSNP-sSNV distances')
+            lines(rs$dist.h$mids, rs$dist.h$density, col=1, lwd=2)
+            dev.off()
+            hsnp.sample <- vcf[rs$selection$keep,]
+            save(hsnp.sample, file="{output.rda}")
+            write.table(hsnp.sample,
+                file="{output.tab}", quote=F, row.names=FALSE, sep='\t')
+            save(rs, file="{output.resample_rda}")
         """)
 
 
 
 rule scansnv_somatic_sites:
     input:
-        "scansnv/mmq60.tab"
+        "{muttype}/mmq60.tab"
     output:
-        "scansnv/somatic_positions.chr{chr}.tab"
+        "{muttype}/somatic_positions.%s{chr}.tab" % config['chr_prefix']
     params:
+        muttype="{muttype}",
         chr="{chr}"
     resources:
-        mem=6000
+        mem=32000
     run:
         R("""
             # Use a very sensitive definition of somatic site here
@@ -454,40 +741,39 @@ rule scansnv_somatic_sites:
                 cat(sprintf("%8s %s\n", s, colnames(tab)[i]))
             }}
 
-            candidate.somatics <-
-                tab[tab[,bulk.alt] == 0 &
-                    tab[,bulk.idx] == '0/0' &
-                    tab$dbsnp == '.' &
-                    rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
-                    tab$chr == "{params.chr}",]
+            if ("{params.muttype}" == "snv") {{
+                candidate.somatics <-
+                    tab[tab[,bulk.alt] == 0 &
+                        tab[,bulk.idx] == '0/0' &
+                        tab$dbsnp == '.' &
+                        rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
+                        tab$chr == "{params.chr}",]
+            }} else if ("{params.muttype}" == "mosaic_snv") {{
+                bulk.vaf <- tab[,bulk.alt] / (tab[,bulk.alt] + tab[,bulk.alt-1])
+                candidate.somatics <-
+                    tab[tab[,bulk.alt] > 0 &
+                        bulk.vaf < 0.3 &
+                        tab$dbsnp == '.' &
+                        rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
+                        # To help remove germline: at least one cell must have 0 alt reads
+                        rowSums(as.matrix(tab[,sc.alts]) == 0) > 0 &
+                        tab$chr == "{params.chr}",]
+            }} else
+                stop("params.muttype={params.muttype} is unrecognized. must be 'snv' or 'mosaic_snv'")
             write.table(candidate.somatics[,c(1:2, 4:5)], sep="\t",
                 quote=FALSE, row.names=FALSE, file="{output}")
         """)
 
 
 
+
 rule scansnv_count_cigars:
     input:
-        sites="scansnv/{vartype}_positions.chr{chr}.tab",
+        sites="{muttype}/{vartype}_positions.%s{chr}.tab" % config['chr_prefix'],
         bam=lambda wildcards: config['bams'][wildcards.sample]
     output:
-        txt="scansnv/{sample}/{vartype}_cigars.chr{chr}.txt",
-        tab="scansnv/{sample}/{vartype}_cigars.chr{chr}.tab"
-    resources:
-        mem=1000
-    shell:
-        "{config[scripts]}/get_cigars.sh {input.sites} {input.bam} {output.txt} ; "
-        "{config[scripts]}/count_cigars.py {output.txt} > {output.tab}"
-
-
-
-rule scansnv_count_bulk_cigars:
-    input:
-        sites="scansnv/{vartype}_positions.chr{chr}.tab",
-        bam=config['bams'][config['bulk_sample']]
-    output:
-        txt="scansnv/{vartype}_bulk_cigars.chr{chr}.txt",
-        tab="scansnv/{vartype}_bulk_cigars.chr{chr}.tab"
+        txt="{muttype}/{sample}/{vartype}_cigars.%s{chr}.txt" % config['chr_prefix'],
+        tab="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix']
     resources:
         mem=1000
     shell:
@@ -499,33 +785,13 @@ rule scansnv_count_bulk_cigars:
 rule scansnv_cigar_gather:
     input:
         lambda wildcards:
-            expand("scansnv/{sample}/{vartype}_cigars.chr{chr}.tab",
-                sample=wildcards.sample, vartype=wildcards.vartype, chr=config['chrs'])
-    output:
-        "scansnv/{sample}/{vartype}_cigars.tab"
-    params:
-        infiles=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
-    resources:
-        mem=1000
-    run:
-        R("""
-            cigars <- do.call(rbind, lapply({params.infiles}, function(f) {{
-                read.table(f, header=T)
-            }}))
-            write.table(cigars, file="{output}", quote=FALSE, row.names=FALSE,
-                sep="\t")
-        """)
-
-
-
-rule scansnv_bulk_cigar_gather:
-    input:
-        lambda wildcards:
-            expand("scansnv/{vartype}_bulk_cigars.chr{chr}.tab",
+            expand("{muttype}/{sample}/{vartype}_cigars.{chr_prefix}{chr}.tab",
+                muttype=wildcards.muttype,
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
                 vartype=wildcards.vartype, chr=config['chrs'])
     output:
-        "scansnv/{vartype}_bulk_cigars.tab"
+        "{muttype}/{sample}/{vartype}_cigars.tab"
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
@@ -546,16 +812,18 @@ rule scansnv_estimate_ab_scatter:
     input:
         fits="ab_model/{sample}/fits.rda",
         training="ab_model/{sample}/training.rda",
-        sites="scansnv/{type}_positions.chr{chr}.tab"
+        sites="{muttype}/{type}_positions.%s{chr}.tab" % config['chr_prefix']
     output:
-        "scansnv/{sample}/{type}_ab.chr{chr}.rda"
+        "{muttype}/{sample}/{type}_ab.%s{chr}.rda" % config['chr_prefix']
     params:
+        # Only germline SNPs are used for the inference, so indels are
+        # never spikeins even when we are inferring at a germline indel.
         flag=lambda wildcards:
-            "somatic" if wildcards.type == 'somatic' else 'hsnp_spikein'
+            "somatic" if wildcards.type == 'somatic' or wildcards.muttype == 'indel' else 'hsnp_spikein'
     resources:
         mem=1000
     benchmark:
-        "scansnv/{sample}/benchmark_{type}_ab.chr{chr}.tsv"
+        "{muttype}/{sample}/benchmark_{type}_ab.%s{chr}.tsv" % config['chr_prefix']
     shell:
         "{config[scripts]}/estimate_ab.R"
         "   {input.fits} {input.training} {input.sites} {params} {output}"
@@ -565,10 +833,11 @@ rule scansnv_estimate_ab_scatter:
 rule scansnv_estimate_ab_gather:
     input:
         lambda wildcards:
-            expand("scansnv/{sample}/{type}_ab.chr{chr}.rda",
-                type=wildcards.type, sample=wildcards.sample, chr=config['chrs'])
+            expand("{muttype}/{sample}/{type}_ab.{chr_prefix}{chr}.rda",
+                type=wildcards.type, sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'], chr=config['chrs'])
     output:
-        "scansnv/{sample}/{type}_ab.rda"
+        "{muttype}/{sample}/{type}_ab.rda"
     params:
         infiles=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
@@ -585,10 +854,10 @@ rule scansnv_estimate_ab_gather:
 
 rule scansnv_cigar_tuning:
     input:
-        sc="scansnv/{sample}/hsnp_spikein_cigars.tab",
-        bulk="scansnv/hsnp_spikein_bulk_cigars.tab"
+        sc="{muttype}/{sample}/hsnp_spikein_cigars.tab",
+        bulk="{muttype}/%s/hsnp_spikein_cigars.tab" % config['bulk_sample']
     output:
-        "scansnv/{sample}/cigar_tuning.rda"
+        "{muttype}/{sample}/cigar_tuning.rda"
     resources:
         mem=1000
     run:
@@ -596,7 +865,6 @@ rule scansnv_cigar_tuning:
             sc <- read.table("{input.sc}", header=T, stringsAsFactors=F)
             bulk <- read.table("{input.bulk}", header=T, stringsAsFactors=F)
             cd <- merge(sc, bulk, by=c('chr', 'pos'), suffixes=c('', '.bulk'))
-str(cd)
 
             cigar.emp.score <- function(training, test, which=c('id', 'hs')) {{
                 xt <- training[,paste0(which, '.score.x')]
@@ -608,11 +876,9 @@ str(cd)
 
             cd$id.score.y <- cd$ID.cigars / cd$dp.cigars
             cd$id.score.x <- cd$ID.cigars.bulk / cd$dp.cigars.bulk
-            str( cigar.emp.score(training=cd, test=cd, which='id'))
             cd$id.score <- cigar.emp.score(training=cd, test=cd, which='id')
             cd$hs.score.y <- cd$HS.cigars / cd$dp.cigars
             cd$hs.score.x <- cd$HS.cigars.bulk / cd$dp.cigars.bulk
-            str( cigar.emp.score(training=cd, test=cd, which='hs'))
             cd$hs.score <- cigar.emp.score(training=cd, test=cd, which='hs')
 
             cigar.training <- cd
@@ -623,19 +889,24 @@ str(cd)
 
 rule scansnv_fdr_tuning:
     input:
-        mmq60="scansnv/mmq60.tab",
-        mmq1="scansnv/mmq1.tab",
-        hsnps="ab_model/{sample}/training.rda",
-        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
+        mmq60="{muttype}/mmq60.tab",
+        mmq1="{muttype}/mmq1.tab",
+        hsnps=lambda wildcards:
+            "ab_model/{sample}/training.rda" if wildcards.muttype == 'snv' or wildcards.muttype == "mosaic_snv" else "indel/{sample}/training.rda",
+        som_sites=lambda wildcards:
+            expand("{muttype}/somatic_positions.{chr_prefix}{chr}.tab",
+                muttype=wildcards.muttype,
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
     output:
-        "scansnv/{sample}/fdr_tuning.rda"
+        "{muttype}/{sample}/fdr_tuning.rda"
     params:
         sample="{sample}",
         bulk_sample=config['bulk_sample']
     resources:
-        mem=8000
+        mem=5000
     benchmark:
-        "ab_model/{sample}/benchmark_fdr_tuning.tsv"
+        "{muttype}/{sample}/benchmark_fdr_tuning.tsv"
     shell:
         "{config[scripts]}/fdr_tuning.R"
         "   {input.mmq60} {input.mmq1}"
@@ -647,82 +918,32 @@ rule scansnv_fdr_tuning:
 
 
 
-# Lumping all spikeins together would overwhelm the true somatic burden,
-# breaking the FDR tuning procedure.  To avoid this, spikeins are split
-# into several small batches.
-rule scansnv_hsnp_divide_spikeins:
-    input:
-        "scansnv/{sample}/hsnp_spikein_ab.rda"
-    output:
-        abrda="scansnv/{sample}/hsnp_spikein{n}_ab.rda",
-        postab="scansnv/{sample}/hsnp_spikein{n}_positions.tab"
-    params:
-        n="{n}",
-        abfiles=lambda wildcards, input:
-            "c(" + ', '.join([ '"' + f + '"' for f in input ]) + ")"
-    resources:
-        mem=2000
-    run:
-        R("""
-            load("{input}") # loads 'ab'
-            n <- {params.n}
-            step <- {config[hsnp_spikein_size]}
-            ab <- ab[(1 + (n - 1)*step):(n*step),]
-            write.table(ab[,c(1:4)], sep="\t",
-                quote=FALSE, row.names=FALSE, file="{output.postab}")
-            save(ab, file="{output.abrda}")
-        """)
-
-
-
-rule scansnv_fdr_tuning_spikein:
-    input:
-        mmq60="scansnv/mmq60.tab",
-        mmq1="scansnv/mmq1.tab",
-        hsnps="ab_model/{sample}/training.rda",
-        spikein="scansnv/{sample}/hsnp_spikein{n}_positions.tab",
-        som_sites=expand("scansnv/somatic_positions.chr{chr}.tab", chr=config['chrs'])
-    output:
-        "scansnv/{sample}/fdr_tuning_spikein{n}.rda"
-    params:
-        sample="{sample}",
-    resources:
-        mem=8000
-    shell:
-        "{config[scripts]}/fdr_tuning.R"
-        "   {input.mmq60} {input.mmq1}"
-        "   {input.hsnps}"
-        "   {config[bulk_sample]} {params.sample}"
-        "   {output} spikein"
-        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
-        "   {input.spikein}"
-        "   {input.som_sites}"
-    
-
-
 rule scansnv_genotype_scatter:
     input:
-        mmq60="scansnv/mmq60.tab",
-        mmq1="scansnv/mmq1.tab",
-        som_ab="scansnv/{sample}/{type}_ab.chr{chr}.rda",
-        sc_cigars="scansnv/{sample}/{type}_cigars.chr{chr}.tab",
-        bulk_cigars="scansnv/{type}_bulk_cigars.chr{chr}.tab",
-        cigar_tuning="scansnv/{sample}/cigar_tuning.rda",
-        fdr_tuning="scansnv/{sample}/fdr_tuning.rda",
+        mmq60="{muttype}/mmq60.tab",
+        mmq1="{muttype}/mmq1.tab",
+        som_ab="{muttype}/{sample}/{vartype}_ab.%s{chr}.rda" % config['chr_prefix'],
+        sc_cigars="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix'],
+        bulk_cigars="{muttype}/%s/{vartype}_cigars.%s{chr}.tab" % \
+            (config['bulk_sample'], config['chr_prefix']),
+        cigar_tuning="{muttype}/{sample}/cigar_tuning.rda",
+        fdr_tuning="{muttype}/{sample}/fdr_tuning.rda",
     output:
-        "scansnv/{sample}/{type}_genotypes.chr{chr}.rda"
+        "{muttype}/{sample}/{vartype}_genotypes.%s{chr}.rda" % config['chr_prefix']
     params:
-        sc_sample="{sample}"
+        sc_sample="{sample}",
+        flag=lambda wildcards:
+            'somatic' if wildcards.vartype == 'somatic' else 'spikein'
     resources:
-        mem=8000
+        mem=5000
     benchmark:
-        "scansnv/{sample}/benchmark_{type}_genotypes.chr{chr}.tsv"
+        "{muttype}/{sample}/benchmark_{vartype}_genotypes.%s{chr}.tsv" % config['chr_prefix']
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
         "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
-        "   {output} {config[fdr]} {input.fdr_tuning} somatic"
+        "   {output} {config[fdr]} {input.fdr_tuning} {params.flag}"
         "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
 
 
@@ -730,103 +951,196 @@ rule scansnv_genotype_scatter:
 rule scansnv_genotype_gather:
     input:
         lambda wildcards:
-            expand("scansnv/{sample}/somatic_genotypes.chr{chr}.rda",
-                sample=wildcards.sample, chr=config['chrs'])
+            expand("{muttype}/{sample}/{vartype}_genotypes.{chr_prefix}{chr}.rda",
+                vartype=wildcards.vartype,
+                muttype=wildcards.muttype,
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
     output:
-        "scansnv/{sample}/somatic_genotypes.rda"
+        "{muttype}/{sample}/{vartype}_genotypes.rda"
     params:
+        varname=lambda wildcards:
+            'somatic' if wildcards.vartype == 'somatic' else 'spikeins',
         files=lambda wildcards, input:
             "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
     resources:
-        mem=2000
+        mem=5000
     run:
         R("""
-            somatic <- do.call(rbind,
+            {params.varname} <- do.call(rbind,
                 lapply({params.files}, function(f) {{
                     load(f)
                     gt$somatic
                 }})
             )
 
-            save(somatic, file="{output}")
+            save({params.varname}, file="{output}")
         """)
 
 
 
-rule scansnv_genotype_spikein_scatter:
+rule scansnv_indel_pon:
     input:
-        mmq60="scansnv/mmq60.tab",
-        mmq1="scansnv/mmq1.tab",
-        som_ab="scansnv/{sample}/hsnp_spikein{n}_ab.rda",
-        sc_cigars="scansnv/{sample}/hsnp_spikein_cigars.tab",
-        bulk_cigars="scansnv/hsnp_spikein_bulk_cigars.tab",
-        cigar_tuning="scansnv/{sample}/cigar_tuning.rda",
-        fdr_tuning="scansnv/{sample}/fdr_tuning_spikein{n}.rda",
+        rda="indel/{sample}/somatic_genotypes.rda"
     output:
-        "scansnv/{sample}/hsnp_spikein{n}_genotypes.rda"
+        rda="indel/{sample}/somatic_genotypes.pon_filter.rda"
+    resources:
+        mem=6000
+    benchmark:
+        "indel/{sample}/benchmark_pon_filter.tsv"
+    run:
+        R("""
+            load("{config[somatic_indel_pon]}")  # loads 'pon'
+            load("{input.rda}")  # loads 'somatic'
+            # PON has multiallelic sites, so cannot include refnt/altnt
+            # in merge criteria.
+            somatic <- merge(somatic, pon[,-(3:5)], by=c('chr','pos'))
+            somatic$pass <- somatic$pass & somatic$dp >= 10 &
+                (somatic$unique.donors <= 1 | somatic$max.out < 2)
+            save(somatic, file="{output.rda}")
+        """)
+
+
+#######################################################################
+# Only mosaic and joint calling below this line.
+#######################################################################
+
+rule scansnv_copy_table_to_mosaic:
+    input:
+        mmq60="snv/mmq60.tab",
+        mmq1="snv/mmq1.tab"
+    output:
+        mmq60="mosaic_snv/mmq60.tab",
+        mmq1="mosaic_snv/mmq1.tab",
+    resources:
+        mem=2000
+    shell:
+        """
+        cp {input.mmq60} {output.mmq60}
+        cp {input.mmq1} {output.mmq1}
+        """
+
+
+
+rule scansnv_mosaic_sites:
+    input:
+        "mosaic_snv/mmq60.tab"
+    output:
+        "mosaic_snv/mosaic_positions.%s{chr}.tab" % config['chr_prefix']
+    params:
+        chr="{chr}"
+    resources:
+        mem=32000
+    run:
+        R("""
+            tab <- read.table("{input}", stringsAsFactors=FALSE, header=TRUE,
+                            comment="#", colClasses=c(chr='character'))
+            bulk.sample <- make.names("{config[bulk_sample]}")
+            bulk.idx <- which(colnames(tab) == bulk.sample)
+            bulk.alt <- bulk.idx +  2
+            sc.alts <- which(grepl("alt", colnames(tab)) &
+                             colnames(tab) != colnames(tab)[bulk.alt] &
+                             colnames(tab) != "altnt")
+            cat("Using data:\n")
+            for (i in 1:ncol(tab)) {{
+                s <- ifelse(i %in% sc.alts,
+                    "[SC]",
+                    ifelse(i == bulk.alt, "[BULK]", ""))
+                cat(sprintf("%8s %s\n", s, colnames(tab)[i]))
+            }}
+
+            bulk.vaf <- tab[,bulk.alt] / (tab[,bulk.alt] + tab[,bulk.alt-1])
+            candidate.mosaics <-
+                tab[tab[,bulk.alt] > 0 &
+                    bulk.vaf < 0.3 &
+                    rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
+                    # To help remove germline: at least one cell must have 0 alt reads
+                    rowSums(as.matrix(tab[,sc.alts]) == 0) > 0 &
+                    tab$chr == "{params.chr}",]
+            write.table(candidate.mosaics[,c(1:2, 4:5)], sep="\t",
+                quote=FALSE, row.names=FALSE, file="{output}")
+        """)
+
+
+
+rule scansnv_fdr_tuning_mosaic:
+    input:
+        mmq60="snv/mmq60.tab",
+        mmq1="snv/mmq1.tab",
+        hsnps="ab_model/{sample}/training.rda",
+        som_sites=expand("snv/mosaic_positions.{chr_prefix}{chr}.tab",
+            chr_prefix=config['chr_prefix'], chr=config['chrs'])
+    output:
+        "snv/{sample}/fdr_tuning_mosaic.rda"
+    params:
+        sample="{sample}",
+        bulk_sample=config['bulk_sample']
+    resources:
+        mem=5000
+    benchmark:
+        "ab_model/{sample}/benchmark_fdr_tuning_mosaic.tsv"
+    shell:
+        "{config[scripts]}/fdr_tuning.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {input.hsnps}"
+        "   {params.bulk_sample} {params.sample}"
+        "   {output} somatic"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
+        "   {input.som_sites}"
+
+
+
+rule scansnv_genotype_mosaic_scatter:
+    input:
+        mmq60="snv/mmq60.tab",
+        mmq1="snv/mmq1.tab",
+        som_ab="snv/{sample}/mosaic_ab.%s{chr}.rda" % config['chr_prefix'],
+        sc_cigars="snv/{sample}/mosaic_cigars.%s{chr}.tab" % config['chr_prefix'],
+        bulk_cigars="snv/%s/mosaic_cigars.%s{chr}.tab" % \
+            (config['bulk_sample'], config['chr_prefix']),
+        cigar_tuning="snv/{sample}/cigar_tuning.rda",
+        fdr_tuning="snv/{sample}/fdr_tuning_mosaic.rda",
+    output:
+        "snv/{sample}/mosaic_genotypes.%s{chr}.rda" % config['chr_prefix']
     params:
         sc_sample="{sample}"
     resources:
-        mem=8000
+        mem=5000
+    benchmark:
+        "snv/{sample}/benchmark_mosaic_genotypes.%s{chr}.tsv" % config['chr_prefix']
     shell:
         "{config[scripts]}/genotype.R"
         "   {input.mmq60} {input.mmq1}"
-        "   {params.sc_sample} {config[bulk_sample]}"
-        "   {input.som_ab} {input.sc_cigars} {input.bulk_cigars}"
-        "   {input.cigar_tuning}"
+        "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
+        "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
         "   {output} {config[fdr]} {input.fdr_tuning} spikein"
         "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
 
 
 
-rule scansnv_genotype_spikein_gather:
+rule scansnv_genotype_mosaic_gather:
     input:
         lambda wildcards:
-            expand("scansnv/{sample}/hsnp_spikein{n}_genotypes.rda",
-                sample=wildcards.sample, n=range(1, config['spikein_replicates']+1))
+            expand("snv/{sample}/mosaic_genotypes.{chr_prefix}{chr}.rda",
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
     output:
-        "scansnv/{sample}/hsnp_spikein_genotypes.rda"
+        "snv/{sample}/mosaic_genotypes.rda"
     params:
-        infiles=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
+        files=lambda wildcards, input:
+            "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
     resources:
-        mem=2000
+        mem=6000
     run:
         R("""
-            spikeins <- do.call(rbind, lapply({params.infiles},
-                function(f) {{
+            mosaic <- do.call(rbind,
+                lapply({params.files}, function(f) {{
                     load(f)
                     gt$somatic
-                }}
-            ))
+                }})
+            )
 
-            save(spikeins, file="{output}")
-        """)
-
-
-rule scansnv_joint_calls:
-    input:
-        somatic=expand("scansnv/{sample}/somatic_genotypes.rda", sample=config['sc_samples']),
-        spikeins=expand("scansnv/{sample}/hsnp_spikein_genotypes.rda", sample=config['sc_samples'])
-    output:
-        expand('scansnv/{sample}/joint_somatic_genotypes.rda', sample=config['sc_samples'])
-    params:
-        somatic=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input.somatic ]) + ")",
-        spikeins=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input.spikeins ]) + ")",
-        outfiles=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in expand('scansnv/{sample}/joint_somatic_genotypes.rda', sample=config['sc_samples']) ]) + ")"
-    resources:
-        mem=8000
-    run:
-        R("""
-            library(scansnv)
-            dfs <- lapply({params.somatic}, function(f) {{ load(f); somatic }})
-            hdfs <- lapply({params.spikeins}, function(f) {{ load(f); spikeins }})
-            joint.calls <- joint.caller(dfs, hdfs)
-            for (i in 1:length(joint.calls)) {{
-                joint.somatic <- joint.calls[[i]]
-                save(joint.somatic, file={params.outfiles}[i])
-            }}
+            save(mosaic, file="{output}")
         """)

@@ -2,6 +2,7 @@
 # vim: set syntax=python
 # This is a wrapper script for executing Snakemake on the SCAN-SNV Snakefile.
 
+import glob
 import subprocess
 import argparse
 import os.path
@@ -60,6 +61,18 @@ def check_shapeit(shapeit_panel):
     readable_file(os.path.join(shapeit_panel, "genetic_map_chrX_nonPAR_combined_b37.txt"))
 
 
+def eagle_panel_files(path, chrs):
+    files = {}
+    for s in chrs:
+        f = glob.glob(os.path.join(path, 'ALL.{0}[\._]*.bcf'.format(s)))[0]
+        files[s] = f
+    return files
+
+
+def check_eagle(eagle_panel, chrs):
+    for f in eagle_panel_files(eagle_panel, chrs).values():
+        readable_file(f)
+
 
 def check_bams(sblist):
     samples = []
@@ -108,16 +121,23 @@ def make_yaml(args, samples, bams, chrs, regions):
     """Assumes reasonable checking has been performed on arguments and files.
        Returns a string containing the full YAML configuration file necessary
        for running Snakemake."""
-    return '\n'.join(
+    yaml = '\n'.join(
         [ 'bams:' ] +
         [ '  {0}: {1}'.format(s, b) for s, b in zip(samples, bams) ] +
         [ 'sc_samples:' ] +
         [ '  - ' + s for s in args.sc_sample ] +
         [
         'bulk_sample: ' + args.bulk_sample,
+        'chr_prefix: ' + ('chr' if args.add_chr_prefix else "''"),
         'humref: ' + args.ref,
         'dbsnp: ' + args.dbsnp,
-        'shapeit_refpanel: ' + args.shapeit_panel,
+        'permute: true',
+        'analyze_snvs: ' + str(not args.no_somatic_snvs),
+        'analyze_indels: ' + str(args.somatic_indels),
+        'callable_regions: true',
+        'somatic_indel_pon: ' + args.somatic_indel_pon,
+        'analyze_mosaic_snvs: ' + str(args.mosaic_snvs),
+        'resample_M: 20',
         'abmodel_chunks: ' + str(args.abmodel_chunks),
         'abmodel_samples_per_chunk: ' + str(args.abmodel_samples_per_chunk),
         'abmodel_hsnp_chunksize: ' + str(args.abmodel_hsnp_chunk_size),
@@ -126,9 +146,7 @@ def make_yaml(args, samples, bams, chrs, regions):
         'min_sc_alt: ' + str(args.min_sc_alt),
         'min_sc_dp: ' + str(args.min_sc_dp),
         'min_bulk_dp: ' + str(args.min_bulk_dp),
-        'spikein_replicates: ' + str(args.hsnp_spikein_replicates),
-        'hsnp_spikein_size: ' + str(args.hsnp_spikein_replicate_size),
-        'hsnp_spikein_nsamples: ' + str(args.hsnp_spikein_replicates * args.hsnp_spikein_replicate_size),
+        'phaser: ' + args.phaser,
         'gatk_chunks: ' + str(len(regions)),
         'gatk_regions: '
         ] +
@@ -142,6 +160,18 @@ def make_yaml(args, samples, bams, chrs, regions):
         ] +
         [ '' ]
     )
+
+    # assumes args.phaser was already checked for validity
+    if args.phaser == 'eagle':
+        yaml = '\n'.join([ yaml,
+            'eagle_refpanel:' ] +
+            [ ' {0}: {1}'.format(k, v) for k, v in
+                eagle_panel_files(args.eagle_panel, chrs).items() ] +
+            [ 'eagle_genmap: ' + args.eagle_genmap ])
+    else:
+        yaml = '\n'.join([ yaml, 'shapeit_refpanel: ' + args.shapeit_panel ])
+
+    return yaml
 
 
 
@@ -164,6 +194,8 @@ ap.add_argument('--overwrite', default=False, action='store_true',
 ap.add_argument('--scripts', metavar='PATH',
     default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
     help='Path to SCAN-SNV script files.  Usually points to an installed set of files.')
+ap.add_argument('--add-chr-prefix', default=False, action='store_true',
+    help='DO NOT USE. This option is only to add compatibility for old workflows. Add "chr" to the beginning of all chromosome names when naming files.')
 
 
 # required arguments
@@ -172,8 +204,6 @@ req.add_argument('--ref', type=readable_file, metavar='PATH', required=True,
     help='Path to reference genome FASTA file.  As required by GATK, two additional files must be present: an index (.fai) and a dictionary (.dict).')
 req.add_argument('--dbsnp', type=readable_file, metavar='PATH', required=True,
     help='Path to an indexed dbSNP VCF.')
-req.add_argument('--shapeit-panel', metavar='DIR', required=True,
-    help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported.')
 req.add_argument('--output-dir', metavar='DIR', required=True,
     help='Write all output files to DIR.')
 
@@ -212,6 +242,26 @@ caller.add_argument('--min-sc-dp', type=int, default=6, metavar='INT',
     help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
 caller.add_argument('--min-bulk-dp', type=int, default=11, metavar='INT',
     help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
+caller.add_argument('--no-somatic-snvs', default=False, action='store_true',
+    help='Do not genotype somatic SNVs.')
+caller.add_argument('--somatic-indels', default=False, action='store_true',
+    help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
+caller.add_argument('--somatic-indel-pon', type=str, default='',
+    help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
+caller.add_argument('--mosaic-snvs', default=False, action='store_true',
+    help='Enable detection of mosaic SNVs.')
+
+
+phasing = ap.add_argument_group('Phasing options',
+    'Choose SHAPEIT2 or Eagle for phasing')
+phasing.add_argument('--phaser', metavar='eagle|shapeit', type=str, default='shapeit',
+    help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead.')
+phasing.add_argument('--shapeit-panel', metavar='DIR',
+    help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit')
+phasing.add_argument('--eagle-panel', metavar='DIR',
+    help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
+phasing.add_argument('--eagle-genmap', metavar='DIR',
+    help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
 
 
 abmodel = ap.add_argument_group("AB model fitting",
@@ -229,10 +279,8 @@ abmodel.add_argument('--abmodel-steps', type=int, default=4, metavar='INT',
 
 spikein = ap.add_argument_group("hSNP spike-ins",
     'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins should be used.  However, hSNP spike-ins must be performed in many small batches for two reasons: (1) spike-ins hSNPs are not included in the list of hSNPs used to infer AB and (2) spike-ins are treated as sSNVs in the parameter tuning process which compares sSNV vs. hSNP VAF distributions.  See the SCAN-SNV paper for details.')
-spikein.add_argument('--hsnp-spikein-replicates', type=int, default=100, metavar='INT',
-    help='Perform INT separate hSNP spike in experiments, each with (--hsnp-spikein-replicate-size) spiked-in hSNPs.')
-spikein.add_argument('--hsnp-spikein-replicate-size', type=int, default=40, metavar='INT',
-    help='Number of hSNPs to spike-in for each replicate.')
+spikein.add_argument('--resample-M', type=int, default=20, metavar="INT",
+    help='Parameter for rejection sampling. Larger M will produce fewer hSNP spikein samples for sensitivity and total mutation burden estimation. However, M must be large enough to enable proper rejection sampling.')
 
 
 snakemake = ap.add_argument_group("Snakemake parameters")
@@ -243,12 +291,15 @@ snakemake.add_argument('--snakefile', metavar='PATH', type=readable_file,
     help='Path to the SCAN-SNV Snakefile.  Unlikely to be necessary for standard use.')
 snakemake.add_argument('--configfile', metavar='PATH', default=None, type=readable_file,
     help='Path to the Snakemake configuration file.  This file is autogenerated by this script and the user should rarely need to specify their own config file.')
-snakemake.add_argument('--clusterfile', metavar='PATH', type=readable_file,
-    default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/cluster.yaml',
-    help='Override the installed cluster configuration file.  This will disable the ability to specify memory requirements to --cluster and --drmaa via {resources.mem}.')
+#snakemake.add_argument('--clusterfile', metavar='PATH', type=readable_file,
+#    default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/cluster.yaml',
+#    help='Override the installed cluster configuration file.  This will disable the ability to specify memory requirements to --cluster and --drmaa via {resources.mem}.')
 
 args = ap.parse_args()
 
+if args.somatic_indels:
+    print("Somatic indel calling requested, checking for indel PON (--somatic-indel-pon)..")
+    args.somatic_indel_pon = readable_file(args.somatic_indel_pon)
 
 os.makedirs(args.output_dir, exist_ok=True)
 
@@ -258,8 +309,6 @@ check_refgenome(args.ref)
 
 check_dbsnp(args.dbsnp)
 
-args.shapeit_panel = os.path.abspath(args.shapeit_panel)
-check_shapeit(args.shapeit_panel)
 
 (samples, bams) = check_bams(args.bam)
 for sc in args.sc_sample:
@@ -270,6 +319,31 @@ if not args.bulk_sample in samples:
 
 (chrs, regions) = check_regions(args)
 
+
+
+# Determine the phaser and check relevant files.
+args.phaser = args.phaser.lower()
+if args.phaser == 'shapeit':
+    args.shapeit_panel = os.path.abspath(args.shapeit_panel)
+    check_shapeit(args.shapeit_panel)
+elif args.phaser == 'eagle':
+    if args.eagle_panel is None:
+        print("ERROR: --eagle-panel must be specified when --phaser=eagle")
+        exit(1)
+    if args.eagle_genmap is None:
+        print("ERROR: --eagle-genmap must be specified when --phaser=eagle")
+        exit(1)
+    args.eagle_panel = os.path.abspath(args.eagle_panel)
+    args.eagle_genmap = readable_file(args.eagle_genmap)
+    check_eagle(args.eagle_panel, chrs)
+else:
+    print("ERROR: --phaser must be either 'shapeit' or 'eagle'\n")
+    exit(1)
+
+
+# -------------------------------------------------------------------------
+# All configuration work must be completed before the line.
+# Make the yaml configuration file
 if args.configfile is not None:
     configfile = args.configfile
 else:
@@ -287,13 +361,12 @@ else:
 
 
 
-
 snakemake_command = [
     "snakemake",
     "--snakefile",  args.snakefile,
     "--configfile", configfile,
-    "--jobs", args.joblimit,
-    "--latency-wait", "60",
+    "--jobs", str(args.joblimit),
+    "--latency-wait", "300",
     ]
 
 if args.memlimit:
@@ -306,7 +379,7 @@ if args.cluster is not None or args.drmaa is not None:
     if args.cluster is not None and args.drmaa is not None:
         error('only one of --cluster and --drmaa can be specified at once')
 
-    snakemake_command += [ "--cluster-config", args.clusterfile ]
+    #snakemake_command += [ "--cluster-config", args.clusterfile ]
     logdir = os.path.join(os.path.abspath(args.output_dir), 'cluster-logs')
 
     if args.cluster is not None:

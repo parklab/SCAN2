@@ -22,9 +22,9 @@ awk 'BEGIN {
             adp1 = adp[1];
             adp2 = adp[2];
     
-            if ($11 == "0|1") {
+            if ($11 ~ /^0|1/) {
                 print $1, $2, $4, $5, gt, adp1, adp2, dp, $11;
-            } else if ($11 == "1|0") {
+            } else if ($11 ~ /^1|0/) {
                 print $1, $2, $4, $5, gt, adp2, adp1, dp, $11;
             } else {
                 print "ERROR: NOT GOALPOST SITE"

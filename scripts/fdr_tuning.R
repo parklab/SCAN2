@@ -30,8 +30,7 @@ somatic.sites <- do.call(rbind, lapply(site.files,
 
 
 nrow(somatic.sites)
-if (spikein_mode)
-{
+if (spikein_mode) {
     protected <- read.table(site.files[1], header=T, stringsAsFactors=F, colClasses=c(chr='character'))
 nrow(protected)
 }
@@ -39,9 +38,10 @@ nrow(protected)
 
 load(training.file)  # loads 'data'
 
+# Step 1: read a few rows just to get column names
 hmq <- read.table(mmq60.file, header=T, stringsAsFactors=F,
-    colClasses=c(chr='character'))
-
+    colClasses=c(chr='character'), nrow=10)
+tot.cols <- ncol(hmq)
 sc.idx <- which(colnames(hmq) == sc.sample)
 bulk.idx <- which(colnames(hmq) == bulk.sample)
 cat("Using data:\n")
@@ -49,12 +49,45 @@ for (i in 1:ncol(hmq)) {
     s <- ifelse(i == sc.idx, "[SC]", ifelse(i == bulk.idx, "[BULK]", ""))
     cat(sprintf("%8s %s\n", s, colnames(hmq)[i]))
 }
-hmq$dp <- hmq[,sc.idx+1] + hmq[,sc.idx+2]
-hmq$af <- hmq[,sc.idx+2] / hmq$dp
-hmq$bulk.dp <- hmq[,bulk.idx+1] + hmq[,bulk.idx+2]
 
+# Step 2: now read only the NEEDED columns. This is critical for
+# very large data sets where these tables can easily require 20G of
+# RAM or more to store in R.
+# N.B. "NULL" means read.table will skip the column, NA means it
+# will try to automatically determine the column's data type.
+cols.to.read <- rep("NULL", tot.cols)
+# First 7 are chr, pos, dbsnp, refnt, altnt, mq, mqrs
+cols.to.read[1:7] <- c('character', 'integer', rep('character', 3), 'numeric', 'numeric')
+# Read 3 columns for the single cell, 3 columns for bulk
+cols.to.read[sc.idx + 0:2] <- c('character', 'integer', 'integer')
+cols.to.read[bulk.idx + 0:2] <- c('character', 'integer', 'integer')
+cat(sprintf("reading %d columns from %s..\n",
+    sum(is.na(cols.to.read) | cols.to.read != 'NULL'), mmq60.file))
+hmq <- read.table(mmq60.file, header=T, stringsAsFactors=F,
+    colClasses=cols.to.read)
+new.sc.idx <- which(colnames(hmq) == sc.sample)
+new.bulk.idx <- which(colnames(hmq) == bulk.sample)
+str(hmq)
+
+hmq$dp <- hmq[,new.sc.idx+1] + hmq[,new.sc.idx+2]
+hmq$af <- hmq[,new.sc.idx+2] / hmq$dp
+hmq$bulk.dp <- hmq[,new.bulk.idx+1] + hmq[,new.bulk.idx+2]
+
+
+# The mmq=1 table is even larger (sometimes 2-3x larger) than
+# the mmq=1 table. The only data we need from mmq=1 is the number
+# of alt reads in bulk.
+cols.to.read <- rep("NULL", tot.cols)
+cols.to.read[1:7] <- c('character', 'integer', rep('character', 3), 'numeric', 'numeric')
+# Read 3 columns for the single cell, 3 columns for bulk
+cols.to.read[bulk.idx + 2] <- 'integer'
+cat(sprintf("reading %d columns from %s..\n",
+    sum(is.na(cols.to.read) | cols.to.read != 'NULL'), mmq1.file))
 lmq <- read.table(mmq1.file, header=T, stringsAsFactors=F,
-    colClasses=c(chr='character'))
+    colClasses=cols.to.read)
+colnames(lmq)[8] <- 'lowmq.bulk.alt'
+str(lmq)
+
 
 # In joint calling mode, there can be an unbounded number of somatic
 # candidates from other cells.  The majority of candidates are WGA
@@ -65,15 +98,11 @@ lmq <- read.table(mmq1.file, header=T, stringsAsFactors=F,
 # XXX: unfortunate sloppy coding: all of this must match the candidate
 # selection logic in r-scansnv::genotype_somatic().
 somatic.candidates <- merge(somatic.sites, hmq, all.x=T)
-colnames(lmq)[bulk.idx+2] <- 'lowmq.bulk.alt'
-nrow(somatic.candidates)
 somatic.candidates <- merge(somatic.candidates, lmq[,c('chr', 'pos', 'lowmq.bulk.alt')], all.x=T)
 
 # do not apply the lowmq alt test to spikeins, since these should have
 # supporting reads in bulk.
-nrow(somatic.candidates)
 somatic.candidates$spikein.exception <- FALSE
-nrow(somatic.candidates)
 if (spikein_mode)
     somatic.candidates$spikein.exception <-
         paste(somatic.candidates$chr, somatic.candidates$pos) %in%
@@ -85,7 +114,7 @@ table(somatic.candidates$spikein.exception |
                         somatic.candidates$lowmq.bulk.alt == 0)
 
 somatic.candidates <-
-    somatic.candidates[somatic.candidates[,sc.idx+2] >= min.sc.alt &
+    somatic.candidates[somatic.candidates[,new.sc.idx+2] >= min.sc.alt &
                        somatic.candidates$dp >= min.sc.dp &
                        somatic.candidates$bulk.dp >= min.bulk.dp &
                        (somatic.candidates$spikein.exception |
@@ -93,7 +122,7 @@ somatic.candidates <-
                         somatic.candidates$lowmq.bulk.alt == 0),]
 
 hsnps <- merge(data[,c('chr', 'pos')], hmq, all.x=T)
-hsnps <- hsnps[hsnps[,sc.idx+2] >= min.sc.alt,]
+hsnps <- hsnps[hsnps[,new.sc.idx+2] >= min.sc.alt,]
 
 print("SOMATIC  CANDIDATES")
 str(somatic.candidates)
