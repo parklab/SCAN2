@@ -1,18 +1,19 @@
-# scan-snv
-Somatic genotyper for SNV discovery in whole genome amplified single cells.
+# SCAN2
+Genotyper for _somatic_ SNV and indel discovery in PTA-amplified single cells.
+
+SCAN2 should not be used for genotyping germline mutations, as it excludes any
+mutation with any read support in matched bulk samples.
+
 
 
 # Installation
-SCAN-SNV is distributed as a conda package. Installation requires the conda
+SCAN2 is distributed as a conda package. Installation requires the conda
 package management tool and a Linux-flavored OS.
 
 **Operating systems tested**
 * GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
 * Ubuntu 16.04.4 LTS AWS instance.
 
-
-**NOTE** This installation process and demo have been successfully run on
-an Amazon Web Services Ubuntu 16.04.4 LTS instance.
 
 ## Installing miniconda
 ```
@@ -24,16 +25,16 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 # Log-out and back in to source .bashrc and put conda on $PATH
 ```
 
-## Installing SCAN-SNV
-Create a conda environment for SCAN-SNV
+## Installing SCAN2
+Create a conda environment for SCAN2
 ```
 $ conda deactivate   # The "base" environment will be active after login
-$ conda create -n scansnv
-$ conda activate scansnv
+$ conda create -n scan2
+$ conda activate scan2
 ```
-Install the scansnv package
+Install the SCAN2 package
 ```
-$ conda install -c bioconda -c conda-forge/label/cf201901 -c jluquette scansnv
+$ conda install -c bioconda -c conda-forge/label/cf201901 -c jluquette scan2
 ```
 Register your GATK installation
 ```
@@ -46,7 +47,7 @@ $ gatk --version
 ```
 
 ## Downloading external data dependencies
-SCAN-SNV has been tested on the NCBI human reference build 37.
+SCAN2 has been tested on the NCBI human reference build 37.
 
 Download reference genome.
 ```
@@ -81,7 +82,7 @@ $ tar xzvf 1000GP_Phase3_chrX.tgz
 $ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
-# Running the SCAN-SNV demo
+# Running the SCAN2 demo
 Download the demo chr22 BAMs.
 ```
 $ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
@@ -90,12 +91,12 @@ $ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam
 $ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
-Run SCAN-SNV. Replace instances of /path/to/... with the paths
+Run SCAN2. Replace instances of /path/to/... with the paths
 downloaded above. This demo runs in about 5 minutes on a single core
 machine by restricting analysis to a 1 MB segment of chr22 and by
 using an impractically coarse grid for covariance function fitting.
 ```
-scansnv \
+scan2 \
     --ref /path/to/human_g1k_v37_decoy.fasta \
     --dbsnp /path/to/dbsnp_138.b37.vcf \
     --shapeit-panel /path/to/1000GP_Phase3 \
