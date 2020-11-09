@@ -13,6 +13,7 @@ import pwd
 import time
 import uuid
 import pysam       # just for reading BAM headers to find samples
+import snakemake
 from sys import exit
 
 
@@ -20,7 +21,7 @@ from sys import exit
 # lists that will be empty at first.  This is because the default dict keys
 # are used to determine which command line arguments are not to be stored
 # in the configuration database.
-scan2_defaults = {
+scan2_param_defaults = {
     'is_started': False,
     'target_fdr': 0.1,
     'min_sc_alt': 2,
@@ -36,22 +37,29 @@ scan2_defaults = {
     'abmodel_hsnp_chunk_size': 100,
     'abmodel_steps': 4,
     'resample_M': 20,
-    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
-    'ref': None,
-    'dbsnp': None,
-    'sc_bams': [],
-    'bulk_bam': None,
     'bulk_sample': None,
-    'bams': [],
     'gatk_chunks': None,
     'gatk_regions': [],
     'chrs': [],
     'phaser': 'shapeit',
-    'shapeit_refpanel': None,
+    'shapeit_refpanel': None,  # a directory, so readable_file fails
+}
+
+# Unlike params, all files listed here must be readable upon a call
+# to validate() or run().
+scan2_file_defaults = {
+    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scansnv',
+    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+    'ref': None,
+    'dbsnp': None,
+    'bams': {},         # miscellaneous BAMs; not genotyped as single cells
+    'sc_bams': {},      # BAMs for single cells, will be genotyped
+    'bulk_bam': None,   # single bulk BAM for phasing, filtering germlines
     #'eagle_refpanel': {},
     #'eagle_genmap': None
 }
+
+scan2_defaults = { **scan2_param_defaults, **scan2_file_defaults }
 
 
 class Analysis:
@@ -66,9 +74,11 @@ class Analysis:
         self.config_path = Analysis.make_config_path(self.analysis_dir)
         self.load()
 
+
     @staticmethod
     def make_config_path(path):
-        return os.path.join(path, 'scan.yaml')
+        return os.path.abspath(os.path.join(path, 'scan.yaml'))
+
 
     @staticmethod
     def create(args):
@@ -97,13 +107,16 @@ class Analysis:
         # Return the newly created object
         return Analysis(args.analysis_dir)
 
+
     def is_started(self):
         return self.cfg['is_started']
+
 
     def __str__(self):
         return "%s SCAN2 analysis ID=%s" % \
             ('LOCKED' if self.is_started() else 'UNLOCKED',
              str(self.analysis_uuid))
+
 
     def show(self, verbose=False):
         """If 'verbose' is given, show all configuration values."""
@@ -120,11 +133,13 @@ class Analysis:
                 '%15s: %s' % ('Creator', self.cfg['creator']),
                 '%15s: %s' % ('Create date', self.cfg['create_date']) ])
 
+
     def load(self):
         """Requires self.config_path to already be set."""
         with open(self.config_path, 'r') as yf:
             self.cfg = yaml.load(yf)
         self.analysis_uuid = self.cfg['analysis_uuid']
+
 
     def configure(self, args, verbose=False):
         """
@@ -160,6 +175,10 @@ class Analysis:
             if k in self.cfg.keys() and v is not None and self.cfg[k] != v:
                 if args.verbose:
                     print("Updating %s: %s -> %s" % (k, str(self.cfg[k]), str(v)))
+                if k in scan2_file_defaults and type(v) == str:
+                    # only top-level files are automatically converted,
+                    # deeper files must require handle_special().
+                    v = readable_file(v)   # returns the absolute path
                 self.cfg[k] = v
                 updates = updates + 1
 
@@ -168,6 +187,7 @@ class Analysis:
         else:
             with open(self.config_path, 'w') as yf:
                 yaml.dump(self.cfg, yf, default_flow_style=False)
+
 
     def handle_special(self, key, value):
         """
@@ -189,11 +209,15 @@ class Analysis:
                 key == 'regions' else regions_from_file(value)
             return Analysis.handle_regions(regions)
 
+        if key == 'phaser':
+            return { 'phaser': value.lower() }   # Just ensure lowercase
+
         #if key in [ 'eagle_refpanel', 'eagle_genmap' ]:
             #error("sorry, Eagle phasing is currently unsupported.")
 
         # default: use the key=value pair as specified on command line
         return { key: value }
+
 
     @staticmethod
     def handle_regions(regions):
@@ -203,25 +227,81 @@ class Analysis:
                  'chrs': chrs_from_regions(regions) }
 
 
+    def check_bams(self):
+        if self.cfg['bulk_bam'] is None:
+            error('no bulk BAM was specified (--bulk-bam)')
+
+        if len(self.cfg['sc_bams']) == 0:
+            error('no single cell BAMs were specified (--sc-bam)')
+
+        [ readable_file(b) for b in self.cfg['sc_bams'].values() ]
+        if len(self.cfg['bams']) > 0:  # miscellaneous BAMs aren't required
+            [ readable_file(b) for b in self.cfg['bams'].values() ]
+        readable_file(self.cfg['bulk_bam'])
+
+
+    def check_phaser(self):
+        # Determine the phaser and check relevant files.
+        if self.cfg['phaser'] == 'shapeit':
+            #readable_file(self.cfg['shapeit_refpanel'])
+            check_shapeit(self.cfg['shapeit_refpanel'])
+        elif self.cfg['phaser'] == 'eagle':
+            error("sorry, Eagle is currently unsupported")
+            if self.cfg['eagle_panel'] is None:
+                print("ERROR: --eagle-panel must be specified when --phaser=eagle")
+                exit(1)
+            if self.cfg['eagle_genmap'] is None:
+                print("ERROR: --eagle-genmap must be specified when --phaser=eagle")
+                exit(1)
+            args.eagle_panel = os.path.abspath(args.eagle_panel)
+            args.eagle_genmap = readable_file(args.eagle_genmap)
+            check_eagle(args.eagle_panel, chrs)
+        else:
+            error("--phaser must be either 'shapeit' or 'eagle'\n")
+
+
+    def validate(self):
+        """
+        Check that all necessary files exist and ensure the list of
+        BAMs and single cell/bulk sample IDs make sense.
+        """
+        # Additional checks: index files
+        print("Checking reference genome..")
+        check_refgenome(self.cfg['ref'])
+        print("Checking dbSNP VCF..")
+        check_dbsnp(self.cfg['dbsnp'])
+    
+        # Additional checks: indexes, at least one bulk and one single cell
+        print("Checking BAMs..")
+        self.check_bams()
+
+        # Additional checks: very specific reference panel layout
+        print("Checking phasing reference panel..")
+        self.check_phaser()
+
+
+
 def error(str):
     print("ERROR: " + str)
     exit(1)
 
 
-
 # Only checks that a file path can be read.
 def readable_file(path):
     try:
+        if path is None:
+            raise IOError('file is not specified')
         with open(path, 'r') as f:
             return os.path.abspath(path)
     except IOError as err:
         error("file {0} could not be read:\n    {1}".format(path, err))
 
 
-
 def check_refgenome(refgenome):
     """Check for FASTA index (.fai) and dictionary (.dict) files.
        Assumes refgenome has already been checked."""
+    if refgenome is None:
+        error("please provide a reference genome (--ref)")
     readable_file(refgenome + '.fai')
     readable_file(re.sub('.fasta$', '.dict', refgenome))
 
@@ -238,16 +318,20 @@ def get_autosomes_from_ref(refpath):
 def check_dbsnp(dbsnp):
     """Check for the VCF index file (.idx).  Assumes dbsnp has already
        been checked."""
+    if dbsnp is None:
+        error("please provide a dbSNP VCF (--dbsnp)")
+    readable_file(dbsnp)
     readable_file(dbsnp + '.idx')
-
 
 
 def check_shapeit(shapeit_panel):
     """Check all required SHAPEIT haplotype panel files. Exit if any are missing."""
+    if shapeit_panel is None:
+        error("no SHAPEIT reference panel provided (--shapeit-refpanel)")
     if not os.path.exists(shapeit_panel):
-        print("SHAPEIT panel path does not exist: " + shapeit_panel)
+        error("SHAPEIT panel path does not exist: " + shapeit_panel)
     if not os.path.isdir(shapeit_panel):
-        print("SHAPEIT panel path is not a directory; " + shapeit_panel)
+        error("SHAPEIT panel path is not a directory; " + shapeit_panel)
     for i in range(1, 23):
         fname = 'genetic_map_chr{0}_combined_b37.txt'.format(i)
         readable_file(os.path.join(shapeit_panel, fname))
@@ -283,27 +367,6 @@ def sample_from_bam(bampath):
 
 
 
-def check_bams(bamlist):
-    samples = []
-    for bam in bamlist:
-        samples.append(sample_from_bam(bam))
-        bams.append(readable_file(bam))
-
-    return (samples, bams)
-
-
-
-def check_regions(args):
-    """Check the user specified regions or region file."""
-    regions = []
-    if args.regions is None and args.regions_file is None:
-        regions = [ str(x) for x in range(1, 23) ]
-
-    if not args.regions is None and not args.regions_file is None:
-        error("only one of --regions or --regions-file can be supplied")
-
-    # did the stuff below
-
 def regions_from_string(regions):
     return args.regions.split(',')
 
@@ -329,6 +392,9 @@ def chrs_from_regions(regions):
             chrs.append(c)
 
     return chrs
+
+
+
 
 
 
@@ -366,105 +432,48 @@ def do_config(args):
 
 
 def do_validate(args):
-    """
-    Check that certain necessary files exist and ensure the list of
-    BAMs and single cell/bulk sample IDs make sense.
-    """
-    a = Analysis(args.analysis_path)
-
-    # Some input files must be paired with auxiliary files like indexes. Ensure
-    # these files exist before starting the pipeline to reduce possible headaches.
-    check_refgenome(a.cfg['ref'])
-
-    check_dbsnp(a.cfg['dbsnp'])
-
-    if a.cfg['somatic_indels']:
-        readable_file(a.cfg['somatic_indel_pon'])
-
-
-    print(a.cfg['bam'])
-    print(a.cfg['sc_bam'])
-    print(a.cfg['bulk_bam'])
-    exit(1)
-    (samples, bams) = check_bams(args.bam)
-    for sc in args.sc_sample:
-        if not sc in samples:
-            error("single cell sample {0} is not associated with a BAM file.".format(sc))
-    if not args.bulk_sample in samples:
-        error("bulk sample {0} is not associated with a BAM file.".format(args.bulk_sample))
-
-    (chrs, regions) = check_regions(args)
-
-    # Determine the phaser and check relevant files.
-    args.phaser = args.phaser.lower()
-    if args.phaser == 'shapeit':
-        args.shapeit_panel = os.path.abspath(args.shapeit_panel)
-        check_shapeit(args.shapeit_panel)
-    elif args.phaser == 'eagle':
-        if args.eagle_panel is None:
-            print("ERROR: --eagle-panel must be specified when --phaser=eagle")
-            exit(1)
-        if args.eagle_genmap is None:
-            print("ERROR: --eagle-genmap must be specified when --phaser=eagle")
-            exit(1)
-        args.eagle_panel = os.path.abspath(args.eagle_panel)
-        args.eagle_genmap = readable_file(args.eagle_genmap)
-        check_eagle(args.eagle_panel, chrs)
-    else:
-        print("ERROR: --phaser must be either 'shapeit' or 'eagle'\n")
-        exit(1)
+    a = Analysis(args.analysis_dir)
+    a.validate()
 
 
 
 def do_run(args):
-    snakemake_command = [
-        "snakemake",
-        "--snakefile",  args.snakefile,
-        "--configfile", configfile,
-        "--jobs", str(args.joblimit),
-        "--latency-wait", "300",
-        ]
-    
-    if args.memlimit:
-        snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
-    
-    if args.resume:
-        snakemake_command.append("--rerun-incomplete")
-    
-    if args.cluster is not None or args.drmaa is not None:
-        if args.cluster is not None and args.drmaa is not None:
-            error('only one of --cluster and --drmaa can be specified at once')
-    
-        #snakemake_command += [ "--cluster-config", args.clusterfile ]
-        logdir = os.path.join(os.path.abspath(args.output_dir), 'cluster-logs')
-    
-        if args.cluster is not None:
-            if '%logdir' in args.cluster:
-                os.makedirs(logdir, exist_ok=True)
-            snakemake_command += [ '--cluster',
-                re.sub('%logdir', logdir, args.cluster) ]
-        else:
-            if '%logdir' in args.drmaa:
-                os.makedirs(logdir, exist_ok=True)
-            snakemake_command += [ '--drmaa',
-                re.sub('%logdir', logdir, args.drmaa) ]
-    
-    
-    if args.snakemake_args:
-        if args.snakemake_args[0] == ' ':
-            args.snakemake_args = args.snakemake_args[1:]
-        snakemake_command += args.snakemake_args.split(' ')
-    
-    
-    # So that we can wait for Snakemake to exit even when ctrl+C is given
-    try:
-        print(' '.join(snakemake_command))
-        sp = subprocess.Popen(snakemake_command, cwd=args.output_dir)
-        sp.wait()
-    except KeyboardInterrupt:
-        print("Waiting for Snakemake to respond to SIGINT...")
-        sp.wait()
+    a = Analysis(args.analysis_dir)
 
+    # Rewrite the --cluster or --drmaa arguments: substitute any
+    # instance of %logdir with the internal log directory.
+    if args.cluster is not None or args.drmaa is not None:
+        logdir = os.path.join(os.path.abspath(args.output_dir), 'cluster-logs')
+        os.makedirs(logdir, exist_ok=True)
+        if args.cluster is not None:
+            args.cluster = re.sub('%logdir', logdir, args.cluster)
+        if args.drmaa is not None:
+            args.drmaa = re.sub('%logdir', logdir, args.drmaa)
+
+    resources = {}
+    if args.memlimit:
+        resources['mem'] = str(args.memlimit)
+
+    # XXX: old way of passing through arbitrary additional snakemake args.
+    # need a new way to do this.
+    #if args.snakemake_args:
+        #if args.snakemake_args[0] == ' ':
+            #args.snakemake_args = args.snakemake_args[1:]
+        #snakemake_command += args.snakemake_args.split(' ')
+    snakemake.snakemake(
+        snakefile=args.snakefile,
+        configfile=a.config_path,   # XXX: is configfiles in newer API
+        #jobs=1,                    # XXX: somehow there is no parameter for this
+        # might be 'nodes' for --cluster/drmaa and cores otherwise
+        workdir=a.analysis_dir,
+        latency_wait=300,
+        force_incomplete=True,      # XXX: guessing this is = --rerun-incomplete
+        cluster=args.cluster,
+        drmaa=args.drmaa,
+        resources=resources,
+        dryrun=True
+    )
+    
 
 
 def do_show(args):
@@ -524,7 +533,9 @@ if __name__ == "__main__":
     # required arguments
     req = config_parser.add_argument_group("External data")
     req.add_argument('--ref', type=readable_file, metavar='PATH',
-        help='Path to reference genome FASTA file.  As required by GATK, two additional files must be present: an index (.fai) and a dictionary (.dict).')
+        help='Path to reference genome FASTA file.  As required by GATK, '
+             'two additional files must be present: an index (.fai) and a '
+             'dictionary (.dict).')
     req.add_argument('--dbsnp', type=readable_file, metavar='PATH',
         help='Path to a tribble-indexed (NOT tabix indexed) dbSNP VCF.')
     
@@ -583,7 +594,7 @@ if __name__ == "__main__":
         'Choose SHAPEIT2 or Eagle for phasing')
     phasing.add_argument('--phaser', metavar='eagle|shapeit', type=str,
         help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. [IMPORTANT! Eagle is currently unsupported.]')
-    phasing.add_argument('--shapeit-panel', metavar='DIR',
+    phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
     #phasing.add_argument('--eagle-panel', metavar='DIR',
         #help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
@@ -605,7 +616,7 @@ if __name__ == "__main__":
     
     
     spikein = config_parser.add_argument_group("hSNP spike-ins",
-        'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins should be used.  However, hSNP spike-ins must be performed in many small batches for two reasons: (1) spike-ins hSNPs are not included in the list of hSNPs used to infer AB and (2) spike-ins are treated as sSNVs in the parameter tuning process which compares sSNV vs. hSNP VAF distributions.  See the SCAN-SNV paper for details.')
+        'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins are desired.')
     spikein.add_argument('--resample-M', type=int, metavar="INT",
         help='Parameter for rejection sampling. Larger M will produce fewer hSNP spikein samples for sensitivity and total mutation burden estimation. However, M must be large enough to enable proper rejection sampling.')
     
