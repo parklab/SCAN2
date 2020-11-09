@@ -15,6 +15,11 @@ import uuid
 import pysam       # just for reading BAM headers to find samples
 from sys import exit
 
+
+# The default set must include ALL POSSIBLE parameters, even ones like BAM
+# lists that will be empty at first.  This is because the default dict keys
+# are used to determine which command line arguments are not to be stored
+# in the configuration database.
 scan2_defaults = {
     'is_started': False,
     'target_fdr': 0.1,
@@ -26,14 +31,26 @@ scan2_defaults = {
     'analyze_mosaic_snvs': False,
     'callable_regions': True,
     'permute': True,
-    'phaser': 'shapeit',
     'abmodel_chunks': 4,
     'abmodel_samples_per_chunk': 5000,
     'abmodel_hsnp_chunk_size': 100,
     'abmodel_steps': 4,
     'resample_M': 20,
     'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile'
+    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+    'ref': None,
+    'dbsnp': None,
+    'sc_bams': [],
+    'bulk_bam': None,
+    'bulk_sample': None,
+    'bams': [],
+    'gatk_chunks': None,
+    'gatk_regions': [],
+    'chrs': [],
+    'phaser': 'shapeit',
+    'shapeit_refpanel': None,
+    #'eagle_refpanel': {},
+    #'eagle_genmap': None
 }
 
 
@@ -84,11 +101,24 @@ class Analysis:
         return self.cfg['is_started']
 
     def __str__(self):
-        return "SCAN2 analysis ID=" + str(self.analysis_uuid)
+        return "%s SCAN2 analysis ID=%s" % \
+            ('LOCKED' if self.is_started() else 'UNLOCKED',
+             str(self.analysis_uuid))
 
-    def show(self):
-        return "\tCreator:     %s\n\tCreate date: %s" % \
-            (self.cfg['creator'], self.cfg['create_date'])
+    def show(self, verbose=False):
+        """If 'verbose' is given, show all configuration values."""
+        if verbose:
+            return '\n'.join([ str(self) ] + \
+                [ "%25s: %s" % (str(k), str(v)) \
+                for k, v in self.cfg.items() ])
+        else:
+            return '\n'.join([ str(self),
+                '%15s: %d single cell(s), %d bulk(s), %d other' % \
+                    ('BAMs', len(self.cfg['sc_bams']),
+                      self.cfg['bulk_bam'] is not None,
+                      len(self.cfg['bams'])),
+                '%15s: %s' % ('Creator', self.cfg['creator']),
+                '%15s: %s' % ('Create date', self.cfg['create_date']) ])
 
     def load(self):
         """Requires self.config_path to already be set."""
@@ -96,17 +126,40 @@ class Analysis:
             self.cfg = yaml.load(yf)
         self.analysis_uuid = self.cfg['analysis_uuid']
 
-    def configure(self, args):
+    def configure(self, args, verbose=False):
         """
         Merge new parameter values from 'args' into the previous config
         dictionary. New parameter specifications override old ones.  Since
         these values are not changeable once an analysis begins running,
         there is no issue with overwriting old values.
+
+        'args' is the result of ArgumentParser.  Argument values will be
+        None unless they were specified on the command line in *this*
+        invocation of the scan2 script.
         """
-        updates = 0
+        # First pass: get all new arguments and perform any special
+        # handling. Second pass will tally updates and inform.
+        new_cfg = {}
         for k, v in vars(args).items():
+            if v is not None:
+                for k2, v2 in self.handle_special(k, v).items():
+                    new_cfg[k2] = v2
+        
+        # unusually special update: make the default value for chrs/gatk
+        # regions when the user specifies the reference FASTA. But only
+        # do this is the user did not also specify their own gatk regions
+        # via --regions or --region-file in this call AND gatk_regions was
+        # not set in a previous configure().
+        if 'ref' in new_cfg and \
+            'gatk_regions' not in new_cfg and self.cfg['gatk_regions'] == []:
+            autosomes = get_autosomes_from_ref(new_cfg['ref'])
+            new_cfg = { **new_cfg, **Analysis.handle_regions(autosomes) } # dict merge
+
+        updates = 0
+        for k, v in new_cfg.items():
             if k in self.cfg.keys() and v is not None and self.cfg[k] != v:
-                print("Updating %s: %s -> %s" % (k, str(self.cfg[k]), str(v)))
+                if args.verbose:
+                    print("Updating %s: %s -> %s" % (k, str(self.cfg[k]), str(v)))
                 self.cfg[k] = v
                 updates = updates + 1
 
@@ -116,6 +169,38 @@ class Analysis:
             with open(self.config_path, 'w') as yf:
                 yaml.dump(self.cfg, yf, default_flow_style=False)
 
+    def handle_special(self, key, value):
+        """
+        Allow special handling of configuration parameters.  Any command
+        line argument may expand into an arbitrarily large dict to be added
+        to the configuration database.
+        To skip special handling, simply return the original key and value.
+        """
+        if key in [ 'bam', 'sc_bam', 'bulk_bam' ]:
+            if key in [ 'bam', 'sc_bam' ]:  # sc_bam and bam provide a lists
+                return { key + 's' :
+                    dict([ (sample_from_bam(bam), readable_file(bam)) for bam in value ]) }
+            if key == 'bulk_bam':
+                return { 'bulk_bam': readable_file(value),
+                         'bulk_sample': sample_from_bam(value) }
+
+        if key in [ 'regions', 'regions_file' ]:
+            regions = regions_from_string(value) if \
+                key == 'regions' else regions_from_file(value)
+            return Analysis.handle_regions(regions)
+
+        #if key in [ 'eagle_refpanel', 'eagle_genmap' ]:
+            #error("sorry, Eagle phasing is currently unsupported.")
+
+        # default: use the key=value pair as specified on command line
+        return { key: value }
+
+    @staticmethod
+    def handle_regions(regions):
+        """Extra handling for GATK genotyping intervals (regions)."""
+        return { 'gatk_chunks': len(regions),
+                 'gatk_regions': regions,
+                 'chrs': chrs_from_regions(regions) }
 
 
 def error(str):
@@ -140,6 +225,14 @@ def check_refgenome(refgenome):
     readable_file(refgenome + '.fai')
     readable_file(re.sub('.fasta$', '.dict', refgenome))
 
+
+def get_autosomes_from_ref(refpath):
+    """
+    Get the correct names for chromosomes 1-22 from the FASTA header.
+    ASSUMES the first 22 contigs in the header are the autosomes.
+    """
+    with open(refpath + '.fai', 'r') as f:
+        return [ line.split('\t')[0] for line in f ][0:22]
 
 
 def check_dbsnp(dbsnp):
@@ -182,8 +275,12 @@ def check_eagle(eagle_panel, chrs):
 
 
 def sample_from_bam(bampath):
-    with open(bampath, 'r') as f:
-        return f.header.to_dict()['RG'][0]['SM']
+    with pysam.AlignmentFile(bampath, 'r') as af:
+        sample = af.header.to_dict()['RG'][0]['SM']
+    print('Got sample name "%s" from BAM %s' % (sample, bampath))
+    return sample
+
+
 
 
 def check_bams(bamlist):
@@ -205,18 +302,25 @@ def check_regions(args):
     if not args.regions is None and not args.regions_file is None:
         error("only one of --regions or --regions-file can be supplied")
 
-    if not args.regions is None:
-        regions = args.regions.split(',')
+    # did the stuff below
 
-    if not args.regions_file is None:
-        with open(args.regions_file) as f:
-            for line in f:
-                if line.startswith("#"):
-                    continue
+def regions_from_string(regions):
+    return args.regions.split(',')
 
-                chrom, start, stop = line.strip().split('\t')[0:3]
-                regions.append("{0}:{1}-{2}".format( chrom, int(start)+1, stop))
 
+def regions_from_file(regions_file):
+    regions = []
+    with open(regions_file, 'r') as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+
+            chrom, start, stop = line.strip().split('\t')[0:3]
+            regions.append("{0}:{1}-{2}".format( chrom, int(start)+1, stop))
+    return regions
+
+
+def chrs_from_regions(regions):
     chrs = []
     # retains order
     rchrs = [ r.split(":")[0] for r in regions ]
@@ -224,7 +328,7 @@ def check_regions(args):
         if chrs.count(c) == 0:
             chrs.append(c)
 
-    return (chrs, regions)
+    return chrs
 
 
 
@@ -235,7 +339,6 @@ def do_init(args):
         print("ERROR: '%s' already contains a SCAN2 analysis." % \
             args.analysis_dir)
         print("Please delete the directory to create a new analysis.")
-        print(a)
         print(a.show())
         exit(1)
     except FileNotFoundError:
@@ -243,7 +346,6 @@ def do_init(args):
         print("Creating new analysis with default parameters in '%s'.." % \
             args.analysis_dir)
         a = Analysis.create(args)
-        print(a)
         print(a.show())
         print('Done.')
         print('Provide input files and set parameters via scan2 config.')
@@ -367,14 +469,12 @@ def do_run(args):
 
 def do_show(args):
     a = Analysis(args.analysis_dir)
-    print(a)
-    print(a.show())
+    print(a.show(args.verbose))
 
 
 
 def do_progress(args):
     a = Analysis(args.analysis_dir)
-    print(a)
     print(a.show())
     print("Progress: [ # / # ]")
 
@@ -384,206 +484,212 @@ def do_progress(args):
 # Command line arguments and subcommand definitions.
 ##########################################################################
 
-ap = argparse.ArgumentParser(prog='scan2',
-    description='Somatic SNV genotyper for whole genome amplified '
-                'single cell sequencing experiments.',
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-ap.add_argument('--analysis-dir', metavar='PATH', default='.', type=str,
-    help='PATH containing the SCAN2 analysis. Required for all subcommands.')
-subparsers = ap.add_subparsers(dest='subcommand')
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(prog='scan2',
+        description='Somatic SNV genotyper for whole genome amplified '
+                    'single cell sequencing experiments.',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    ap.add_argument('--analysis-dir', metavar='PATH', default='.', type=str,
+        help='PATH containing the SCAN2 analysis. Required for all subcommands.')
+    subparsers = ap.add_subparsers(dest='subcommand')
 
 
-##########################################################################
-# The 'init' subcommand
-#
-# 'init' only creates a new repository, nothing else. It is a separate
-# command to avoid accidental overwrites.
-##########################################################################
-init_parser = subparsers.add_parser('init',
-    help='Initialize a SCAN2 analysis directory')
-init_parser.set_defaults(executor=do_init)
+    ##########################################################################
+    # The 'init' subcommand
+    #
+    # 'init' only creates a new repository, nothing else. It is a separate
+    # command to avoid accidental overwrites.
+    ##########################################################################
+    init_parser = subparsers.add_parser('init',
+        help='Initialize a SCAN2 analysis directory')
+    init_parser.set_defaults(executor=do_init)
+    
+    
+    ##########################################################################
+    # The 'config' subcommand
+    #
+    # Configuration variables need to be split into ones that can be
+    # modified after analysis has run vs. ones that must be set first.
+    #
+    # Important: overwrite protection.
+    ##########################################################################
+    config_parser = subparsers.add_parser('config',
+        help='Change configuration of a SCAN2 analysis. Note: config parameters '
+            'cannot be changed after the analysis has begun.')
+    config_parser.set_defaults(executor=do_config)
+    
+    config_parser.add_argument('--verbose', action='store_true', default=False,
+        help='Print detailed list of all configuration changes.')
+    
+    # required arguments
+    req = config_parser.add_argument_group("External data")
+    req.add_argument('--ref', type=readable_file, metavar='PATH',
+        help='Path to reference genome FASTA file.  As required by GATK, two additional files must be present: an index (.fai) and a dictionary (.dict).')
+    req.add_argument('--dbsnp', type=readable_file, metavar='PATH',
+        help='Path to a tribble-indexed (NOT tabix indexed) dbSNP VCF.')
+    
+    infiles = config_parser.add_argument_group('Input sequencing data',
+        'At least two BAM files must be specified: one via --bulk-bam'
+        ' and at least via one via --sc-bam.  Additional BAMs can be '
+        ' specified by --bam: these will be used for GATK joint calling,'
+        'but will affect the analysis in no other way.  This can be '
+        'useful for adding additional bulks for followup comparisons.'
+        'IMPORTANT: BAM files must be indexed (.bai) and must contain'
+        ' only a single sample, identified by an @RG line with an SM '
+        ' tag in the header.')
+    infiles.add_argument('--bulk-bam', metavar='PATH',
+        help='Matched bulk sample (not-single cell) for removing '
+            'germline or clonal SNVs.  Only one sample may be '
+            'designated as the bulk sample.')
+    infiles.add_argument('--sc-bam', metavar='PATH', action='append',
+        help='BAM corresponding to single cells that are to be '
+            'analyzed.  May be specified multiple times.')
+    infiles.add_argument('--bam',  action='append', metavar='PATH',
+        help='Additional BAM files that will be included in GATK\'s'
+            'joint genotyping, but will otherwise not affect the '
+            'analysis.  May be specified several times.')
+    
+    
+    
+    gatk = config_parser.add_argument_group('Genotyping intervals',
+        'These parameters allow the user to specify which portions of the genome should be genotyped.  By default, all autosomal regions will be analyzed.  Regions MUST be specified in the same order as the reference genome and should not overlap!!  The maximum target region is chrs 1-22 and X, due to the SHAPEIT reference panel.  Non-pseudoautosomal regions (PARs) on chrX may also be analyzed, but male samples may fail due to lack of hSNPs.  Initial GATK calling will be performed on each region in parallel if possible, which can greatly decrease runtime.')
+    gatk.add_argument('--regions', metavar="STRING",
+        help='A comma separated list of regions in GATK format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.')
+    gatk.add_argument('--regions-file', metavar='PATH',
+        help='A BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.')
+    
+    
+    
+    caller = config_parser.add_argument_group("Somatic SNV calling parameters. A minimum requirement of 2 reads supporting a putative mutation is probably good practice at most sequencing depths.  However, the minimum total depth for single cell and bulk may need to be altered.  The defaults of 6 and 11, respectively, were successful on single cells with >25x and bulk with >30x mean coverage.")
+    caller.add_argument('--target-fdr', type=float, metavar='FLOAT',
+        help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
+    caller.add_argument('--min-sc-alt', type=int, metavar='INT',
+        help='Reject somatic SNVs with fewer than INT reads carrying the mutation in single cells.')
+    caller.add_argument('--min-sc-dp', type=int, metavar='INT',
+        help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
+    caller.add_argument('--min-bulk-dp', type=int,  metavar='INT',
+        help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
+    caller.add_argument('--no-somatic-snvs', action='store_true',
+        help='Do not genotype somatic SNVs.')
+    caller.add_argument('--somatic-indels', action='store_true',
+        help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
+    caller.add_argument('--somatic-indel-pon', type=str,
+        help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
+    caller.add_argument('--mosaic-snvs', action='store_true',
+        help='Enable detection of mosaic SNVs.')
+    
+    
+    phasing = config_parser.add_argument_group('Phasing options',
+        'Choose SHAPEIT2 or Eagle for phasing')
+    phasing.add_argument('--phaser', metavar='eagle|shapeit', type=str,
+        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. [IMPORTANT! Eagle is currently unsupported.]')
+    phasing.add_argument('--shapeit-panel', metavar='DIR',
+        help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
+    #phasing.add_argument('--eagle-panel', metavar='DIR',
+        #help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
+    #phasing.add_argument('--eagle-genmap', metavar='DIR',
+        #help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
+    
+    
+    abmodel = config_parser.add_argument_group("AB model fitting",
+        "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
+    abmodel.add_argument('--abmodel-chunks', type=int, metavar='INT',
+        help='Split each AB model sampling stage into INT jobs per chromosome.  When multiple threads or a cluster are available, this will drastically shorten total runtime.')
+    abmodel.add_argument('--abmodel-samples-per-chunk', type=int, metavar='INT',
+        help='Sample the AB model log-likelihood function INT times for each chunk.  The total number of samples for each chromosome will be (--abmodel-chunks) * (--abmodel-samples-per-chunk).')
+    abmodel.add_argument('--abmodel-hsnp-chunk-size', type=int, metavar='INT',
+        help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping chunks of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).')
+    abmodel.add_argument('--abmodel-steps', type=int, metavar='INT',
+        help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
+    
+    
+    
+    spikein = config_parser.add_argument_group("hSNP spike-ins",
+        'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins should be used.  However, hSNP spike-ins must be performed in many small batches for two reasons: (1) spike-ins hSNPs are not included in the list of hSNPs used to infer AB and (2) spike-ins are treated as sSNVs in the parameter tuning process which compares sSNV vs. hSNP VAF distributions.  See the SCAN-SNV paper for details.')
+    spikein.add_argument('--resample-M', type=int, metavar="INT",
+        help='Parameter for rejection sampling. Larger M will produce fewer hSNP spikein samples for sensitivity and total mutation burden estimation. However, M must be large enough to enable proper rejection sampling.')
+    
+    
 
-
-##########################################################################
-# The 'config' subcommand
-#
-# Configuration variables need to be split into ones that can be
-# modified after analysis has run vs. ones that must be set first.
-#
-# Important: overwrite protection.
-##########################################################################
-config_parser = subparsers.add_parser('config',
-    help='Change configuration of a SCAN2 analysis. Note: config parameters '
-         'cannot be changed after the analysis has begun.')
-config_parser.set_defaults(executor=do_config)
-
-# required arguments
-req = config_parser.add_argument_group("External data")
-req.add_argument('--ref', type=readable_file, metavar='PATH',
-    help='Path to reference genome FASTA file.  As required by GATK, two additional files must be present: an index (.fai) and a dictionary (.dict).')
-req.add_argument('--dbsnp', type=readable_file, metavar='PATH',
-    help='Path to a tribble-indexed (NOT tabix indexed) dbSNP VCF.')
-
-infiles = config_parser.add_argument_group('Input sequencing data',
-    'At least two BAM files must be specified: one via --bulk-bam'
-    ' and at least via one via --sc-bam.  Additional BAMs can be '
-    ' specified by --bam: these will be used for GATK joint calling,'
-    'but will affect the analysis in no other way.  This can be '
-    'useful for adding additional bulks for followup comparisons.'
-    'IMPORTANT: BAM files must be indexed (.bai) and must contain'
-    ' only a single sample, identified by an @RG line with an SM '
-    ' tag in the header.')
-infiles.add_argument('--bulk-bam', metavar='PATH',
-    help='Matched bulk sample (not-single cell) for removing '
-         'germline or clonal SNVs.  Only one sample may be '
-         'designated as the bulk sample.')
-infiles.add_argument('--sc-bam', metavar='PATH', action='append',
-    help='BAM corresponding to single cells that are to be '
-         'analyzed.  May be specified multiple times.')
-infiles.add_argument('--bam',  action='append', metavar='PATH',
-    help='Additional BAM files that will be included in GATK\'s'
-         'joint genotyping, but will otherwise not affect the '
-         'analysis.  May be specified several times.')
-
-
-
-gatk = config_parser.add_argument_group('Genotyping intervals',
-    'These parameters allow the user to specify which portions of the genome should be genotyped.  By default, all autosomal regions will be analyzed.  Regions MUST be specified in the same order as the reference genome and should not overlap!!  The maximum target region is chrs 1-22 and X, due to the SHAPEIT reference panel.  Non-pseudoautosomal regions (PARs) on chrX may also be analyzed, but male samples may fail due to lack of hSNPs.  Initial GATK calling will be performed on each region in parallel if possible, which can greatly decrease runtime.')
-gatk.add_argument('--regions', metavar="STRING",
-    help='A comma separated list of regions in GATK format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.')
-gatk.add_argument('--regions-file', metavar='PATH',
-    help='A BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.')
-
-
-
-caller = config_parser.add_argument_group("Somatic SNV calling parameters. A minimum requirement of 2 reads supporting a putative mutation is probably good practice at most sequencing depths.  However, the minimum total depth for single cell and bulk may need to be altered.  The defaults of 6 and 11, respectively, were successful on single cells with >25x and bulk with >30x mean coverage.")
-caller.add_argument('--target-fdr', type=float, metavar='FLOAT',
-    help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
-caller.add_argument('--min-sc-alt', type=int, metavar='INT',
-    help='Reject somatic SNVs with fewer than INT reads carrying the mutation in single cells.')
-caller.add_argument('--min-sc-dp', type=int, metavar='INT',
-    help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
-caller.add_argument('--min-bulk-dp', type=int,  metavar='INT',
-    help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
-caller.add_argument('--no-somatic-snvs', action='store_true',
-    help='Do not genotype somatic SNVs.')
-caller.add_argument('--somatic-indels', action='store_true',
-    help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
-caller.add_argument('--somatic-indel-pon', type=str,
-    help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
-caller.add_argument('--mosaic-snvs', action='store_true',
-    help='Enable detection of mosaic SNVs.')
-
-
-phasing = config_parser.add_argument_group('Phasing options',
-    'Choose SHAPEIT2 or Eagle for phasing')
-phasing.add_argument('--phaser', metavar='eagle|shapeit', type=str,
-    help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead.')
-phasing.add_argument('--shapeit-panel', metavar='DIR',
-    help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit')
-phasing.add_argument('--eagle-panel', metavar='DIR',
-    help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
-phasing.add_argument('--eagle-genmap', metavar='DIR',
-    help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
-
-
-abmodel = config_parser.add_argument_group("AB model fitting",
-    "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
-abmodel.add_argument('--abmodel-chunks', type=int, metavar='INT',
-    help='Split each AB model sampling stage into INT jobs per chromosome.  When multiple threads or a cluster are available, this will drastically shorten total runtime.')
-abmodel.add_argument('--abmodel-samples-per-chunk', type=int, metavar='INT',
-    help='Sample the AB model log-likelihood function INT times for each chunk.  The total number of samples for each chromosome will be (--abmodel-chunks) * (--abmodel-samples-per-chunk).')
-abmodel.add_argument('--abmodel-hsnp-chunk-size', type=int, metavar='INT',
-    help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping chunks of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).')
-abmodel.add_argument('--abmodel-steps', type=int, metavar='INT',
-    help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
-
-
-
-spikein = config_parser.add_argument_group("hSNP spike-ins",
-    'hSNP spike ins provide a way to estimate sensitivity and the effects of various filters.  hSNP spikeins are also used to train models for excess indel and read clipping, so at least a few thousand spikeins should be used.  However, hSNP spike-ins must be performed in many small batches for two reasons: (1) spike-ins hSNPs are not included in the list of hSNPs used to infer AB and (2) spike-ins are treated as sSNVs in the parameter tuning process which compares sSNV vs. hSNP VAF distributions.  See the SCAN-SNV paper for details.')
-spikein.add_argument('--resample-M', type=int, metavar="INT",
-    help='Parameter for rejection sampling. Larger M will produce fewer hSNP spikein samples for sensitivity and total mutation burden estimation. However, M must be large enough to enable proper rejection sampling.')
-
-
-
-##########################################################################
-# The 'validate' subcommand
-#
-# Tries to ensure the configuration is complete.
-validate_parser = subparsers.add_parser('validate',
-    help='Validate the configuration parameters of a SCAN2 analysis.'
-         '  [ATTENTION: not yet exhaustive.]')
-validate_parser.set_defaults(executor=do_validate)
-
-
-##########################################################################
-# The 'run' subcommand
-#
-# This actually runs an analysis
-run_parser = subparsers.add_parser('run',
-    help='Run a fully configured SCAN2 analysis.  Always performs a '
-         '"validate" subcommand first.')
-run_parser.set_defaults(executor=do_run)
-run_parser.add_argument('--joblimit', default=1, metavar='INT',
-    help='Allow at most INT jobs to execute at any given time.  For '
-         'multicore machines or clusters, this can greatly decrease '
-         'runtime.')
-run_parser.add_argument('--memlimit', default=None, metavar='INT', type=int,
-    help="Total available memory in MB.  If unspecified, memory is "
-         "treated as unlimited.")
-run_parser.add_argument('--scripts', metavar='PATH',
-    default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-    help='Path to SCAN-SNV script files.  Usually points to an installed '
-         'set of files.')
-run_parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
-    help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "
-         "--snakemake-args to access --cluster.  Memory requirements "
-         "for each job can be accessed via {resources.mem} and any "
-         "instance of '%%logdir' in ARGS will be replaced by "
-         "--output-dir/cluster-logs.")
-run_parser.add_argument('--drmaa', default=None, type=str, metavar='ARGS',
-    help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use "
-         "--snakemake-args to access --drmaa.  Memory requirements for "
-         "each job can be accessed via {resources.mem} and any instance "
-         "of '%%logdir' in ARGS will be replaced by "
-         "--output-dir/cluster-logs.")
-run_parser.add_argument('--snakemake-args', default='', type=str, metavar='STRING',
-    help='STRING is a set of command line arguments to be passed to Snakemake.  Note that a leading space may be necessary, e.g., --snakemake-args " --drmaa \' -p myqueue -t 12:00:00 --mem={resources.mem}\'".')
-run_parser.add_argument('--snakefile', metavar='PATH', type=readable_file,
-    default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
-    help='Path to the SCAN-SNV Snakefile.  Unlikely to be necessary for standard use.')
-run_parser.add_argument('--configfile', metavar='PATH', default=None, type=readable_file,
-    help='Path to the Snakemake configuration file.  This file is autogenerated by this script and the user should rarely need to specify their own config file.')
-
-
-##########################################################################
-# The 'show' subcommand
-#
-# Show all configuration information. Maybe allow for serialization?
-# Could just dump the YAML.
-show_parser = subparsers.add_parser('show',
-    help='Show the configuration of a SCAN2 analysis.')
-show_parser.set_defaults(executor=do_show)
-
-
-##########################################################################
-# The 'progress' subcommand
-#
-# Print some information about the progress of the run:
-#   #Jobs complete / Total #Jobs
-#   #Jobs with errors
-progress_parser = subparsers.add_parser('progress',
-    help='Prints statistics regarding the progress of a SCAN2 run.')
-progress_parser.set_defaults(executor=do_progress)
-
-
-# Get the args and run the relavent subcommand
-args = ap.parse_args()
-if args.subcommand is None:
-    print("ERROR: a valid subcommand must be provided. See below.")
-    ap.print_help()
-    exit(1)
-
-args.analysis_dir = os.path.abspath(args.analysis_dir)
-args.executor(args)
+    ##########################################################################
+    # The 'validate' subcommand
+    #
+    # Tries to ensure the configuration is complete.
+    validate_parser = subparsers.add_parser('validate',
+        help='Validate the configuration parameters of a SCAN2 analysis.'
+            '  [ATTENTION: not yet exhaustive.]')
+    validate_parser.set_defaults(executor=do_validate)
+    
+    
+    ##########################################################################
+    # The 'run' subcommand
+    #
+    # This actually runs an analysis
+    run_parser = subparsers.add_parser('run',
+        help='Run a fully configured SCAN2 analysis.  Always performs a '
+            '"validate" subcommand first.')
+    run_parser.set_defaults(executor=do_run)
+    run_parser.add_argument('--joblimit', default=1, metavar='INT',
+        help='Allow at most INT jobs to execute at any given time.  For '
+            'multicore machines or clusters, this can greatly decrease '
+            'runtime.')
+    run_parser.add_argument('--memlimit', default=None, metavar='INT', type=int,
+            help="Total available memory in MB.  If unspecified, memory is "
+            "treated as unlimited.")
+    run_parser.add_argument('--scripts', metavar='PATH',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
+        help='Path to SCAN-SNV script files.  Usually points to an installed '
+            'set of files.')
+    run_parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
+        help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "
+            "--snakemake-args to access --cluster.  Memory requirements "
+            "for each job can be accessed via {resources.mem} and any "
+            "instance of '%%logdir' in ARGS will be replaced by "
+            "--output-dir/cluster-logs.")
+    run_parser.add_argument('--drmaa', default=None, type=str, metavar='ARGS',
+        help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use "
+            "--snakemake-args to access --drmaa.  Memory requirements for "
+            "each job can be accessed via {resources.mem} and any instance "
+            "of '%%logdir' in ARGS will be replaced by "
+            "--output-dir/cluster-logs.")
+    run_parser.add_argument('--snakemake-args', default='', type=str, metavar='STRING',
+        help='STRING is a set of command line arguments to be passed to Snakemake.  Note that a leading space may be necessary, e.g., --snakemake-args " --drmaa \' -p myqueue -t 12:00:00 --mem={resources.mem}\'".')
+    run_parser.add_argument('--snakefile', metavar='PATH', type=readable_file,
+        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+        help='Path to the SCAN-SNV Snakefile.  Unlikely to be necessary for standard use.')
+    run_parser.add_argument('--configfile', metavar='PATH', default=None, type=readable_file,
+        help='Path to the Snakemake configuration file.  This file is autogenerated by this script and the user should rarely need to specify their own config file.')
+    
+    
+    ##########################################################################
+    # The 'show' subcommand
+    #
+    # Show all configuration information. Maybe allow for serialization?
+    # Could just dump the YAML.
+    show_parser = subparsers.add_parser('show',
+        help='Show the configuration of a SCAN2 analysis.')
+    show_parser.set_defaults(executor=do_show)
+    show_parser.add_argument('--verbose', action='store_true', default=False,
+        help='Show all configuration variables and settings.')
+    
+    
+    ##########################################################################
+    # The 'progress' subcommand
+    #
+    # Print some information about the progress of the run:
+    #   #Jobs complete / Total #Jobs
+    #   #Jobs with errors
+    progress_parser = subparsers.add_parser('progress',
+        help='Prints statistics regarding the progress of a SCAN2 run.')
+    progress_parser.set_defaults(executor=do_progress)
+    
+    
+    # Get the args and run the relavent subcommand
+    args = ap.parse_args()
+    if args.subcommand is None:
+        print("ERROR: a valid subcommand must be provided. See below.")
+        ap.print_help()
+        exit(1)
+    
+    args.analysis_dir = os.path.abspath(args.analysis_dir)
+    args.executor(args)
