@@ -31,7 +31,7 @@ scan2_param_defaults = {
     'analyze_indels': False,
     'analyze_mosaic_snvs': False,
     'callable_regions': True,
-    'permute': True,
+    'permute': 0,
     'abmodel_chunks': 4,
     'abmodel_samples_per_chunk': 5000,
     'abmodel_hsnp_chunk_size': 100,
@@ -43,6 +43,8 @@ scan2_param_defaults = {
     'chrs': [],
     'phaser': 'shapeit',
     'shapeit_refpanel': None,  # a directory, so readable_file fails
+    'chr_prefix': '',          # be nice to remove this; requires snakefile changes
+    'bam_map': {}              # maps sample name -> bam path
 }
 
 # Unlike params, all files listed here must be readable upon a call
@@ -160,7 +162,8 @@ class Analysis:
                 for k2, v2 in self.handle_special(k, v).items():
                     new_cfg[k2] = v2
         
-        # unusually special update: make the default value for chrs/gatk
+        # unusually special updates
+        # 1. make the default value for chrs/gatk
         # regions when the user specifies the reference FASTA. But only
         # do this is the user did not also specify their own gatk regions
         # via --regions or --region-file in this call AND gatk_regions was
@@ -181,6 +184,20 @@ class Analysis:
                     v = readable_file(v)   # returns the absolute path
                 self.cfg[k] = v
                 updates = updates + 1
+
+        # 2. Special update: sample -> bam map
+        if updates > 0:
+            tups = []
+            if self.cfg['bulk_bam'] is not None:
+                tups.append((self.cfg['bulk_sample'], self.cfg['bulk_bam']))
+            if len(self.cfg['sc_bams']) > 0:
+                tups = tups + [ (s, b) for s, b in self.cfg['sc_bams'].items() ]
+            if len(self.cfg['bams']) > 0:
+                tups = tups + [ (s, b) for s, b in self.cfg['bams'].items() ]
+            print(tups)
+            if len(tups) > 0:
+                self.cfg['bam_map'] = dict(tups)
+                print(self.cfg['bam_map'])
 
         if updates == 0:
             print("No changes to make to configuration. Stopping.")
@@ -471,7 +488,7 @@ def do_run(args):
         cluster=args.cluster,
         drmaa=args.drmaa,
         resources=resources,
-        dryrun=True
+        #dryrun=True
     )
     
 
@@ -529,6 +546,8 @@ if __name__ == "__main__":
     
     config_parser.add_argument('--verbose', action='store_true', default=False,
         help='Print detailed list of all configuration changes.')
+    config_parser.add_argument('--permute', type=int,
+        help='Number of permutation sets to create for somatic SNVs and indels.')
     
     # required arguments
     req = config_parser.add_argument_group("External data")

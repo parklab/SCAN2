@@ -22,43 +22,36 @@ def determine_pipeline_output(wildcards):
     if config['analyze_snvs']:
         print("adding somatic SNVs to schedule")
         d['somatic_genotypes'] = expand("snv/{sample}/somatic_genotypes.rda",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
         d['hsnp_spikein_genotypes'] = expand("snv/{sample}/hsnp_spikein_genotypes.rda",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
         if config['permute']:
             d['permuted_snvs'] = expand("snv/{sample}/permuted_sites.rda",
-                sample=config['sc_samples'])
+                sample=config['sc_bams'].keys())
 
     # Somatic indels
     if config['analyze_indels']:
         print("adding somatic indels to schedule")
         d['indel_somatic_genotypes'] = expand("indel/{sample}/somatic_genotypes.pon_filter.rda",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
         d['indel_hsnp_spikein_genotypes'] = expand("indel/{sample}/hsnp_spikein_genotypes.rda",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
         if config['permute']:
             d['permuted_indels'] = expand("indel/{sample}/permuted_sites.rda",
-                sample=config['sc_samples'])
+                sample=config['sc_bams'].keys())
 
     # Mosaic SNVs
     if config['analyze_mosaic_snvs']:
         print("adding mosaic SNVs to schedule")
         d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
 
     # Find bases passing minimum depth thresholds
     if config['callable_regions']:
         print("adding region callability to schedule")
         d['callable_beds'] = expand("callable_regions/{sample}/callable_regions.bed",
-            sample=config['sc_samples'])
+            sample=config['sc_bams'].keys())
 
-    '''
-    # Joint calling for SNVs
-    if config['analyze_snvs'] and len(config['sc_samples']) > 1:
-        print("adding joint somatic SNV calling to schedule")
-        d['joint_somatic_genotypes'] = expand("snv/{sample}/joint_somatic_genotypes.rda",
-            sample=config['sc_samples'])
-    '''
     return d
 
 
@@ -98,7 +91,7 @@ rule callable_region_bulk_intersect:
 
 rule callable_region_scatter:
     input:
-        bam=lambda wildcards: config['bams'][wildcards.sample]
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
         txt="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.txt".format(chr_prefix=config['chr_prefix']),
         bed="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix'])
@@ -115,6 +108,7 @@ rule callable_region_scatter:
         "    -L {params.chrom}"
         "    -mmq 60 "
         "    -o {output.txt} ; "
+
         " tail -n +2 {output.txt} "
         " | awk 'BEGIN {{ OFS=\"\t\"; }} {{"
         "        if ($2 >= {params.min_dp}) {{"
@@ -134,7 +128,7 @@ rule permute_snvs:
     resources:
         mem=4000
     shell:
-        "{config[scripts]}/permute.r 1000 {input.rda} {input.bed} {output}"
+        "{config[scripts]}/permute.r {config[permute]} {input.rda} {input.bed} {output}"
 
 
 
@@ -186,11 +180,11 @@ rule gatk_gather:
 
 rule gatk_scatter:
     input:
-        bam=expand("{bam}", bam=config['bams'].values()),
+        bam=expand("{bam}", bam=config['bam_map'].values()),
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
     params:
-        bamlist=expand("-I {bam}", bam=config['bams'].values()),
+        bamlist=expand("-I {bam}", bam=config['bam_map'].values()),
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
         mmq="{gatk_mmq}"
@@ -616,7 +610,7 @@ rule abmodel_scatter:
             data <- data[data$chr == "{params.chr}",]
             ctx <- abmodel.approx.ctx(x=data$pos,
                 y=data$hap1, d=data$hap1+data$hap2,
-                hsnp.chunksize={config[abmodel_hsnp_chunksize]}
+                hsnp.chunksize={config[abmodel_hsnp_chunk_size]}
             )
             logp.samples <- abmodel.sample(
                 n={config[abmodel_samples_per_chunk]},
@@ -770,7 +764,7 @@ rule scansnv_somatic_sites:
 rule scansnv_count_cigars:
     input:
         sites="{muttype}/{vartype}_positions.%s{chr}.tab" % config['chr_prefix'],
-        bam=lambda wildcards: config['bams'][wildcards.sample]
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
         txt="{muttype}/{sample}/{vartype}_cigars.%s{chr}.txt" % config['chr_prefix'],
         tab="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix']
@@ -943,7 +937,7 @@ rule scansnv_genotype_scatter:
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
         "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
-        "   {output} {config[fdr]} {input.fdr_tuning} {params.flag}"
+        "   {output} {config[target_fdr]} {input.fdr_tuning} {params.flag}"
         "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
 
 
