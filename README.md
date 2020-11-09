@@ -56,7 +56,8 @@ $ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37
 $ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
 ```
 
-Download dbSNP. Note that dbSNP build 147 (common variants only) was used in
+Download dbSNP *common variants*.
+Note that dbSNP build 147 (common variants only) was used in
 the publication. However, NCBI
 does not guarantee long term hosting of dbSNP builds, so we recommend
 downloading the version of dbSNP included in the Broad's GATK resource
@@ -96,21 +97,17 @@ downloaded above. This demo runs in about 5 minutes on a single core
 machine by restricting analysis to a 1 MB segment of chr22 and by
 using an impractically coarse grid for covariance function fitting.
 ```
-scan2 \
+scan2 --analysis-dir demo init
+scan2 --analysis-dir demo config \
+    --verbose \
     --ref /path/to/human_g1k_v37_decoy.fasta \
-    --dbsnp /path/to/dbsnp_138.b37.vcf \
-    --shapeit-panel /path/to/1000GP_Phase3 \
-    --regions 22:30000001-31000000 \
-    --output-dir demo \
-    --bam hunamp hunamp.chr22.bam \
-    --bam h25 il-12.chr22.bam  \
-    --sc-sample h25 \
-    --bulk-sample hunamp \
-    --abmodel-chunks 1 \
-    --abmodel-samples-per-chunk 10000 \
-    --abmodel-hsnp-chunk-size 50 \
-    --hsnp-spikein-replicates 5 \
-    --joblimit 1 --resume
+    --dbsnp /path/to/dbsnp_138_b37.vcf \
+    --shapeit-refpanel  /path/to/1000GP_Phase3 \
+    --sc-bam il-12.chr22_30M.bam \
+    --bulk-bam hunamp.chr22_30M.bam \
+    --regions 22:30000001-30100000
+scan2 --analysis-dir demo validate
+scan2 --analysis-dir demo run
 ```
 
 See `scansnv -h` for more details on arguments.
@@ -129,9 +126,8 @@ R> somatic[somatic$pass,]
 ```
 
 # WARNING!
-* Sample names associated with BAMs **MUST** match the SM tag in the BAM.
-* The conda environment (named scansnv in these instructiosn) must always
-  be `conda activate`d before running SCAN-SNV.
+* The conda environment (named scan2 in these instructions) must always
+  be `conda activate`d before running SCAN2.
 * Real world analyses will require parallelization.
     * On a machine with multiple cores, increasing the `--joblimit` parameter
       will run multiple parts of the analysis in parallel.
