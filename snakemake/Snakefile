@@ -65,23 +65,23 @@ rule all:
 rule callable_region_gather:
     input:
         beds=lambda wildcards:
-            expand("callable_regions/{{sample}}/callable_regions.bulk_intersect.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix']),
-            sample=wildcards.sample, chr=config['chrs']),
+            expand("callable_regions/{sample}/callable_regions.bulk_intersect.chunk{gatk_chunk}.bed",
+                sample=wildcards.sample,
+                gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
         bed="callable_regions/{sample}/callable_regions.bed"
     resources:
-        mem=4000
+        mem=1000
     shell:
         "cat {input.beds} > {output.bed}"
 
 
-
 rule callable_region_bulk_intersect:
     input:
-        scbed="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix']),
-        bulkbed="callable_regions/{bulk_sample}/callable_regions.{chr_prefix}{{chr}}.bed".format(bulk_sample=config['bulk_sample'], chr_prefix=config['chr_prefix'])
+        scbed="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.bed",
+        bulkbed="callable_regions/{bulk_sample}/callable_regions.chunk{{gatk_chunk}}.bed".format(bulk_sample=config['bulk_sample'])
     output:
-        bed="callable_regions/{{sample}}/callable_regions.bulk_intersect.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix'])
+        bed="callable_regions/{sample}/callable_regions.bulk_intersect.chunk{gatk_chunk}.bed"
     resources:
         mem=4000
     shell:
@@ -89,26 +89,29 @@ rule callable_region_bulk_intersect:
 
 
 
+# Needs to match parallelization of GATK scattering, else the
+# callable regions will not match the actual genotyped area.
 rule callable_region_scatter:
     input:
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        txt="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.txt".format(chr_prefix=config['chr_prefix']),
-        bed="callable_regions/{{sample}}/callable_regions.{chr_prefix}{{chr}}.bed".format(chr_prefix=config['chr_prefix'])
+        txt="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.txt",
+        bed="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.bed"
     params:
-        chrom='{chr}',
-        min_dp=lambda wildcards: config['min_bulk_dp'] if wildcards.sample == config['bulk_sample'] else config['min_sc_dp']
+        regionflag=lambda wildcards:
+            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        min_dp=lambda wildcards:
+            config['min_bulk_dp'] if wildcards.sample == config['bulk_sample'] else config['min_sc_dp']
     resources:
-        mem=4500
+        mem=3200
     shell:
-        "gatk -T DepthOfCoverage"
-        "    -Xmx4G -Xms4G "
+        "gatk3 -T DepthOfCoverage"
+        "    -Xmx3G -Xms3G "
         "    -R {config[ref]} "
         "    -I {input.bam} "
-        "    -L {params.chrom}"
+        "    {params.regionflag} "
         "    -mmq 60 "
         "    -o {output.txt} ; "
-
         " tail -n +2 {output.txt} "
         " | awk 'BEGIN {{ OFS=\"\t\"; }} {{"
         "        if ($2 >= {params.min_dp}) {{"
@@ -167,7 +170,7 @@ rule gatk_gather:
         #"xargs cat > gatk/catvariants_args.txt << 'EOF'\n"
         #"{params}\n"
         #"EOF\n"
-        "gatk org.broadinstitute.gatk.tools.CatVariants"
+        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
         "    {params}"
         "    -R {config[ref]}"
@@ -193,7 +196,7 @@ rule gatk_scatter:
     benchmark:
         "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     shell:
-        "gatk -Xmx3500M -Xms3500M"
+        "gatk3 -Xmx3500M -Xms3500M"
         "    -T HaplotypeCaller"
         "    -R {config[ref]}"
         "    --dontUseSoftClippedBases -l INFO"
@@ -217,7 +220,7 @@ rule shapeit_prepare:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[ref]}"
         "    -V {input}"
@@ -242,7 +245,7 @@ rule eagle_prepare:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[ref]}"
         "    -V {input}"
@@ -358,19 +361,19 @@ rule phasing_gather:
     resources:
         mem=4000
     shell:
-        "gatk org.broadinstitute.gatk.tools.CatVariants"
+        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
         "    -R {config[ref]}"
         "    {params.vcfs}"
         "    -out {output.vcf}"
         "    -assumeSorted ;"
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[ref]}"
         "    -V {output.vcf}"
         "    -selectType SNP"
         "    -o {output.snv} ;"
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -T SelectVariants"
         "    -R {config[ref]}"
         "    -V {output.vcf}"
@@ -392,13 +395,13 @@ rule training_hsnps_helper:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -R {config[ref]}"
         "    -T CombineVariants"
         "    -V {input.joint_vcf}"
         "    -V {input.phased_vcf}"
         "    -o {output.tmp_vcf} ;"
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -R {config[ref]}"
         "    -T SelectVariants"
         "    -V {output.tmp_vcf}"
@@ -427,13 +430,13 @@ rule training_indels_helper:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -R {config[ref]}"
         "    -T CombineVariants"
         "    -V {input.joint_vcf}"
         "    -V {input.phased_vcf}"
         "    -o {output.tmp_vcf} ;"
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "    -R {config[ref]}"
         "    -T SelectVariants"
         "    -V {output.tmp_vcf}"
@@ -631,7 +634,7 @@ rule scansnv_vcftotab:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "   -T SelectVariants"
         "   -R {config[ref]}"
         "   -V {input}"
@@ -653,7 +656,7 @@ rule scansnv_vcftotab_indel:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
+        "gatk3 -Xmx3G -Xms3G"
         "   -T SelectVariants"
         "   -R {config[ref]}"
         "   -V {input}"
