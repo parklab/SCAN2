@@ -125,19 +125,29 @@ R> somatic[somatic$pass,]
 # The demo should not produce any passing variants.
 ```
 
-# WARNING!
+### WARNING!
 * The conda environment (named scan2 in these instructions) must always
   be `conda activate`d before running SCAN2.
-* In a practical setting, parallelization will be required.
-    * On a machine with multiple cores, increasing the `--joblimit N` parameter
-      will run N jobs in parallel. A total memory limit can also be set via
+
+# Parallelization
+In a practical setting, parallelization will be required. SCAN2 leverages
+Snakemake to offer parallelization via:
+    * A single machine with multiple cores. To do this, increase the
+      `--joblimit` parameter but do not invoke cluster or cloud
+      arguments.  A total memory limit can also be set via
       `--memlimit`, which should be supplied in megabytes.
-    * For clusters with distributed resource management software (e.g., SLURM),
-      SCAN2 leverages Snakemake's excellent parallelization options
-      `--cluster` and `--drmaa`.
-        * **You may need access to additional libraries for your system**:
-          e.g., in the SCAN2 publication, a SLURM cluster was accessed via
+    * Clusters with distributed resource management software (e.g., SLURM,
+      LSF, GridEngine). If your resource management software supports
+      DRMAA (https://www.drmaa.org), the authors recommend using the
+      `--drmaa`. **However, additional libraries may be necessary to
+      interface with the DRMAA wrapper.**
+        * E.g., in the SCAN2 publication, a SLURM cluster was accessed via
           the slurm-drmaa 1.1.1 package.
+        * If your scheduler is not DRMAA-compatible (or if the appropriate
+          DRMAA interface is unavailable), Snakemake's `--cluster` option
+          offers similar functionality to `--drmaa`, but with fewer features.
+    * Cloud environments.
+See Snakemake's documentation for more details: https://snakemake.readthedocs.io/en/stable/.
 
 
 # Using a custom dbSNP version
