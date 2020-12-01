@@ -208,7 +208,7 @@ requirements:
         - numpy 1.15.4 py36h7e9f1db_0
         - numpy-base 1.15.4 py36hde5b4d6_0
         - r-fastghquad 1.0 r351h29659fb_0
-        - r-scansnv
+        - r-scan2
         - natefoo-slurm-drmaa
         - python-drmaa
 

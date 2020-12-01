@@ -76,12 +76,6 @@ str(lmq)
 sc.cigar <- read.table(sc.cigar.file, sep='\t', stringsAsFactors=F, header=T)
 bulk.cigar <- read.table(bulk.cigar.file, sep='\t', stringsAsFactors=F, header=T)
 
-cat("*****REMOVING NA AB SITES****\n")
-cat("THIS IS A WORKAROUND FOR USING CHRX IN THIS SAMPLE\n")
-cat("DO NOT COMMIT THIS CHANGE TO THE MAIN REPO\n")
-somatic.ab <- somatic.ab[!is.na(somatic.ab$chr),]
-print(sum(is.na(somatic.ab$chr)))
-
 load(fdr.tuning.file) # loads 'fdr.tuning'
 
 gt <- genotype.somatic(gatk=hmq, gatk.lowmq=lmq,
