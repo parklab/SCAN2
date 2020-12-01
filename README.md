@@ -33,6 +33,9 @@ Create a conda environment for SCAN2 and install necessary packages
 ```
 $ conda create -n scan2 -c conda-forge -c bioconda snakemake mamba drmaa r-base bioconductor-annotatr bioconductor-regioner r-pracma r-yaml pysam  bioconductor-bsgenome.hsapiens.1000genomes.hs37d5 bioconductor-bsgenome.hsapiens.ucsc.hg19  bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-bsgenome.hsapiens.ncbi.grch38 r-fastghquad bedtools htslib gatk samtools
 
+# Activate the scan2 conda environment
+$ conda activate scan2
+
 # Install SHAPEITv2 from the 'dranew' channel 
 $ mamba install -c conda-forge -c bioconda -c dranew shapeit 
 ```
@@ -125,12 +128,16 @@ R> somatic[somatic$pass,]
 # WARNING!
 * The conda environment (named scan2 in these instructions) must always
   be `conda activate`d before running SCAN2.
-* Real world analyses will require parallelization.
-    * On a machine with multiple cores, increasing the `--joblimit` parameter
-      will run multiple parts of the analysis in parallel.
+* In a practical setting, parallelization will be required.
+    * On a machine with multiple cores, increasing the `--joblimit N` parameter
+      will run N jobs in parallel. A total memory limit can also be set via
+      `--memlimit`, which should be supplied in megabytes.
     * For clusters with distributed resource management software (e.g., SLURM),
-      SCAN-SNV exposes Snakemake's parallelization options
+      SCAN2 leverages Snakemake's excellent parallelization options
       `--cluster` and `--drmaa`.
+        * **You may need access to additional libraries for your system**:
+          e.g., in the SCAN2 publication, a SLURM cluster was accessed via
+          the slurm-drmaa 1.1.1 package.
 
 
 # Using a custom dbSNP version
@@ -140,6 +147,6 @@ found in the GATK's resource bundle is already indexed. If you wish to use
 a different dbSNP version, the file can be indexed by `igvtools`.
 
 ```
-$ conda install -c bioconda igvtools
+$ mamba install -c bioconda igvtools
 $ igvtools index /path/to/your/dbsnp.vcf
 ```
