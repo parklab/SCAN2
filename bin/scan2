@@ -73,13 +73,17 @@ class Analysis:
 
     def __init__(self, analysis_dir):
         self.analysis_dir = analysis_dir
+        self.cluster_log_dir = Analysis.make_logs_path(self.analysis_dir)
         self.config_path = Analysis.make_config_path(self.analysis_dir)
         self.load()
-
 
     @staticmethod
     def make_config_path(path):
         return os.path.abspath(os.path.join(path, 'scan.yaml'))
+
+    @staticmethod
+    def make_logs_path(path):
+        return os.path.abspath(os.path.join(path, 'cluster-logs'))
 
 
     @staticmethod
@@ -93,6 +97,8 @@ class Analysis:
         cpath = Analysis.make_config_path(args.analysis_dir)
 
         os.makedirs(args.analysis_dir, exist_ok=True)
+        os.makedirs(Analysis.make_logs_path(args.analysis_dir),
+            exist_ok=True)
         analysis_uuid = uuid.uuid4()   # A random ID
         ct = time.time()
         cd = time.strftime('%Y-%m-%d %H:%M %Z', time.localtime(ct))
@@ -139,7 +145,7 @@ class Analysis:
     def load(self):
         """Requires self.config_path to already be set."""
         with open(self.config_path, 'r') as yf:
-            self.cfg = yaml.load(yf)
+            self.cfg = yaml.load(yf, Loader=yaml.FullLoader)
         self.analysis_uuid = self.cfg['analysis_uuid']
 
 
@@ -194,7 +200,6 @@ class Analysis:
                 tups = tups + [ (s, b) for s, b in self.cfg['sc_bams'].items() ]
             if len(self.cfg['bams']) > 0:
                 tups = tups + [ (s, b) for s, b in self.cfg['bams'].items() ]
-            print(tups)
             if len(tups) > 0:
                 self.cfg['bam_map'] = dict(tups)
                 print(self.cfg['bam_map'])
@@ -457,40 +462,42 @@ def do_validate(args):
 def do_run(args):
     a = Analysis(args.analysis_dir)
 
-    # Rewrite the --cluster or --drmaa arguments: substitute any
-    # instance of %logdir with the internal log directory.
-    if args.cluster is not None or args.drmaa is not None:
-        logdir = os.path.join(os.path.abspath(args.output_dir), 'cluster-logs')
-        os.makedirs(logdir, exist_ok=True)
-        if args.cluster is not None:
-            args.cluster = re.sub('%logdir', logdir, args.cluster)
-        if args.drmaa is not None:
-            args.drmaa = re.sub('%logdir', logdir, args.drmaa)
+    # I would like to use the snakemake API directly (i.e., call snakemake()),
+    # but this makes it difficult to allow the user to supply arbitrary
+    # snakemake options.
+    # Must be a vector of strings as would be expected in argv[1:].
+    # N.B., argv[0] is the invoking executable and should not be specified.
+    from snakemake import main
+    snakemake_command = [
+        "--snakefile",  args.snakefile,
+        "--configfile", a.config_path,
+        "--directory", a.analysis_dir,
+        "--latency-wait", "30",
+        "--rerun-incomplete",
+        "--jobs", str(args.joblimit),
+    ]
 
-    resources = {}
     if args.memlimit:
-        resources['mem'] = str(args.memlimit)
+        snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
 
-    # XXX: old way of passing through arbitrary additional snakemake args.
-    # need a new way to do this.
-    #if args.snakemake_args:
-        #if args.snakemake_args[0] == ' ':
-            #args.snakemake_args = args.snakemake_args[1:]
-        #snakemake_command += args.snakemake_args.split(' ')
-    snakemake.snakemake(
-        snakefile=args.snakefile,
-        configfile=a.config_path,   # XXX: is configfiles in newer API
-        #jobs=1,                    # XXX: somehow there is no parameter for this
-        # might be 'nodes' for --cluster/drmaa and cores otherwise
-        workdir=a.analysis_dir,
-        latency_wait=300,
-        force_incomplete=True,      # XXX: guessing this is = --rerun-incomplete
-        cluster=args.cluster,
-        drmaa=args.drmaa,
-        resources=resources,
-        #dryrun=True
-    )
-    
+    # handle --cluster or --drmaa and perform %logdir substitution
+    if args.cluster is not None or args.drmaa is not None:
+        if args.cluster is not None and args.drmaa is not None:
+            error('only one of --cluster and --drmaa can be specified')
+        if args.cluster is not None:
+            snakemake_command += [ '--cluster',
+                re.sub('%logdir', a.cluster_log_dir, args.cluster) ]
+        else:
+            snakemake_command += [ '--drmaa',
+                re.sub('%logdir', a.cluster_log_dir, args.drmaa) ]
+
+    # additional arbitrary snakemake args
+    if args.snakemake_args:
+        if args.snakemake_args[0] == ' ':
+            args.snakemake_args = args.snakemake_args[1:]
+        snakemake_command += args.snakemake_args.split(' ')
+
+    snakemake.main(snakemake_command)
 
 
 def do_show(args):
@@ -515,7 +522,8 @@ if __name__ == "__main__":
         description='Somatic SNV genotyper for whole genome amplified '
                     'single cell sequencing experiments.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    ap.add_argument('--analysis-dir', metavar='PATH', default='.', type=str,
+    ap.add_argument('-d', '--analysis-dir', metavar='PATH', default='.',
+        type=str,
         help='PATH containing the SCAN2 analysis. Required for all subcommands.')
     subparsers = ap.add_subparsers(dest='subcommand')
 
@@ -683,12 +691,10 @@ if __name__ == "__main__":
             "of '%%logdir' in ARGS will be replaced by "
             "--output-dir/cluster-logs.")
     run_parser.add_argument('--snakemake-args', default='', type=str, metavar='STRING',
-        help='STRING is a set of command line arguments to be passed to Snakemake.  Note that a leading space may be necessary, e.g., --snakemake-args " --drmaa \' -p myqueue -t 12:00:00 --mem={resources.mem}\'".')
+        help='Allows supplying arbitrary snakemake arguments in STRING. See snakemake --help for a list of parameters. Note that a leading space may be necessary, e.g., --snakemake-args " --dryrun".')
     run_parser.add_argument('--snakefile', metavar='PATH', type=readable_file,
         default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
         help='Path to the SCAN-SNV Snakefile.  Unlikely to be necessary for standard use.')
-    run_parser.add_argument('--configfile', metavar='PATH', default=None, type=readable_file,
-        help='Path to the Snakemake configuration file.  This file is autogenerated by this script and the user should rarely need to specify their own config file.')
     
     
     ##########################################################################

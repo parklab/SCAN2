@@ -461,13 +461,8 @@ rule training_hsnps:
         mem=4000
     benchmark:
         "ab_model/{sample}/training_benchmark.tsv"
-    run:
-        R("""
-            data <- read.table("{input}",
-                header=TRUE, stringsAsFactors=FALSE,
-                colClasses=c(chr='character'))
-            save(data, file="{output}")
-        """)
+    script:
+        "scripts/training_hsnps_script.R"
 
 
 
@@ -499,19 +494,8 @@ rule abmodel_fit:
         "ab_model/{sample}/fits.rda"
     resources:
         mem=1000
-    params:
-        infiles=lambda wildcards, input:
-            "c(" + ', '.join([ "'" + f + "'" for f in input ]) + ")",
-    run:
-        R("""
-            x <- lapply({params.infiles}, function(f) {{
-                load(f)
-                list(chr=chr, fit=fit)
-            }})
-            fits <- lapply(x, function(xx) xx$fit)
-            names(fits) <- lapply(x, function(xx) xx$chr)
-            save(fits, file="{output}")
-        """)
+    script:
+        "scripts/abmodel_fit_script.R"
 
 
 
@@ -527,41 +511,10 @@ rule abmodel_gather_by_chrom:
     output:
         fit="ab_model/{sample}/%s{chr}/fit_step{abmodel_step}.rda" % config['chr_prefix'],
         range="ab_model/{sample}/%s{chr}/param_ranges_step{abmodel_step}.rda" % config['chr_prefix']
-    params:
-        infiles=lambda wildcards, input:
-            "c(" + ', '.join("'" + f + "'" for f in input) + ")",
-        chr="{chr}"
     resources:
         mem=1000
-    run:
-        R("""
-            x <- do.call(rbind, 
-                lapply({params.infiles}, function(f) {{
-                    load(f)
-                    logp.samples
-                }})
-            )
-            dn <- dimnames(x)
-            x <- as.matrix(x)
-            # swapping columns (1,2) and (3,4) to force b < d.
-            # ifelse returns a value the same shape as the first argument
-            logi.mat <- matrix(rep(x[,2] < x[,4], times=5), ncol=5)
-            x <- as.data.frame(ifelse(logi.mat, x, x[,c(3,4,1,2,5)]))
-            dimnames(x) <- dn
-            x <- x[order(x[,5], decreasing=TRUE),]
-
-            # The highest logp value (x[,5]) is the best fit
-            fit <- x[1,,drop=FALSE]
-            chr <- "{params.chr}"
-            save(chr, fit, file="{output.fit}")
-
-            # Use the top 50 logp values to build a new parameter range
-            x[,2] <- log10(x[,2])   # b and d bounds are in log10 space
-            x[,4] <- log10(x[,4])
-            bounds <- apply(head(x[,-5], 50), 2, range)
-            colnames(bounds) <- colnames(x)[-5]
-            save(bounds, file="{output.range}")
-        """)
+    script:
+        "scripts/abmodel_gather_by_chrom_script.R"
 
 
 
@@ -595,33 +548,8 @@ rule abmodel_scatter:
         "ab_model/{sample}/%s{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv" % config['chr_prefix']
     resources:
         mem=1000
-    run:
-        R("""
-            library(scansnv)
-            alim <- c(-7, 2)
-            blim <- c(2, 4)
-            clim <- c(-7, 2)
-            dlim <- c(2, 6)
-            if ({params.step} > 1) {{
-                load("{params.paramfile}")
-                alim <- bounds[,1]
-                blim <- bounds[,2]
-                clim <- bounds[,3]
-                dlim <- bounds[,4]
-            }}
-            load("{input.training}")
-            data <- data[data$chr == "{params.chr}",]
-            ctx <- abmodel.approx.ctx(x=data$pos,
-                y=data$hap1, d=data$hap1+data$hap2,
-                hsnp.chunksize={config[abmodel_hsnp_chunk_size]}
-            )
-            logp.samples <- abmodel.sample(
-                n={config[abmodel_samples_per_chunk]},
-                alim=alim, blim=blim, clim=clim, dlim=dlim,
-                ctx=ctx,
-                seed={params.seed})
-            save(logp.samples, file="{output}")
-        """)
+    script:
+        "scripts/abmodel_scatter_script.R"
 
 
 
@@ -677,34 +605,10 @@ rule scansnv_sample_hsnps:
         resample_rda="{muttype}/hsnp_spikein_resample.%s{chr}.rda" % config['chr_prefix'],
         pdf="{muttype}/hsnp_spikein_resample.%s{chr}.pdf" % config['chr_prefix'],
         tab="{muttype}/hsnp_spikein_positions.%s{chr}.tab" % config['chr_prefix']
-    params:
-        chrom='{chr}',
     resources:
         mem=8000
-    run:
-        R("""
-            library(scansnv) # provides resample.hsnps()
-            vcf <- read.table("{input.vcf}", stringsAsFactors=TRUE, header=F,
-                            comment="#", colClasses=c(V1='character'))
-            colnames(vcf)[c(1:5)] <- c('chr', 'pos', 'dbsnp', 'refnt', 'altnt')
-            vcf <- vcf[vcf$chr == "{params.chrom}", c(1:2,4:5)]
-
-            som <- read.table("{input.somatic_pos}", header=T,
-                stringsAsFactors=FALSE, colClasses=c(chr='character'))
-            rs <- resample.hsnps(som, vcf, chrom="{params.chrom}", M={config[resample_M]})
-            pdf("{output.pdf}")
-            plot(rs$dist.s$mids, rs$dist.s$density,
-                type='l', col='red', lwd=2, xlab='log10(dist between sites)',
-                ylab='Density', main='Intra-hSNP distances; hSNP-sSNV distances')
-            lines(rs$dist.h$mids, rs$dist.h$density, col=1, lwd=2)
-            dev.off()
-            hsnp.sample <- vcf[rs$selection$keep,]
-            save(hsnp.sample, file="{output.rda}")
-            write.table(hsnp.sample,
-                file="{output.tab}", quote=F, row.names=FALSE, sep='\t')
-            save(rs, file="{output.resample_rda}")
-        """)
-
+    script:
+        "scripts/scansnv_sample_hsnps_script.R"
 
 
 rule scansnv_somatic_sites:
@@ -712,55 +616,10 @@ rule scansnv_somatic_sites:
         "{muttype}/mmq60.tab"
     output:
         "{muttype}/somatic_positions.%s{chr}.tab" % config['chr_prefix']
-    params:
-        muttype="{muttype}",
-        chr="{chr}"
     resources:
         mem=32000
-    run:
-        R("""
-            # Use a very sensitive definition of somatic site here
-            # At least: 0 alt reads in bulk, not a no-call, not in dbsnp
-            # and at least 2 non-bulk reads.
-            tab <- read.table("{input}", stringsAsFactors=FALSE, header=TRUE,
-                            comment="#", colClasses=c(chr='character'))
-            bulk.sample <- make.names("{config[bulk_sample]}")
-            bulk.idx <- which(colnames(tab) == bulk.sample)
-            bulk.alt <- bulk.idx +  2
-            sc.alts <- which(grepl("alt", colnames(tab)) &
-                             colnames(tab) != colnames(tab)[bulk.alt] &
-                             colnames(tab) != "altnt")
-            cat("Using data:\n")
-            for (i in 1:ncol(tab)) {{
-                s <- ifelse(i %in% sc.alts,
-                    "[SC]",
-                    ifelse(i == bulk.alt, "[BULK]", ""))
-                cat(sprintf("%8s %s\n", s, colnames(tab)[i]))
-            }}
-
-            if ("{params.muttype}" == "snv") {{
-                candidate.somatics <-
-                    tab[tab[,bulk.alt] == 0 &
-                        tab[,bulk.idx] == '0/0' &
-                        tab$dbsnp == '.' &
-                        rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
-                        tab$chr == "{params.chr}",]
-            }} else if ("{params.muttype}" == "mosaic_snv") {{
-                bulk.vaf <- tab[,bulk.alt] / (tab[,bulk.alt] + tab[,bulk.alt-1])
-                candidate.somatics <-
-                    tab[tab[,bulk.alt] > 0 &
-                        bulk.vaf < 0.3 &
-                        tab$dbsnp == '.' &
-                        rowSums(as.matrix(tab[,sc.alts])) >= {config[min_sc_alt]} &
-                        # To help remove germline: at least one cell must have 0 alt reads
-                        rowSums(as.matrix(tab[,sc.alts]) == 0) > 0 &
-                        tab$chr == "{params.chr}",]
-            }} else
-                stop("params.muttype={params.muttype} is unrecognized. must be 'snv' or 'mosaic_snv'")
-            write.table(candidate.somatics[,c(1:2, 4:5)], sep="\t",
-                quote=FALSE, row.names=FALSE, file="{output}")
-        """)
-
+    script:
+        "scripts/scansnv_somatic_sites_script.R"
 
 
 
@@ -789,19 +648,10 @@ rule scansnv_cigar_gather:
                 vartype=wildcards.vartype, chr=config['chrs'])
     output:
         "{muttype}/{sample}/{vartype}_cigars.tab"
-    params:
-        infiles=lambda wildcards, input:
-            "c(" + ", ".join([ '"' + f + '"' for f in input ]) + ")"
     resources:
         mem=1000
-    run:
-        R("""
-            cigars <- do.call(rbind, lapply({params.infiles}, function(f) {{
-                read.table(f, header=T)
-            }}))
-            write.table(cigars, file="{output}", quote=FALSE, row.names=FALSE,
-                sep="\t")
-        """)
+    script:
+        "scripts/scansnv_cigar_gather_script.R"
 
 
 
@@ -857,30 +707,8 @@ rule scansnv_cigar_tuning:
         "{muttype}/{sample}/cigar_tuning.rda"
     resources:
         mem=1000
-    run:
-        R("""
-            sc <- read.table("{input.sc}", header=T, stringsAsFactors=F)
-            bulk <- read.table("{input.bulk}", header=T, stringsAsFactors=F)
-            cd <- merge(sc, bulk, by=c('chr', 'pos'), suffixes=c('', '.bulk'))
-
-            cigar.emp.score <- function(training, test, which=c('id', 'hs')) {{
-                xt <- training[,paste0(which, '.score.x')]
-                yt <- training[,paste0(which, '.score.y')]
-                x <- test[,paste0(which, '.score.x')]
-                y <- test[,paste0(which, '.score.y')]
-                mapply(function(xi, yi) mean(xt >= xi & yt >= yi, na.rm=T), x, y)
-            }}
-
-            cd$id.score.y <- cd$ID.cigars / cd$dp.cigars
-            cd$id.score.x <- cd$ID.cigars.bulk / cd$dp.cigars.bulk
-            cd$id.score <- cigar.emp.score(training=cd, test=cd, which='id')
-            cd$hs.score.y <- cd$HS.cigars / cd$dp.cigars
-            cd$hs.score.x <- cd$HS.cigars.bulk / cd$dp.cigars.bulk
-            cd$hs.score <- cigar.emp.score(training=cd, test=cd, which='hs')
-
-            cigar.training <- cd
-            save(cigar.emp.score, cigar.training, file="{output}")
-        """)
+    script:
+        "scripts/scansnv_cigar_tuning_script.R"
 
 
 
@@ -959,21 +787,10 @@ rule scansnv_genotype_gather:
     params:
         varname=lambda wildcards:
             'somatic' if wildcards.vartype == 'somatic' else 'spikeins',
-        files=lambda wildcards, input:
-            "c(" + ", ".join([ "'" + f + "'" for f in input ]) + ")"
     resources:
         mem=5000
-    run:
-        R("""
-            {params.varname} <- do.call(rbind,
-                lapply({params.files}, function(f) {{
-                    load(f)
-                    gt$somatic
-                }})
-            )
-
-            save({params.varname}, file="{output}")
-        """)
+    script:
+        "scripts/scansnv_genotype_gather_script.R"
 
 
 
