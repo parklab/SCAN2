@@ -147,7 +147,8 @@ Snakemake to offer parallelization via:
       DRMAA interface is unavailable), Snakemake's `--cluster` option
       offers similar functionality to `--drmaa`, but with fewer features.
 * Cloud environments.
-See Snakemake's documentation for more details: https://snakemake.readthedocs.io/en/stable/.
+
+See Snakemake's documentation for more details on cluster and cloud execution: https://snakemake.readthedocs.io/en/stable/.
 
 
 # Using a custom dbSNP version
