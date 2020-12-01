@@ -132,21 +132,21 @@ R> somatic[somatic$pass,]
 # Parallelization
 In a practical setting, parallelization will be required. SCAN2 leverages
 Snakemake to offer parallelization via:
-    * A single machine with multiple cores. To do this, increase the
-      `--joblimit` parameter but do not invoke cluster or cloud
-      arguments.  A total memory limit can also be set via
-      `--memlimit`, which should be supplied in megabytes.
-    * Clusters with distributed resource management software (e.g., SLURM,
-      LSF, GridEngine). If your resource management software supports
-      DRMAA (https://www.drmaa.org), the authors recommend using the
-      `--drmaa`. **However, additional libraries may be necessary to
-      interface with the DRMAA wrapper.**
-        * E.g., in the SCAN2 publication, a SLURM cluster was accessed via
-          the slurm-drmaa 1.1.1 package.
-        * If your scheduler is not DRMAA-compatible (or if the appropriate
-          DRMAA interface is unavailable), Snakemake's `--cluster` option
-          offers similar functionality to `--drmaa`, but with fewer features.
-    * Cloud environments.
+* A single machine with multiple cores. To do this, increase the
+  `--joblimit` parameter but do not invoke cluster or cloud
+  arguments.  A total memory limit can also be set via
+  `--memlimit`, which should be supplied in megabytes.
+* Clusters with distributed resource management software (e.g., SLURM,
+  LSF, GridEngine). If your resource management software supports
+  DRMAA (https://www.drmaa.org), the authors recommend using the
+  `--drmaa`. **However, additional libraries may be necessary to
+  interface with the DRMAA wrapper.**
+    * E.g., in the SCAN2 publication, a SLURM cluster was accessed via
+      the slurm-drmaa 1.1.1 package.
+    * If your scheduler is not DRMAA-compatible (or if the appropriate
+      DRMAA interface is unavailable), Snakemake's `--cluster` option
+      offers similar functionality to `--drmaa`, but with fewer features.
+* Cloud environments.
 See Snakemake's documentation for more details: https://snakemake.readthedocs.io/en/stable/.
 
 
