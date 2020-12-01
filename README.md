@@ -1,10 +1,10 @@
 # SCAN2
-Genotyper for *somatic* SNV and indel discovery in PTA-amplified single cells.
+Genotyper for **somatic** SNV and indel discovery in PTA-amplified single cells.
 
 SCAN2 should not be used for genotyping germline mutations, as it excludes any
 mutation with any read support in matched bulk samples.
 
-*IMPORTANT*: SCAN2 should only be applied to diploid chromosomes (i.e., human
+**IMPORTANT**: SCAN2 should only be applied to diploid chromosomes (i.e., human
 autosomes 1-22 and the X chromosome in female samples).
 
 
@@ -29,28 +29,16 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 ```
 
 ## Installing SCAN2
-Create a conda environment for SCAN2
+Create a conda environment for SCAN2 and install necessary packages
 ```
-$ conda deactivate   # The "base" environment will be active after login
-$ conda create -n scan2
-$ conda activate scan2
-```
-Install the SCAN2 package
-```
-$ conda install -c bioconda -c conda-forge/label/cf201901 -c jluquette scan2
-```
-Register your GATK installation
-```
-$ wget 'https://software.broadinstitute.org/gatk/download/auth?package=GATK-archive&version=3.8-1-0-gf15c1c3ef' -O GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
-$ tar xjvf GenomeAnalysisTK-3.8-1-0-gf15c1c3ef.tar.bz2
-$ gatk-register GenomeAnalysisTK-3.8-1-0-gf15c1c3ef/GenomeAnalysisTK.jar
-# Test the install
-$ gatk --version
-# Above should print 3.8-1-0-gf15c1c3ef
+$ conda create -n scan2 -c conda-forge -c bioconda snakemake mamba drmaa r-base bioconductor-annotatr bioconductor-regioner r-pracma r-yaml pysam  bioconductor-bsgenome.hsapiens.1000genomes.hs37d5 bioconductor-bsgenome.hsapiens.ucsc.hg19  bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-bsgenome.hsapiens.ncbi.grch38 r-fastghquad bedtools htslib gatk samtools
+
+# Install SHAPEITv2 from the 'dranew' channel 
+$ mamba install -c conda-forge -c bioconda -c dranew shapeit 
 ```
 
 ## Downloading external data dependencies
-SCAN2 has been tested on the NCBI human reference build 37.
+SCAN2 has been tested on the NCBI human reference build 37, **support is being added for hg38**.
 
 Download reference genome.
 ```
@@ -59,7 +47,7 @@ $ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37
 $ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
 ```
 
-Download dbSNP *common variants*.
+Download dbSNP **common variants**.
 Note that dbSNP build 147 (common variants only) was used in
 the publication. However, NCBI
 does not guarantee long term hosting of dbSNP builds, so we recommend
@@ -87,7 +75,10 @@ $ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
 # Running the SCAN2 demo
-Download the demo chr22 BAMs.
+## WORK IN PROGRESS - AVAILABLE SOON
+Download the demo chr22 BAMs. For now, publically available MDA BAMs
+from Dong et al (*Nature Methods* 2017) can be used to test the
+pipeline installation.
 ```
 $ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
 $ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
@@ -100,30 +91,33 @@ downloaded above. This demo runs in about 5 minutes on a single core
 machine by restricting analysis to a 1 MB segment of chr22 and by
 using an impractically coarse grid for covariance function fitting.
 ```
-scan2 --analysis-dir demo init
-scan2 --analysis-dir demo config \
+scan2 -d demo init
+scan2 -d demo config \
     --verbose \
     --ref /path/to/human_g1k_v37_decoy.fasta \
     --dbsnp /path/to/dbsnp_138_b37.vcf \
     --shapeit-refpanel  /path/to/1000GP_Phase3 \
+    --abmodel-chunks=1 \
+    --abmodel-samples-per-chunk=100 \
+    --abmodel-steps=1 \
     --sc-bam il-12.chr22_30M.bam \
     --bulk-bam hunamp.chr22_30M.bam \
     --regions 22:30000001-30100000
-scan2 --analysis-dir demo validate
-scan2 --analysis-dir demo run
+scan2 -d demo validate
+scan2 -d demo run
 ```
 
-See `scansnv -h` for more details on arguments.
+See `scan2 -h` for more details on arguments.
 
-After SCAN-SNV completes, single sample results are available in the
-Rdata file `demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda`.
-SNVs that pass SCAN-SNV's calling thresholds will have `pass=TRUE` in the
+After SCAN2 completes, single sample results are available in the
+Rdata file `demo/snv/[single_cell_sample_name]/somatic_genotypes.rda`.
+SNVs that pass SCAN2's calling thresholds will have `pass=TRUE` in the
 `somatic` data frame (see below).
 
 **NOTE**: a VCF output option is forthcoming.
 ```
 # Called sSNVs can be extracted from the data frame via
-R> load('demo/scansnv/[single_cell_sample_name]/somatic_genotypes.rda')
+R> load('demo/snv/[single_cell_sample_name]/somatic_genotypes.rda')
 R> somatic[somatic$pass,]
 # The demo should not produce any passing variants.
 ```
