@@ -49,8 +49,9 @@ def determine_pipeline_output(wildcards):
     # Find bases passing minimum depth thresholds
     if config['callable_regions']:
         print("adding region callability to schedule")
-        d['callable_beds'] = expand("callable_regions/{sample}/callable_regions.bed",
-            sample=config['sc_bams'].keys())
+        d['callable_beds'] = \
+            expand("callable_regions/{sample}/callable_regions.rda",
+                sample=config['sc_bams'].keys())
 
     return d
 
@@ -64,61 +65,70 @@ rule all:
 
 rule callable_region_gather:
     input:
-        beds=lambda wildcards:
-            expand("callable_regions/{sample}/callable_regions.bulk_intersect.chunk{gatk_chunk}.bed",
+        rdas=lambda wildcards:
+            expand("callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
                 sample=wildcards.sample,
                 gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
-        bed="callable_regions/{sample}/callable_regions.bed"
+        rda="callable_regions/{sample}/callable_regions.rda",
+        pdf="callable_regions/{sample}/callable_regions.pdf"
     resources:
-        mem=1000
-    shell:
-        "cat {input.beds} > {output.bed}"
+        mem=2000
+    script:
+        "scripts/callable_regions_gather_script.R"
 
+
+# Summarizes the 2 raw vectors of read depth (bulk and sc) into
+# a 2-dimensional table.
+rule callable_regions_summarize:
+    input:
+        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
+    output:
+        rda="callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda"
+    script:
+        "scripts/callable_regions_summarize_script.R"
+        
 
 rule callable_region_bulk_intersect:
     input:
-        scbed="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.bed",
-        bulkbed="callable_regions/{bulk_sample}/callable_regions.chunk{{gatk_chunk}}.bed".format(bulk_sample=config['bulk_sample'])
+        sc="callable_regions/{sample}/chunk{gatk_chunk}.txt",
+        bulk="callable_regions/{bulk_sample}/chunk{{gatk_chunk}}.txt".format(bulk_sample=config['bulk_sample'])
     output:
-        bed="callable_regions/{sample}/callable_regions.bulk_intersect.chunk{gatk_chunk}.bed"
+        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
     resources:
-        mem=4000
+        mem=1000
     shell:
-        "bedtools intersect -a {input.scbed} -b {input.bulkbed} > {output.bed}"
-
+        "paste {input.sc} {input.bulk} > {output}"
 
 
 # Needs to match parallelization of GATK scattering, else the
 # callable regions will not match the actual genotyped area.
+# Also needs to match GATK filtering (mapping quality, additional
+# default HaplotypeCaller read filters) to be meaningful.
+# Order of bulk
 rule callable_region_scatter:
     input:
-        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+        scbam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        txt="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.txt",
-        bed="callable_regions/{sample}/callable_regions.chunk{gatk_chunk}.bed"
+        tmp="callable_regions/{sample}/chunk{gatk_chunk}.tmp.txt",
+        txt="callable_regions/{sample}/chunk{gatk_chunk}.txt"
     params:
+        sample="{sample}",
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
-        min_dp=lambda wildcards:
-            config['min_bulk_dp'] if wildcards.sample == config['bulk_sample'] else config['min_sc_dp']
     resources:
         mem=3200
     shell:
         "gatk3 -T DepthOfCoverage"
         "    -Xmx3G -Xms3G "
         "    -R {config[ref]} "
-        "    -I {input.bam} "
+        "    -I {input.scbam} "
         "    {params.regionflag} "
         "    -mmq 60 "
-        "    -o {output.txt} ; "
-        " tail -n +2 {output.txt} "
-        " | awk 'BEGIN {{ OFS=\"\t\"; }} {{"
-        "        if ($2 >= {params.min_dp}) {{"
-        "         split($1, chrpos, \":\");"
-        "         print chrpos[1], chrpos[2]-1, chrpos[2], \"+\";"
-        "     }} }}'"
-        " | bedtools merge > {output.bed}"
+        "    -o {output.tmp} ; "
+        "(echo 'chr:pos:{params.sample}' ; tail -n +2 {output.tmp}) "
+        "    | tr ':' '\t' "
+        "    | cut -f1-3 > {output.txt}"
 
 
 
