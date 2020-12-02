@@ -1,0 +1,69 @@
+# vim: syntax=python
+
+rule abmodel_fit:
+    input:
+        lambda wildcards: 
+            expand("ab_model/{sample}/{chr_prefix}{chr}/fit_step{abmodel_steps}.rda",
+                sample=wildcards.sample, chr_prefix=config['chr_prefix'],
+                chr=config['chrs'],
+                abmodel_steps=config['abmodel_steps'])
+    output:
+        "ab_model/{sample}/fits.rda"
+    resources:
+        mem=1000
+    script:
+        "scripts/abmodel_fit_script.R"
+
+
+
+rule abmodel_gather_by_chrom:
+    input:
+        lambda wildcards:
+            expand("ab_model/{sample}/{chr_prefix}{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda",
+                sample=wildcards.sample,
+                chr=wildcards.chr,
+                chr_prefix=config['chr_prefix'],
+                abmodel_step=wildcards.abmodel_step,
+                abmodel_chunk=range(1, config["abmodel_chunks"]+1))
+    output:
+        fit="ab_model/{sample}/%s{chr}/fit_step{abmodel_step}.rda" % config['chr_prefix'],
+        range="ab_model/{sample}/%s{chr}/param_ranges_step{abmodel_step}.rda" % config['chr_prefix']
+    resources:
+        mem=1000
+    script:
+        "scripts/abmodel_gather_by_chrom_script.R"
+
+
+
+# Every step with abmodel_step > 1 will add the previous step's output
+# to its input.  This allows the recursion to terminate when step=1.
+def abmodel_scatter_input(wildcards):
+    prf = ''
+    d = dict()
+    d['training'] = "ab_model/{sample}/training.rda",
+    if int(wildcards.abmodel_step) > 1:
+         prf = expand("ab_model/{sample}/{chr_prefix}{chr}/param_ranges_step{abmodel_prev_step}.rda",
+                sample=wildcards.sample,
+                chr=wildcards.chr,
+                chr_prefix=config['chr_prefix'],
+                abmodel_prev_step=int(wildcards.abmodel_step) - 1)
+         d['param_ranges'] = prf
+    return d
+
+rule abmodel_scatter:
+    input:
+        unpack(abmodel_scatter_input)  
+    output:
+        "ab_model/{sample}/%s{chr}/logp_samples_step{abmodel_step}.{abmodel_chunk}.rda" % config['chr_prefix']
+    params:
+        chr="{chr}",
+        seed="{abmodel_chunk}",
+        step="{abmodel_step}",
+        paramfile=lambda wildcards, input: \
+            input.param_ranges if wildcards.abmodel_step != '1' else ''
+    benchmark:
+        "ab_model/{sample}/%s{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv" % config['chr_prefix']
+    resources:
+        mem=1000
+    script:
+        "scripts/abmodel_scatter_script.R"

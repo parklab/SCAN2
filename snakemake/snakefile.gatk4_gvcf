@@ -1,0 +1,92 @@
+# vim: syntax=python
+
+rule gatk_gather:
+    input:
+        vcfs=lambda wildcards:
+                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+                       gatk_mmq=wildcards.gatk_mmq,
+                       gatk_chunk=range(1, config['gatk_chunks']+1))
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
+    params:
+        lambda wildcards, input:
+            ' '.join([ "-I " + f for f in input ])
+    resources:
+        mem=4000
+    benchmark:
+        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
+    shell:
+        "gatk GatherVcfs "
+        "    --java-options '-Xmx3G -Xms3G'"
+        "    {params} "
+        "    -R {config[ref]}"
+        "    -O {output.vcf}"
+
+
+rule gatk_genotypegvcfs:
+    input:
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+    benchmark:
+        "gatk/genotypegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+    resources:
+        mem=8000
+    shell:
+        "gatk GenotypeGVCFs"
+        "   --java-options '-Xmx4G -Xms4G'"
+        "   -R {config[ref]}"
+        "   -V {input}"
+        "   -O {output}"
+
+
+rule gatk_combinegvcfs:
+    input:
+        gvcfs=lambda wildcards:
+                expand("gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{{gatk_chunk}}.gvcf",
+                       sample=config['bam_map'].keys(),
+                       gatk_mmq=wildcards.gatk_mmq,
+                       gatk_chunk=range(1, config['gatk_chunks']+1))
+    output:
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+    resources:
+        mem=8000
+    benchmark:
+        "gatk/combinegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+    params:
+        infiles=lambda wildcards, input:
+            ' '.join([ "--variant " + f for f in input ])
+    shell:
+        "gatk CombineGVCFs"
+        "   --java-options '-Xmx4G -Xmx4G'"
+        "   -R {config[ref]}"
+        "   {params.infiles}"
+        "   -O {output.gvcf}"
+
+
+rule gatk_scatter:
+    input:
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+    output:
+        gvcf="gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+    params:
+        regionflag=lambda wildcards:
+            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        mmq="{gatk_mmq}"
+    resources:
+        mem=4000
+    benchmark:
+        "gatk/{sample}/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+    shell:
+        "gatk HaplotypeCaller"
+        "    --java-options '-Xmx3500M -Xms3500M'"
+        "    --dont-use-soft-clipped-bases"
+        "    --dbsnp {config[dbsnp]}"
+        "    --minimum-mapping-quality {params.mmq}"
+        "    --emit-ref-confidence BP_RESOLUTION"
+        "    {params.regionflag}"
+        "    -R {config[ref]}"
+        "    -I {input}"
+        "    -O {output.gvcf}"
+        #   doesn't really make sense; WGA is still occurring
+        #           #"    --pcr-indel-model NONE"

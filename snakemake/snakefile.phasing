@@ -1,0 +1,172 @@
+# vim: syntax=python
+
+rule shapeit_prepare:
+    input:
+        "gatk/hc_raw.mmq60.vcf"
+    output:
+        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
+    params:
+        chr="{chr}",
+        bulk_sample=config['bulk_sample']
+    resources:
+        mem=4000
+    shell:
+        "gatk SelectVariants"
+        "    --java-options '-Xmx3G -Xms3G'"
+        "    -R {config[ref]}"
+        "    -V {input}"
+        "    --select-type-to-include SNP"
+        "    --select-type-to-include INDEL"
+        "    --restrict-alleles-to BIALLELIC"
+        "    --exclude-non-variants"
+        "    --sample-name {params.bulk_sample}"
+        "    -L {params.chr}"
+        "    -O {output}"
+
+
+
+rule eagle_prepare:
+    input:
+        "gatk/hc_raw.mmq60.vcf"
+    output:
+        out="eagle/{chr}/hc_raw.mmq60.{chr}.vcf",
+        gzout="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+    params:
+        chr="{chr}"
+    resources:
+        mem=4000
+    shell:
+        "gatk -Xmx3G -Xms3G"
+        "    -T SelectVariants"
+        "    -R {config[ref]}"
+        "    -V {input}"
+        "    -selectType SNP"
+        "    -selectType INDEL"
+        "    -sn {config[bulk_sample]}"
+        "    -restrictAllelesTo BIALLELIC"
+        "    -env -trimAlternates"
+        "    -L {params.chr}"
+        "    -o {output.out} ;"
+        "bgzip -c {output.out} > {output.gzout} ; "
+        "tabix {output.gzout}"
+
+
+
+# {chr_prefix} is an ugly hack to allow analysis of old workflows.
+# one day soon, it can be removed.
+rule shapeit_scatter:
+    input:
+        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
+    output:
+        "shapeit/{chr_prefix}{{chr}}/phased_hsnps.vcf".format(chr_prefix=config['chr_prefix'])
+    params:
+        excludefile="shapeit/{chr_prefix}{{chr}}/shapeit_check.snp.strand.exclude".format(chr_prefix=config['chr_prefix']),
+        tmpout="shapeit/{chr_prefix}{{chr}}/{chr_prefix}{{chr}}.phased".format(chr_prefix=config['chr_prefix']),
+        tmpout2="shapeit/{chr_prefix}{{chr}}/phased.vcf".format(chr_prefix=config['chr_prefix']),
+        checklog="shapeit/{chr_prefix}{{chr}}/shapeit_check.log".format(chr_prefix=config['chr_prefix']),
+        phaselog="shapeit/{chr_prefix}{{chr}}/shapeit_phase.log".format(chr_prefix=config['chr_prefix']),
+        convertlog="shapeit/{chr_prefix}{{chr}}/shapeit_convert.log".format(chr_prefix=config['chr_prefix']),
+        gmap="genetic_map_chr{chr}",
+        hap="1000GP_Phase3_chr{chr}",
+        leg="1000GP_Phase3_chr{chr}",
+        gmap_extra_x=lambda wildcards: '_nonPAR' if wildcards.chr == 'X' else '',
+        extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
+        xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
+    benchmark:
+        "shapeit/{chr_prefix}{{chr}}/benchmark.tsv".format(chr_prefix=config['chr_prefix'])
+    resources:
+        mem=4000
+    shell:
+        # Note the "|| true" after shapeit -check: this is because shapeit
+        # -check returns non-0 when it finds any number of problematic SNPs.
+        # This CAN be dangerous as we're avoiding Snakemake's pipefail error
+        # detection method.
+        "shapeit -check"
+        "    --input-vcf={input}"
+        "    --output-log {params.checklog}"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample || true ; "
+        "shapeit"
+        "    --input-vcf={input}"
+        "    --output-log {params.phaselog}"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample"
+        "    --exclude-snp {params.excludefile}"
+        "    {params.xflag}"
+        "    -O {params.tmpout} ; "
+        "shapeit -convert "
+        "    --output-log {params.convertlog}"
+        "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
+        "awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
+        "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}"
+    
+
+
+rule eagle_scatter:
+    input:
+        "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+    output:
+        "eagle/{chr}/phased_hsnps.vcf"
+    params:
+        tmpout="eagle/{chr}/phased_hsnps_tmp.vcf",
+        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
+        refbcf=lambda wildcards:
+            config['eagle_refpanel'][wildcards.chr],
+        outprefix="eagle/{chr}/phased_hsnps_tmp"
+    benchmark:
+        "eagle/{chr}/benchmark.tsv"
+    resources:
+        mem=8000
+    shell:
+        """
+        eagle --vcfTarget {params.zippedinput} \
+            --vcfRef {params.refbcf} \
+            --geneticMapFile {config[eagle_genmap]} \
+            --vcfOutFormat v \
+            --outPrefix {params.outprefix} ;
+        awk '$10 ~ /^1\|0/ || $10 ~ /^0\|1/ || $1 ~ /^#/' {params.tmpout} \
+            | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}
+        """
+
+
+
+rule phasing_gather:
+    input:
+        expand("{phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs'])
+    output:
+        vcf=config['phaser'] + "/phased_all.vcf",
+        snv=config['phaser'] + "/phased_hsnps.vcf",
+        indel=config['phaser'] + "/phased_indels.vcf"
+    params:
+        vcfs=' '.join(expand("-V {phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs']))
+    resources:
+        mem=4000
+    shell:
+        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
+        "    -Xmx3G -Xms3G"
+        "    -R {config[ref]}"
+        "    {params.vcfs}"
+        "    -out {output.vcf}"
+        "    -assumeSorted ;"
+        "gatk3 -Xmx3G -Xms3G"
+        "    -T SelectVariants"
+        "    -R {config[ref]}"
+        "    -V {output.vcf}"
+        "    -selectType SNP"
+        "    -o {output.snv} ;"
+        "gatk3 -Xmx3G -Xms3G"
+        "    -T SelectVariants"
+        "    -R {config[ref]}"
+        "    -V {output.vcf}"
+        "    -selectType INDEL"
+        "    -o {output.indel} ;"

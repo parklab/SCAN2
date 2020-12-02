@@ -1,0 +1,82 @@
+# vim: syntax=python
+
+rule callable_region_gather:
+    input:
+        rdas=lambda wildcards:
+            expand("callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
+                sample=wildcards.sample,
+                gatk_chunk=range(1, config['gatk_chunks']+1))
+    output:
+        rda="callable_regions/{sample}/callable_regions.rda",
+        pdf="callable_regions/{sample}/callable_regions.pdf"
+    resources:
+        mem=2000
+    script:
+        "scripts/callable_regions_gather_script.R"
+
+          
+# Summarizes the 2 raw vectors of read depth (bulk and sc) into
+# a 2-dimensional table.
+rule callable_regions_summarize: 
+    input:
+        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
+    output:  
+        rda="callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda"
+    resources:
+        mem=2000
+    script:
+        "scripts/callable_regions_summarize_script.R"
+        
+    
+rule callable_region_bulk_intersect:
+    input:
+        sc="callable_regions/{sample}/chunk{gatk_chunk}.txt",
+        bulk="callable_regions/{bulk_sample}/chunk{{gatk_chunk}}.txt".format(bulk_sample=config['bulk_sample'])
+    output:
+        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
+    resources:
+        mem=1000
+    shell:
+        "paste {input.sc} {input.bulk} > {output}"
+
+
+# Needs to match parallelization of GATK scattering, else the
+# callable regions will not match the actual genotyped area.
+# Also needs to match GATK filtering (mapping quality, additional
+# default HaplotypeCaller read filters) to be meaningful.
+rule callable_region_scatter:
+    input:
+        scbam=lambda wildcards: config['bam_map'][wildcards.sample]
+    output:
+        tmp="callable_regions/{sample}/chunk{gatk_chunk}.tmp.txt",
+        txt="callable_regions/{sample}/chunk{gatk_chunk}.txt"
+    params:
+        sample="{sample}",
+        regionflag=lambda wildcards:
+            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+    resources:
+        mem=3200
+    shell:
+        "gatk DepthOfCoverage"
+        "    --java-options '-Xmx3G -Xms3G' "
+        "    -R {config[ref]} "
+        "    -I {input.scbam} "
+        "    {params.regionflag} "
+        "    --minimum-mapping-quality 60 "
+        "    --read-filter NotSecondaryAlignmentReadFilter "
+        "    --read-filter GoodCigarReadFilter "
+        "    --read-filter NonZeroReferenceLengthAlignmentReadFilter "
+        "    --read-filter PassesVendorQualityCheckReadFilter "
+        "    --read-filter MappedReadFilter "
+        "    --read-filter MappingQualityAvailableReadFilter "
+        "    --read-filter NotDuplicateReadFilter "
+        "    --read-filter MappingQualityReadFilter "
+        "    --read-filter WellformedReadFilter "
+        "    --omit-interval-statistics true "
+        "    --omit-locus-table true "
+        "    --omit-per-sample-statistics true "
+        "    --output-format TABLE "
+        "    -O {output.tmp} ; "
+        "(echo 'chr:pos:{params.sample}' ; tail -n +2 {output.tmp}) "
+        "    | tr ':' '\t' "
+        "    | cut -f1-3 > {output.txt}"
