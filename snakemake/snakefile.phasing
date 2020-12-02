@@ -1,5 +1,42 @@
 # vim: syntax=python
 
+rule phasing_gather:
+    input:
+        expand("{phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs'])
+    output:
+        vcf=config['phaser'] + "/phased_all.vcf",
+        snv=config['phaser'] + "/phased_hsnps.vcf",
+        indel=config['phaser'] + "/phased_indels.vcf"
+    params:
+        vcfs=' '.join(expand("-I {phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+            phaser=config['phaser'],
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs']))
+    resources:
+        mem=4000
+    shell:
+        "gatk GatherVcfs"
+        "    --java-options '-Xmx3G -Xms3G'"
+        "    -R {config[ref]}"
+        "    {params.vcfs}"
+        "    -O {output.vcf} ; "
+        "gatk SelectVariants"
+        "    --java-options '-Xmx3G -Xms3G'"
+        "    -R {config[ref]}"
+        "    -V {output.vcf}"
+        "    --select-type-to-include SNP"
+        "    -O {output.snv} ;"
+        "gatk SelectVariants"
+        "      --java-options '-Xmx3G -Xms3G'"
+        "    -R {config[ref]}"
+        "    -V {output.vcf}"
+        "    --select-type-to-include INDEL"
+        "    -O {output.indel} ;"
+
+
 rule shapeit_prepare:
     input:
         "gatk/hc_raw.mmq60.vcf"
@@ -36,20 +73,19 @@ rule eagle_prepare:
     resources:
         mem=4000
     shell:
-        "gatk -Xmx3G -Xms3G"
-        "    -T SelectVariants"
+        "gatk SelectVariants"
+        "    --java-options '-Xmx3G -Xms3G'"
         "    -R {config[ref]}"
         "    -V {input}"
-        "    -selectType SNP"
-        "    -selectType INDEL"
-        "    -sn {config[bulk_sample]}"
-        "    -restrictAllelesTo BIALLELIC"
-        "    -env -trimAlternates"
+        "    --select-type-to-include SNP"
+        "    --select-type-to-include INDEL"
+        "    --sample-name {config[bulk_sample]}"
+        "    --restrict-alleles-to BIALLELIC"
+        "    --exclude-non-variants"
         "    -L {params.chr}"
-        "    -o {output.out} ;"
+        "    -O {output.out} ;"
         "bgzip -c {output.out} > {output.gzout} ; "
         "tabix {output.gzout}"
-
 
 
 # {chr_prefix} is an ugly hack to allow analysis of old workflows.
@@ -101,10 +137,16 @@ rule shapeit_scatter:
         "shapeit -convert "
         "    --output-log {params.convertlog}"
         "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
-        "awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
-        "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}"
+        "(grep '^#' {input} | grep -v '^#CHROM' ; "
+        " grep '^##source' {params.tmpout2} ; "
+        " awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
+        "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" "
+        "    | grep '^[^#]\|^#CHROM' ) > {output}"
+        # These last few greps are necessary for preserving the original VCF
+        # header, which some tools are strict about. SHAPEIT2 does not provide
+        # a header with the required annotations. The second grep also
+        # preserves the SHAPEIT version info (##source).
     
-
 
 rule eagle_scatter:
     input:
@@ -131,42 +173,3 @@ rule eagle_scatter:
         awk '$10 ~ /^1\|0/ || $10 ~ /^0\|1/ || $1 ~ /^#/' {params.tmpout} \
             | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}
         """
-
-
-
-rule phasing_gather:
-    input:
-        expand("{phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
-            phaser=config['phaser'],
-            chr_prefix=config['chr_prefix'],
-            chr=config['chrs'])
-    output:
-        vcf=config['phaser'] + "/phased_all.vcf",
-        snv=config['phaser'] + "/phased_hsnps.vcf",
-        indel=config['phaser'] + "/phased_indels.vcf"
-    params:
-        vcfs=' '.join(expand("-V {phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
-            phaser=config['phaser'],
-            chr_prefix=config['chr_prefix'],
-            chr=config['chrs']))
-    resources:
-        mem=4000
-    shell:
-        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
-        "    -Xmx3G -Xms3G"
-        "    -R {config[ref]}"
-        "    {params.vcfs}"
-        "    -out {output.vcf}"
-        "    -assumeSorted ;"
-        "gatk3 -Xmx3G -Xms3G"
-        "    -T SelectVariants"
-        "    -R {config[ref]}"
-        "    -V {output.vcf}"
-        "    -selectType SNP"
-        "    -o {output.snv} ;"
-        "gatk3 -Xmx3G -Xms3G"
-        "    -T SelectVariants"
-        "    -R {config[ref]}"
-        "    -V {output.vcf}"
-        "    -selectType INDEL"
-        "    -o {output.indel} ;"

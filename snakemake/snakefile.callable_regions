@@ -54,6 +54,8 @@ rule callable_region_scatter:
         sample="{sample}",
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+    benchmark:
+        "callable_regions/{sample}/benchmark_depthofcoverage_chunk{gatk_chunk}.tsv"
     resources:
         mem=3200
     shell:
