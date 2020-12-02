@@ -1,0 +1,54 @@
+# vim: syntax=python
+
+rule gatk_gather:
+    input:
+        vcf=lambda wildcards:
+                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+                       gatk_mmq=wildcards.gatk_mmq,
+                       gatk_chunk=range(1, config['gatk_chunks']+1))
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
+    params:
+        lambda wildcards:
+            #'\n'.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+            ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
+                            gatk_mmq=wildcards.gatk_mmq,
+                            gatk_chunk=range(1, config['gatk_chunks']+1)))
+    resources:
+        mem=4000
+    benchmark:
+        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
+    shell:
+        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
+        "    -Xmx3G -Xms3G"
+        "    {params}"
+        "    -R {config[ref]}"
+        "    -out {output.vcf}"
+        "    -assumeSorted"
+
+
+rule gatk_scatter:
+    input:
+        bam=expand("{bam}", bam=config['bam_map'].values()),
+    output:
+        vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+    params:
+        bamlist=expand("-I {bam}", bam=config['bam_map'].values()),
+        regionflag=lambda wildcards:
+            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        mmq="{gatk_mmq}"
+    resources:
+        mem=10000
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+    shell:
+        "gatk3 -Xmx3500M -Xms3500M"
+        "    -T HaplotypeCaller"
+        "    -R {config[ref]}"
+        "    --dontUseSoftClippedBases -l INFO"
+        "    --dbsnp {config[dbsnp]}"
+        "    -rf BadCigar "
+        "    -mmq {params.mmq}"
+        "    {params.bamlist}"
+        "    {params.regionflag}"
+        "    -o {output.vcf}"
