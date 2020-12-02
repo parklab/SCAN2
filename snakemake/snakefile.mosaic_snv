@@ -1,0 +1,91 @@
+# vim: syntax=python
+
+rule scansnv_copy_table_to_mosaic:
+    input:
+        mmq60="snv/mmq60.tab",
+        mmq1="snv/mmq1.tab"
+    output:
+        mmq60="mosaic_snv/mmq60.tab",
+        mmq1="mosaic_snv/mmq1.tab",
+    resources:
+        mem=2000
+    shell:
+        """
+        cp {input.mmq60} {output.mmq60}
+        cp {input.mmq1} {output.mmq1}
+        """
+
+rule scansnv_mosaic_sites:
+    input:
+        "mosaic_snv/mmq60.tab"
+    output:
+        "mosaic_snv/mosaic_positions.%s{chr}.tab" % config['chr_prefix']
+    resources:
+        mem=32000
+    script:
+        "scripts/scansnv_mosaic_sites_script.R"
+
+rule scansnv_fdr_tuning_mosaic:
+    input:
+        mmq60="mosaic_snv/mmq60.tab",
+        mmq1="mosaic_snv/mmq1.tab",
+        hsnps="ab_model/{sample}/training.rda",
+        som_sites=expand("mosaic_snv/mosaic_positions.{chr_prefix}{chr}.tab",
+            chr_prefix=config['chr_prefix'], chr=config['chrs'])
+    output:
+        "mosaic_snv/{sample}/fdr_tuning_mosaic.rda"
+    params:
+        sample="{sample}",
+        bulk_sample=config['bulk_sample']
+    resources:
+        mem=5000
+    benchmark:
+        "mosaic_snv/{sample}/benchmark_fdr_tuning_mosaic.tsv"
+    shell:
+        "{config[scripts]}/fdr_tuning.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {input.hsnps}"
+        "   {params.bulk_sample} {params.sample}"
+        "   {output} somatic"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
+        "   {input.som_sites}"
+
+rule scansnv_genotype_mosaic_scatter:
+    input:
+        mmq60="mosaic_snv/mmq60.tab",
+        mmq1="mosaic_snv/mmq1.tab",
+        som_ab="mosaic_snv/{sample}/mosaic_ab.%s{chr}.rda" % config['chr_prefix'],
+        sc_cigars="mosaic_snv/{sample}/mosaic_cigars.%s{chr}.tab" % config['chr_prefix'],
+        bulk_cigars="mosaic_snv/%s/mosaic_cigars.%s{chr}.tab" % \
+            (config['bulk_sample'], config['chr_prefix']),
+        cigar_tuning="snv/{sample}/cigar_tuning.rda",
+        fdr_tuning="mosaic_snv/{sample}/fdr_tuning_mosaic.rda",
+    output:
+        "mosaic_snv/{sample}/mosaic_genotypes.%s{chr}.rda" % config['chr_prefix']
+    params:
+        sc_sample="{sample}"
+    resources:
+        mem=5000
+    benchmark:
+        "mosaic_snv/{sample}/benchmark_mosaic_genotypes.%s{chr}.tsv" % config['chr_prefix']
+    shell:
+        "{config[scripts]}/genotype.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
+        "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
+        "   {output} {config[fdr]} {input.fdr_tuning} spikein"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]}"
+
+rule scansnv_genotype_mosaic_gather:
+    input:
+        filelist=lambda wildcards:
+            expand("mosaic_snv/{sample}/mosaic_genotypes.{chr_prefix}{chr}.rda",
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
+    output:
+        "mosaic_snv/{sample}/mosaic_genotypes.rda"
+    resources:
+        mem=6000
+    script:
+        "scripts/scansnv_genotype_mosaic_gather_script.R"

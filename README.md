@@ -79,9 +79,12 @@ $ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 
 # Running the SCAN2 demo
 ## WORK IN PROGRESS - AVAILABLE SOON
-Download the demo chr22 BAMs. For now, publically available MDA BAMs
-from Dong et al (*Nature Methods* 2017) can be used to test the
-pipeline installation.
+Download the demo chr22 BAMs. Our PTA data is only available through
+protected access at dbGaP. However, any sequencing data (whether
+single cell or not) can be used to test the pipeline installation.
+
+We provide the following publically available data for MDA-amplified
+single cells (Dong et al *Nature Methods* 2017) for the demo:
 ```
 $ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
 $ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
@@ -91,7 +94,7 @@ $ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 
 Run SCAN2. Replace instances of /path/to/... with the paths
 downloaded above. This demo runs in about 5 minutes on a single core
-machine by restricting analysis to a 1 MB segment of chr22 and by
+machine by restricting analysis to a 100 KB segment of chr22 and by
 using an impractically coarse grid for covariance function fitting.
 ```
 scan2 -d demo init
@@ -117,7 +120,7 @@ Rdata file `demo/snv/[single_cell_sample_name]/somatic_genotypes.rda`.
 SNVs that pass SCAN2's calling thresholds will have `pass=TRUE` in the
 `somatic` data frame (see below).
 
-**NOTE**: a VCF output option is forthcoming.
+**NOTE**: VCF output is forthcoming.
 ```
 # Called sSNVs can be extracted from the data frame via
 R> load('demo/snv/[single_cell_sample_name]/somatic_genotypes.rda')
@@ -131,7 +134,7 @@ R> somatic[somatic$pass,]
 
 # Parallelization
 In a practical setting, parallelization will be required. SCAN2 leverages
-Snakemake to offer parallelization via:
+Snakemake to offer parallelization via any of the following:
 * A single machine with multiple cores. To do this, increase the
   `--joblimit` parameter but do not invoke cluster or cloud
   arguments.  A total memory limit can also be set via

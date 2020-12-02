@@ -1,0 +1,28 @@
+# vim: syntax=python
+
+rule permute_snvs:
+    input:
+        rda="snv/{sample}/somatic_genotypes.rda",
+        bed="callable_regions/{sample}/callable_regions.bed"
+    output:
+        "snv/{sample}/permuted_sites.rda"
+    resources:
+        mem=4000
+    shell:
+        "{config[scripts]}/permute.r {config[permute]} {input.rda} {input.bed} {output}"
+
+
+# This additional rule is only necessary because the indel RDA file
+# has "pon_filter" in its name.
+# XXX: Would be nice to correct. Also will not work properly after
+# splitting the single and multisample commands.
+rule permute_indels:
+    input:
+        rda="indel/{sample}/somatic_genotypes.pon_filter.rda",
+        bed="callable_regions/{sample}/callable_regions.bed"
+    output:
+        "indel/{sample}/permuted_sites.rda"
+    resources:
+        mem=4000
+    shell:
+        "{config[scripts]}/permute.r {config[permute]} {input.rda} {input.bed} {output}"
