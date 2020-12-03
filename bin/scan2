@@ -23,6 +23,7 @@ from sys import exit
 # in the configuration database.
 scan2_param_defaults = {
     'is_started': False,
+    'gatk': 'gatk4_joint',
     'target_fdr': 0.01,
     'min_sc_alt': 2,
     'min_sc_dp': 6,
@@ -556,6 +557,17 @@ if __name__ == "__main__":
         help='Print detailed list of all configuration changes.')
     config_parser.add_argument('--permute', type=int,
         help='Number of permutation sets to create for somatic SNVs and indels.')
+    config_parser.add_argument('--gatk', type=str,
+        help='GATK version and strategy for generating candidate somatic '
+             'mutations and cross-sample support. Valid values are "gatk3_joint", '
+             '"gatk4_joint" and "gatk4_gvcf". Joint calling means that all BAMs '
+             'are provided directly to HaplotypeCaller, whereas each BAM (sample) is '
+             'initially analyzed separately in the GVCF strategy and combined '
+             'later. The GVCF method can be lossy since all BAM data is not stored '
+             'in the initial analysis; however, it does not require rerunning GATK '
+             'across all samples in the multi-sample modes. The joint strategy, '
+             'which was used in the publication, can be extremely slow, especially '
+             'when the number of cells is large.')
     
     # required arguments
     req = config_parser.add_argument_group("External data")
