@@ -14,6 +14,7 @@ import time
 import uuid
 import pysam       # just for reading BAM headers to find samples
 import snakemake
+import distutils.util # for strtobool
 from sys import exit
 
 
@@ -28,6 +29,8 @@ scan2_param_defaults = {
     'min_sc_alt': 2,
     'min_sc_dp': 6,
     'min_bulk_dp': 11, 
+    'max_bulk_alt': 0, 
+    'max_bulk_mosaic_vaf': 0.3,
     'analyze_snvs': True,
     'analyze_indels': False,
     'analyze_mosaic_snvs': False,
@@ -164,6 +167,7 @@ class Analysis:
         # First pass: get all new arguments and perform any special
         # handling. Second pass will tally updates and inform.
         new_cfg = {}
+        print(vars(args))
         for k, v in vars(args).items():
             if v is not None:
                 for k2, v2 in self.handle_special(k, v).items():
@@ -712,6 +716,11 @@ if __name__ == "__main__":
         help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
     caller.add_argument('--min-bulk-dp', type=int,  metavar='INT',
         help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
+    caller.add_argument('--max-bulk-alt', type=int,  metavar='INT',
+        help='Reject somatic SNVs supported by more than INT reads in bulk.')
+    caller.add_argument('--max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
+        help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+
     caller.add_argument('--no-somatic-snvs', action='store_true',
         help='Do not genotype somatic SNVs.')
     caller.add_argument('--somatic-indels', action='store_true',
@@ -720,6 +729,13 @@ if __name__ == "__main__":
         help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
     caller.add_argument('--mosaic-snvs', action='store_true',
         help='Enable detection of mosaic SNVs.')
+    caller.add_argument('--callable-regions', metavar='true/false/yes/no',
+        type=lambda x: bool(distutils.util.strtobool(x)),
+        help='Determine the fraction of callable genome based on '
+             'read depth in single cells and matched bulk. This callable '
+             'genome fraction is necessary for estimating the genome-wide '
+             'mutation burden. This flag is enabled by default; to disable, '
+             'callable region calculation, use --calable-regions false.')
     
     
     phasing = config_parser.add_argument_group('Phasing options',
