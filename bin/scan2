@@ -2,6 +2,7 @@
 # vim: set syntax=python
 # This is a wrapper script for executing Snakemake on the SCAN-SNV Snakefile.
 
+import math
 import glob
 import subprocess
 import argparse
@@ -501,22 +502,112 @@ def do_run(args):
     snakemake.main(snakemake_command)
 
 
+def do_multi(args):
+    print('SCAN2 multi: implementation underway')
+
+
 def do_show(args):
     a = Analysis(args.analysis_dir)
     print(a.show(args.verbose))
 
 
+# Would prefer not to have to parse this output, but learning to use the
+# snakemake API directly is a project for a later time.
+def parse_snakemake_job_report(process):
+    jobdict = {}
+    indata = False
+    for line in process.stdout.decode().split('\n'):
+        line = line.strip()
+        if line == '':
+            continue
+
+        if line == 'Job counts:' or line == 'count\tjobs':
+            indata = True
+            continue
+
+        if indata:
+            try:
+                count, rulename = line.split('\t')
+                jobdict[rulename] = int(count)
+            except ValueError:
+                # Thrown on the last line, which does not have a rule name
+                jobdict['__total'] = int(line)
+
+    # when there's no jobs to run, snakemake prints nothing
+    if len(jobdict) == 0:
+        jobdict['__total'] = 0
+
+    return jobdict
+
+
+# 20 block progress bar
+def progress_bar(x, total):
+    blocks = math.floor(x/total*100/5)
+    return '[' + '#'*blocks + ' '*(20-blocks) + '] %5d/%5d %0.1f%%' % (x, total, 100*x/total)
+
 
 def do_progress(args):
     a = Analysis(args.analysis_dir)
-    print(a.show())
-    print("Progress: [ # / # ]")
+    snakemake_command_status = [ "snakemake",
+        "--snakefile",  args.snakefile,
+        "--configfile", a.config_path,
+        "--directory", a.analysis_dir,
+        "--quiet", "--dryrun" ]
+
+    # Command above returns jobs that currently need to run.
+    # Adding --forceall shows how many jobs there were to begin wtih.
+    pstatus = subprocess.run(snakemake_command_status, capture_output=True)
+    ptotal = subprocess.run(snakemake_command_status + [ '--forceall' ],
+        capture_output=True)
+    dstatus = parse_snakemake_job_report(pstatus)
+    dtotal = parse_snakemake_job_report(ptotal)
+    if args.verbose:
+        print(a.show())
+        print('')
+        for k, v in dtotal.items():
+            # __total is the total count, all is Snakemake's top-leel dummy rule
+            if k != 'all':
+                n_complete = v - dstatus.get(k, 0)
+                k = 'Total progress' if k == '__total' else k
+                print('%-40s %s' % (k, progress_bar(n_complete, v)))
+    else:
+        print('Total progress: %s' % \
+            progress_bar(dtotal['__total'] - dstatus['__total'], dtotal['__total']))
 
 
 
 ##########################################################################
 # Command line arguments and subcommand definitions.
 ##########################################################################
+
+def add_runtime_args(parser):
+    parser.add_argument('--joblimit', default=1, metavar='INT',
+        help='Allow at most INT jobs to execute at any given time.  For '
+            'multicore machines or clusters, this can greatly decrease '
+            'runtime.')
+    parser.add_argument('--memlimit', default=None, metavar='INT', type=int,
+            help="Total available memory in MB.  If unspecified, memory is "
+            "treated as unlimited.")
+    parser.add_argument('--scripts', metavar='PATH',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
+        help='Path to SCAN-SNV script files.  Usually points to an installed '
+            'set of files.')
+    parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
+        help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "
+            "--snakemake-args to access --cluster.  Memory requirements "
+            "for each job can be accessed via {resources.mem} and any "
+            "instance of '%%logdir' in ARGS will be replaced by "
+            "--output-dir/cluster-logs.")
+    parser.add_argument('--drmaa', default=None, type=str, metavar='ARGS',
+        help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use "
+            "--snakemake-args to access --drmaa.  Memory requirements for "
+            "each job can be accessed via {resources.mem} and any instance "
+            "of '%%logdir' in ARGS will be replaced by "
+            "--output-dir/cluster-logs.")
+    parser.add_argument('--snakemake-args', default='', type=str, metavar='STRING',
+        help='Allows supplying arbitrary snakemake arguments in STRING. See snakemake --help for a list of parameters. Note that a leading space may be necessary, e.g., --snakemake-args " --dryrun".')
+
+    return parser
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(prog='scan2',
@@ -526,6 +617,9 @@ if __name__ == "__main__":
     ap.add_argument('-d', '--analysis-dir', metavar='PATH', default='.',
         type=str,
         help='PATH containing the SCAN2 analysis. Required for all subcommands.')
+    ap.add_argument('--snakefile', metavar='PATH', type=str,
+        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+        help='Path to the main Snakefile.  Unlikely to be necessary for standard use.')
     subparsers = ap.add_subparsers(dest='subcommand')
 
 
@@ -676,38 +770,31 @@ if __name__ == "__main__":
     #
     # This actually runs an analysis
     run_parser = subparsers.add_parser('run',
-        help='Run a fully configured SCAN2 analysis.  Always performs a '
+        help='Run a fully configured SCAN2 analysis.  Always run the '
             '"validate" subcommand first.')
     run_parser.set_defaults(executor=do_run)
-    run_parser.add_argument('--joblimit', default=1, metavar='INT',
-        help='Allow at most INT jobs to execute at any given time.  For '
-            'multicore machines or clusters, this can greatly decrease '
-            'runtime.')
-    run_parser.add_argument('--memlimit', default=None, metavar='INT', type=int,
-            help="Total available memory in MB.  If unspecified, memory is "
-            "treated as unlimited.")
-    run_parser.add_argument('--scripts', metavar='PATH',
-        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-        help='Path to SCAN-SNV script files.  Usually points to an installed '
-            'set of files.')
-    run_parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
-        help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "
-            "--snakemake-args to access --cluster.  Memory requirements "
-            "for each job can be accessed via {resources.mem} and any "
-            "instance of '%%logdir' in ARGS will be replaced by "
-            "--output-dir/cluster-logs.")
-    run_parser.add_argument('--drmaa', default=None, type=str, metavar='ARGS',
-        help="Pass ARGS to Snakemake's --drmaa parameter.  Do not use "
-            "--snakemake-args to access --drmaa.  Memory requirements for "
-            "each job can be accessed via {resources.mem} and any instance "
-            "of '%%logdir' in ARGS will be replaced by "
-            "--output-dir/cluster-logs.")
-    run_parser.add_argument('--snakemake-args', default='', type=str, metavar='STRING',
-        help='Allows supplying arbitrary snakemake arguments in STRING. See snakemake --help for a list of parameters. Note that a leading space may be necessary, e.g., --snakemake-args " --dryrun".')
-    run_parser.add_argument('--snakefile', metavar='PATH', type=readable_file,
-        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
-        help='Path to the SCAN-SNV Snakefile.  Unlikely to be necessary for standard use.')
+    run_parser = add_runtime_args(run_parser)
     
+
+    ##########################################################################
+    # The 'multi' subcommand
+    #
+    # Runs analyses that require multiple samples (for mutation signature SNV
+    # calling) or individuals (for indel calling).
+    multi_parser = subparsers.add_parser('multi',
+        help='Run cross-sample (SNV mutation signatures) or cross-individual '
+             '(indel) analyses. In principle, mutation signature SNV analysis '
+             'could be successful on a single cell if the cell has a very high '
+             'mutation rate (e.g., several thousand SNV calls using a stringent '
+             'FDR=1%% single sample mode). Similarly, indels may also be called '
+             'using cells from a single individual by filtering indels that '
+             'appear in more than one single cell. Neither of these analyses '
+             'are currently supported, though we hope to provide an option '
+             'soon.\n'
+             'Inputs to "multi" runs are completed single sample SCAN2 runs.')
+    multi_parser.set_defaults(executor=do_multi)
+    multi_parser = add_runtime_args(multi_parser)
+
     
     ##########################################################################
     # The 'show' subcommand
@@ -730,6 +817,8 @@ if __name__ == "__main__":
     progress_parser = subparsers.add_parser('progress',
         help='Prints statistics regarding the progress of a SCAN2 run.')
     progress_parser.set_defaults(executor=do_progress)
+    progress_parser.add_argument('-v', '--verbose', action='store_true', default=False,
+        help='Show progress for individual rules.')
     
     
     # Get the args and run the relavent subcommand
