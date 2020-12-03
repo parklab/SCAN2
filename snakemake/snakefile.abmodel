@@ -21,6 +21,8 @@ rule gzip_vcfs:
     output:
         joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
         phased_vcf=config['phaser'] + "/phased_hsnps.vcf.gz"
+    resources:
+        mem=2000
     shell:
         """
         bgzip -ci {input.joint_vcf} > {output.joint_vcf}
@@ -43,12 +45,6 @@ rule training_hsnps_helper:
     resources:
         mem=4000
     shell:
-        #"gatk3 -Xmx3G -Xms3G"
-        #"    -R {config[ref]}"
-        #"    -T CombineVariants"
-        #"    -V {input.joint_vcf}"
-        #"    -V {input.phased_vcf}"
-        #"    -o {output.tmp_vcf} ;"
         "bcftools merge "
         "    -o {output.tmp_vcf}"
         "    {input.joint_vcf} {input.phased_vcf} ; "
