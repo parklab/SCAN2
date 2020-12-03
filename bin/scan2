@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # vim: set syntax=python
-# This is a wrapper script for executing Snakemake on the SCAN-SNV Snakefile.
 
 import math
 import glob
@@ -590,7 +589,7 @@ def add_runtime_args(parser):
             "treated as unlimited.")
     parser.add_argument('--scripts', metavar='PATH',
         default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-        help='Path to SCAN-SNV script files.  Usually points to an installed '
+        help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
     parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
         help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "

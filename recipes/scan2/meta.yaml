@@ -213,8 +213,8 @@ requirements:
         - python-drmaa
 
 source:
-    git_url: https://github.com/parklab/scan-snv.git
+    git_url: https://github.com/parklab/SCAN2.git
 
 about:
-    home: https://github.com/parklab/scan-snv
-    summary: SNV genotyper for MDA-amplified single cells
+    home: https://github.com/parklab/SCAN2
+    summary: SNV genotyper for PTA-amplified single cells

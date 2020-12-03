@@ -1,8 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 2 ]; then
-    echo "usage: $0 scansnv_dir output_dir"
-    echo "N.B.: scansnv_dir must contain a SCAN-SNV configuration file config.yaml"
+    echo "usage: $0 scan2_dir output_dir"
     exit 1
 fi
 
@@ -17,7 +16,7 @@ bamtobedscript=$scriptdir/run_bamtobed.sh
 ginkgoscript=$scriptdir/run_ginkgo.sh
 
 if [ ! -f $ssconfig ]; then
-    echo "ERROR: SCAN-SNV directory $ssdir does not contain a 'config.yaml'"
+    echo "ERROR: SCAN2 directory $ssdir does not contain a 'config.yaml'"
     exit 1
 fi
 
