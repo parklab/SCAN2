@@ -194,6 +194,8 @@ rule scansnv_count_cigars:
     output:
         txt="{muttype}/{sample}/{vartype}_cigars.%s{chr}.txt" % config['chr_prefix'],
         tab="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix']
+    benchmark:
+        "{muttype}/{sample}/benchmark_{vartype}_cigars.%s{chr}.tsv" % config['chr_prefix']
     resources:
         mem=1000
     shell:
@@ -244,6 +246,8 @@ rule scansnv_cigar_tuning:
         bulk="{muttype}/%s/hsnp_spikein_cigars.tab" % config['bulk_sample']
     output:
         "{muttype}/{sample}/cigar_tuning.rda"
+    benchmark:
+        "{muttype}/{sample}/benchmark_cigar_tuning.rda"
     resources:
         mem=1000
     script:
