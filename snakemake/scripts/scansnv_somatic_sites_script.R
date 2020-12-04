@@ -19,7 +19,7 @@ for (i in 1:ncol(tab)) {
 
 if (snakemake@wildcards[['muttype']] == "snv") {
     candidate.somatics <-
-        tab[tab[,bulk.alt] == 0 &
+        tab[tab[,bulk.alt] <= snakemake@config[['max_bulk_alt']] &
             tab[,bulk.idx] == '0/0' &
             tab$dbsnp == '.' &
             rowSums(as.matrix(tab[,sc.alts])) >= snakemake@config[['min_sc_alt']] &
@@ -28,7 +28,7 @@ if (snakemake@wildcards[['muttype']] == "snv") {
     bulk.vaf <- tab[,bulk.alt] / (tab[,bulk.alt] + tab[,bulk.alt-1])
     candidate.somatics <-
         tab[tab[,bulk.alt] > 0 &
-            bulk.vaf < 0.3 &
+            bulk.vaf < snakemake@config[['max_bulk_mosaic_vaf']] &
             tab$dbsnp == '.' &
             rowSums(as.matrix(tab[,sc.alts])) >= snakemake@config[['min_sc_alt']] &
             # To help remove germline: at least one cell must have 0 alt reads
