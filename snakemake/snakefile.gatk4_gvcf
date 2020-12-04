@@ -25,7 +25,7 @@ rule gatk_gather:
 
 rule gatk_genotypegvcfs:
     input:
-        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
     benchmark:
@@ -35,6 +35,7 @@ rule gatk_genotypegvcfs:
     shell:
         "gatk GenotypeGVCFs"
         "   --java-options '-Xmx4G -Xms4G'"
+        "   --dbsnp {config[dbsnp]}"
         "   -R {config[ref]}"
         "   -V {input}"
         "   -O {output}"
@@ -43,12 +44,12 @@ rule gatk_genotypegvcfs:
 rule gatk_combinegvcfs:
     input:
         gvcfs=lambda wildcards:
-                expand("gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{{gatk_chunk}}.gvcf",
+                expand("gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{{gatk_chunk}}.gvcf.gz",
                        sample=config['bam_map'].keys(),
                        gatk_mmq=wildcards.gatk_mmq,
                        gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
-        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+        "gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
     resources:
         mem=8000
     benchmark:
@@ -58,17 +59,17 @@ rule gatk_combinegvcfs:
             ' '.join([ "--variant " + f for f in input ])
     shell:
         "gatk CombineGVCFs"
-        "   --java-options '-Xmx4G -Xmx4G'"
+        "   --java-options '-Xmx8G -Xmx8G'"
         "   -R {config[ref]}"
         "   {params.infiles}"
-        "   -O {output.gvcf}"
+        "   -O {output}"
 
 
 rule gatk_scatter:
     input:
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        gvcf="gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf"
+        gvcf="gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
     params:
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
@@ -87,6 +88,6 @@ rule gatk_scatter:
         "    {params.regionflag}"
         "    -R {config[ref]}"
         "    -I {input}"
-        "    -O {output.gvcf}"
+        "    -O {output}"
         #   doesn't really make sense; WGA is still occurring
         #           #"    --pcr-indel-model NONE"
