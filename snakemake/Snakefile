@@ -190,14 +190,13 @@ rule scansnv_count_cigars:
         sites="{muttype}/{vartype}_positions.%s{chr}.tab" % config['chr_prefix'],
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        txt="{muttype}/{sample}/{vartype}_cigars.%s{chr}.txt" % config['chr_prefix'],
         tab="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix']
     benchmark:
         "{muttype}/{sample}/benchmark_{vartype}_cigars.%s{chr}.tsv" % config['chr_prefix']
     resources:
         mem=1000
     shell:
-        "{config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.txt}"
+        "{config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.tab}"
 
 
 rule scansnv_cigar_gather:
