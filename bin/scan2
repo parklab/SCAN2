@@ -32,6 +32,7 @@ scan2_param_defaults = {
     'min_bulk_dp': 11, 
     'max_bulk_alt': 0, 
     'max_bulk_mosaic_vaf': 0.3,
+    'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': False,
     'analyze_mosaic_snvs': False,
@@ -720,6 +721,9 @@ if __name__ == "__main__":
         help='Reject somatic SNVs supported by more than INT reads in bulk.')
     caller.add_argument('--max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
         help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+    caller.add_argument('--min-base-quality-score', type=int,
+        help="Passed to GATK HaplotypeCaller's --min-base-quality-score. "
+             "Currently only used in GATK4 GVCF.")
 
     caller.add_argument('--no-somatic-snvs', action='store_true',
         help='Do not genotype somatic SNVs.')

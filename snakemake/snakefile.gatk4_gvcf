@@ -85,9 +85,8 @@ rule gatk_scatter:
         "    --dbsnp {config[dbsnp]}"
         "    --minimum-mapping-quality {params.mmq}"
         "    --emit-ref-confidence BP_RESOLUTION"
+        "    --min-base-quality-score {config[min_base_quality_score]}"
         "    {params.regionflag}"
         "    -R {config[ref]}"
         "    -I {input}"
         "    -O {output}"
-        #   doesn't really make sense; WGA is still occurring
-        #           #"    --pcr-indel-model NONE"
