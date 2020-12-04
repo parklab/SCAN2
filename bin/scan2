@@ -167,7 +167,6 @@ class Analysis:
         # First pass: get all new arguments and perform any special
         # handling. Second pass will tally updates and inform.
         new_cfg = {}
-        print(vars(args))
         for k, v in vars(args).items():
             if v is not None:
                 for k2, v2 in self.handle_special(k, v).items():
