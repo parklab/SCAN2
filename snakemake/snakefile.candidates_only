@@ -1,0 +1,32 @@
+# vim: syntax=python
+
+rule scansnv_somatic_sites:
+    input:
+        "{muttype}/mmq60.tab"
+    output:
+        "{muttype}/somatic_positions.%s{chr}.tab" % config['chr_prefix']
+    resources:
+        mem=32000
+    script:
+        "scripts/scansnv_somatic_sites_script.R"
+
+
+rule scansnv_estimate_ab_scatter:
+    input:
+        fits="ab_model/{sample}/fits.rda",
+        training="ab_model/{sample}/training.rda",
+        sites="{muttype}/{type}_positions.%s{chr}.tab" % config['chr_prefix']
+    output:
+        "{muttype}/{sample}/{type}_ab.%s{chr}.rda" % config['chr_prefix']
+    params:
+        # Only germline SNPs are used for the inference, so indels are
+        # never spikeins even when we are inferring at a germline indel.
+        flag=lambda wildcards:
+            "somatic" if wildcards.type == 'somatic' or wildcards.muttype == 'indel' else 'hsnp_spikein'
+    resources:
+        mem=1000
+    benchmark:
+        "{muttype}/{sample}/benchmark_{type}_ab.%s{chr}.tsv" % config['chr_prefix']
+    shell:
+        "{config[scripts]}/estimate_ab.R"
+        "   {input.fits} {input.training} {input.sites} {params} {output}"

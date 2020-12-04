@@ -25,6 +25,7 @@ from sys import exit
 scan2_param_defaults = {
     'is_started': False,
     'gatk': 'gatk4_joint',
+    'score_all_sites': False,
     'target_fdr': 0.01,
     'min_sc_alt': 2,
     'min_sc_dp': 6,
@@ -735,6 +736,12 @@ if __name__ == "__main__":
              'genome fraction is necessary for estimating the genome-wide '
              'mutation burden. This flag is enabled by default; to disable, '
              'callable region calculation, use --calable-regions false.')
+    caller.add_argument('--score-all-sites', action='store_true',
+        help='Perform somatic genotyping calculations at ALL non-reference '
+             'sites reported by GATK--including single read sequencing '
+             'artifacts, germline mutations, etc. Enabling this option '
+             'increases runtime of the genotype scatter and CIGAR op '
+             'counting steps by 10-100x.')
     
     
     phasing = config_parser.add_argument_group('Phasing options',

@@ -30,6 +30,15 @@ else:
     raise RuntimeError("unrecognized GATK version and strategy: " + config['gatk'])
 
 
+# Perform genotyping at ALL sites, not just somatic candidates.
+# MUCH slower, but allows more data exploration and/or debugging
+# of somatic filters.
+if config['score_all_sites']:
+    include: "snakefile.allsites"
+else:
+    include: "snakefile.candidates_only"
+
+
 wildcard_constraints:
     chr='|'.join(str(x) for x in config['chrs']),
     gatk_chunk="\d+",
@@ -176,17 +185,6 @@ rule scansnv_sample_hsnps:
         "scripts/scansnv_sample_hsnps_script.R"
 
 
-rule scansnv_somatic_sites:
-    input:
-        "{muttype}/mmq60.tab"
-    output:
-        "{muttype}/somatic_positions.%s{chr}.tab" % config['chr_prefix']
-    resources:
-        mem=32000
-    script:
-        "scripts/scansnv_somatic_sites_script.R"
-
-
 rule scansnv_count_cigars:
     input:
         sites="{muttype}/{vartype}_positions.%s{chr}.tab" % config['chr_prefix'],
@@ -218,27 +216,6 @@ rule scansnv_cigar_gather:
     script:
         "scripts/scansnv_cigar_gather_script.R"
 
-
-rule scansnv_estimate_ab_scatter:
-    input:
-        fits="ab_model/{sample}/fits.rda",
-        training="ab_model/{sample}/training.rda",
-        sites="{muttype}/{type}_positions.%s{chr}.tab" % config['chr_prefix']
-    output:
-        "{muttype}/{sample}/{type}_ab.%s{chr}.rda" % config['chr_prefix']
-    params:
-        # Only germline SNPs are used for the inference, so indels are
-        # never spikeins even when we are inferring at a germline indel.
-        flag=lambda wildcards:
-            "somatic" if wildcards.type == 'somatic' or wildcards.muttype == 'indel' else 'hsnp_spikein'
-    resources:
-        mem=1000
-    benchmark:
-        "{muttype}/{sample}/benchmark_{type}_ab.%s{chr}.tsv" % config['chr_prefix']
-    shell:
-        "{config[scripts]}/estimate_ab.R"
-        "   {input.fits} {input.training} {input.sites} {params} {output}"
-        
 
 rule scansnv_cigar_tuning:
     input:
