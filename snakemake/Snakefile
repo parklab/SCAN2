@@ -197,8 +197,7 @@ rule scansnv_count_cigars:
     resources:
         mem=1000
     shell:
-        "{config[scripts]}/get_cigars.sh {input.sites} {input.bam} {output.txt} ; "
-        "{config[scripts]}/count_cigars.py {output.txt} > {output.tab}"
+        "{config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.txt}"
 
 
 rule scansnv_cigar_gather:

@@ -1,50 +1,57 @@
 #!/usr/bin/env python
 
-import re
+import pysam
 import argparse
-import sys
+import os.path
 
-def count_line(cigars):
-    if cigars.strip() == '':
-        return (0, 0, 0, 0,  0)
-
-    dp = len(cigars.split(' '))
-    # reduce just to cigar operations
-    s = ''.join([ re.sub('[0-9\ ]', '', cigar) for cigar in cigars ])
-    m = s.count('M')
-    indel = s.count('I') + s.count('D')
-    clips = s.count('S') + s.count('H')
-    other = len(s) - m - indel - clips
-    return (m, indel, clips, other, dp)
-
-
-ap = argparse.ArgumentParser()
-ap.add_argument("raw_cigars")
+ap = argparse.ArgumentParser(
+    "Count CIGAR operations for all reads overlapping a given position. "
+    "This does not count CIGAR operations overlapping _the position_, "
+    "which means that it will notice if, for example, there is a large "
+    "cluster of clipping operations nearby (i.e., within roughly the "
+    "size of a read).")
+ap.add_argument('input_bam')
+ap.add_argument('input_list')
+ap.add_argument('output_txt')
 args = ap.parse_args()
 
-#with open('raw_germline_cigars.txt', 'r') as f:
-firstline = True
-with open(args.raw_cigars, 'r') as f:
-    for line in f:
-        if firstline:
-            samples = line.strip().split("\t")
-            header = 'chr\tpos'
-            for s in samples[2:]:
-                header = header + '\t' + \
-                    '\t'.join([ x + '.' + s for x in [ 'M', 'ID', 'HS', 'other', 'dp' ] ])
-            print(header)
-            firstline = False
-            continue
-        line = line.strip()
-        fields = line.split('\t')
-        chrom = fields[0]
-        pos = fields[1]
+if os.path.isfile(args.output_txt):
+    raise RuntimeError('output file "%s" already exists, please remove it first' % args.output_txt)
 
+samfile = pysam.AlignmentFile(args.input_bam, "rb")
+with open(args.output_txt, 'w') as outfile:
+    with open(args.input_list, 'r') as posfile:
+        for line in posfile:
+            # header line
+            if line.startswith('chr\tpos\t'):
+                continue
+    
+            chrom, pos, refnt, altnt = line.strip().split("\t")
+            pos = int(pos)
 
-        sys.stdout.write(chrom + "\t" + pos)
-        if len(fields) < 3:
-            sys.stdout.write('\t' + '\t'.join([ str(x) for x in count_line('') ]))
+            match = 0
+            indel = 0
+            clip = 0
+            other = 0
+            dp = 0
+            reads = samfile.fetch(chrom, pos, pos+1)
+            for r in reads:
+                if r.mapping_quality >= 60 and r.is_paired and \
+                    not r.is_duplicate and not r.is_qcfail and \
+                    not r.is_secondary and not r.is_supplementary:
+                    # e.g., 30M1I -> [(CMATCH,30), (CINS,1), ...]
+                    tups = r.cigartuples
+                    cops = [ tup[0] for tup in tups ]
+                    this_match = cops.count(pysam.CMATCH)
+                    this_indel = cops.count(pysam.CINS) + cops.count(pysam.CDEL)
+                    this_clip = cops.count(pysam.CHARD_CLIP) + cops.count(pysam.CSOFT_CLIP)
+                    this_other = len(cops) - (this_match + this_indel + this_clip)
+                    match = match + this_match
+                    indel = indel + this_indel
+                    clip = clip + this_clip
+                    other = other + this_other
+                    dp = dp + 1
 
-        for cigars in fields[2:]:
-            sys.stdout.write('\t' + '\t'.join([ str(x) for x in count_line(cigars) ]))
-        sys.stdout.write('\n')
+            outfile.write(chrom + '\t' + str(pos) + '\t' + str(match) + '\t' +
+                str(indel) + '\t' + str(clip) + '\t' + str(other) + '\t' +
+                str(dp) + '\n')
