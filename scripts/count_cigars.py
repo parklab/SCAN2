@@ -20,6 +20,7 @@ if os.path.isfile(args.output_txt):
 
 samfile = pysam.AlignmentFile(args.input_bam, "rb")
 with open(args.output_txt, 'w') as outfile:
+    outfile.write('chr\tpos\tM.cigars\tID.cigars\tHS.cigars\tother.cigars\tdp.cigars\n')
     with open(args.input_list, 'r') as posfile:
         for line in posfile:
             # header line
