@@ -1,4 +1,4 @@
-library(scansnv) # provides resample.hsnps()
+library(scan2) # provides resample.hsnps()
 
 vcf <- read.table(snakemake@input[['vcf']],
     stringsAsFactors=TRUE, header=F,

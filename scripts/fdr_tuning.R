@@ -3,7 +3,7 @@ args <- commandArgs(trailingOnly=TRUE)
 if (length(args) < 11)
     stop("usage: mmq60.tab mmq1.tab training.rda bulk_sample_name sc_sample_name output.rda { somatic | spikein} min_sc_alt min_sc_dp min_bulk_dp somatic_sites1 [ somatic_sites2 ... somatic_sitesN ]\n    note: in spikein mode, sites in somatic_sites1 are not filtered due to alt reads detected in bulk.")
 
-library(scansnv)
+library(scan2)
 
 mmq60.file <- args[1]
 mmq1.file <- args[2]
@@ -96,7 +96,7 @@ str(lmq)
 # It is important for the FDR tuning procedure to only consider
 # candidates for *this* sample.
 # XXX: unfortunate sloppy coding: all of this must match the candidate
-# selection logic in r-scansnv::genotype_somatic().
+# selection logic in r-scan2::genotype_somatic().
 somatic.candidates <- merge(somatic.sites, hmq, all.x=T)
 somatic.candidates <- merge(somatic.candidates, lmq[,c('chr', 'pos', 'lowmq.bulk.alt')], all.x=T)
 

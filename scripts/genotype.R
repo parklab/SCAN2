@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-require('scansnv')
+library(scan2)
 args <- commandArgs(trailingOnly=TRUE)
 
 if (length(args) != 15)

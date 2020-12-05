@@ -1,4 +1,4 @@
-library(scansnv)
+library(scan2)
 alim <- c(-7, 2)
 blim <- c(2, 4)
 clim <- c(-7, 2)

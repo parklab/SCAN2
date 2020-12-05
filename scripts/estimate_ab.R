@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-require('scansnv')
+library('scan2')
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 5)
     stop("usage: somatic_ab.R fits.rda training.rda positions.txt { hsnp_spikein | somatic } output.rda\n")
