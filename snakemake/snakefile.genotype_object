@@ -1,0 +1,45 @@
+# vim: syntax=python
+
+rule scansnv_genotype_scatter:
+    input:
+        mmq60="{muttype}/mmq60.tab",
+        mmq1="{muttype}/mmq1.tab",
+        som_ab="{muttype}/{sample}/{vartype}_ab.%s{chr}.rda" % config['chr_prefix'],
+        sc_cigars="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix'],
+        bulk_cigars="{muttype}/%s/{vartype}_cigars.%s{chr}.tab" % \
+            (config['bulk_sample'], config['chr_prefix']),
+        cigar_tuning="{muttype}/{sample}/cigar_tuning.rda",
+        fdr_tuning="{muttype}/{sample}/fdr_tuning.rda",
+    output:
+        "{muttype}/{sample}/{vartype}_genotypes.%s{chr}.rda" % config['chr_prefix']
+    params:
+        sc_sample="{sample}",
+        chrom="{chr}"
+    resources:
+        mem=5000
+    benchmark:
+        "{muttype}/{sample}/benchmark_{vartype}_genotypes.%s{chr}.tsv" % config['chr_prefix']
+    shell:
+        "{config[scripts]}/genotype2.R"
+        "   {input.mmq60} {input.mmq1}"
+        "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
+        "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
+        "   {output} {config[target_fdr]} {input.fdr_tuning} {params.flag}"
+        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]} {params.chrom}"
+
+
+rule scansnv_genotype_gather:
+    input:
+        lambda wildcards:
+            expand("{muttype}/{sample}/{vartype}_genotypes.{chr_prefix}{chr}.rda",
+                vartype=wildcards.vartype,
+                muttype=wildcards.muttype,
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
+    output:
+        "{muttype}/{sample}/{vartype}_genotypes.rda"
+    resources:
+        mem=5000
+    script:
+        "scripts/scansnv_genotype_gather_script.R"
