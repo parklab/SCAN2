@@ -24,7 +24,7 @@ rule scansnv_genotype_scatter:
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
         "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
-        "   {output} {config[target_fdr]} {input.fdr_tuning} {params.flag}"
+        "   {output} {config[target_fdr]} {input.fdr_tuning} spikein"
         "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]} {params.chrom}"
 
 
