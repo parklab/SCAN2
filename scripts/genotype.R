@@ -8,8 +8,8 @@ if (length(args) != 15)
 
 hmq.file <- args[1]
 lmq.file <- args[2]
-sc.sample <- make.names(args[3])
-bulk.sample <- make.names(args[4])
+sc.sample <- args[3] #make.names(args[3])
+bulk.sample <- args[4] # make.names(args[4])
 ab.file <- args[5]
 sc.cigar.file <- args[6]
 bulk.cigar.file <- args[7]
@@ -29,14 +29,13 @@ if (spikein != 'somatic' & spikein != 'spikein')
     stop(sprintf("expected 'somatic' or 'spikein' but got %s", spikein))
 
 load(cigar.tuning.file)  # loads cigar.emp.score(), cigar.training
-load(ab.file, verbose=T) # loads ab
+load(ab.file) # loads ab
 somatic.ab <- ab
-str(somatic.ab)
 
 
 # Step 1: read a few rows just to get column names
 hmq <- read.table(hmq.file, header=T, stringsAsFactors=F,
-    colClasses=c(chr='character'), nrow=10)
+    colClasses=c(chr='character'), nrow=10, check.names=FALSE)
 tot.cols <- ncol(hmq)
 sc.idx <- which(colnames(hmq) == sc.sample)
 bulk.idx <- which(colnames(hmq) == bulk.sample)
@@ -48,28 +47,23 @@ for (i in 1:ncol(hmq)) {
 
 
 # Step 2: really read the tables in, but only the relevant columns
-#hmq <- read.table(hmq.file, sep='\t', header=T, stringsAsFactors=F)
 cols.to.read <- rep("NULL", tot.cols)
 # First 7 are chr, pos, dbsnp, refnt, altnt, mq, mqrs
 cols.to.read[1:7] <- c('character', 'integer', rep('character', 3), 'numeric', 'numeric')
 # Read 3 columns for the single cell, 3 columns for bulk
 cols.to.read[sc.idx + 0:2] <- c('character', 'integer', 'integer')
 cols.to.read[bulk.idx + 0:2] <- c('character', 'integer', 'integer')
-cat("reading mmq60 GATK table..\n")
-cat(sprintf("reading %d columns from %s..\n",
+cat(sprintf("mmq60 GATK: reading %d columns from %s..\n",
     sum(is.na(cols.to.read) | cols.to.read != 'NULL'), hmq.file))
 hmq <- read.table(hmq.file, header=T, stringsAsFactors=F,
-    colClasses=cols.to.read)
+    colClasses=cols.to.read, check.names=FALSE)
 new.sc.idx <- which(colnames(hmq) == sc.sample)
 new.bulk.idx <- which(colnames(hmq) == bulk.sample)
-str(hmq)
 
-cat("reading mmq1 GATK table..\n")
-cat(sprintf("reading %d columns from %s..\n",
+cat(sprintf("mmq1 GATK: reading %d columns from %s..\n",
     sum(is.na(cols.to.read) | cols.to.read != 'NULL'), lmq.file))
 lmq <- read.table(lmq.file, sep='\t', header=T, stringsAsFactors=F,
-    colClasses=cols.to.read)
-str(lmq)
+    colClasses=cols.to.read, check.names=FALSE)
 
 
 
