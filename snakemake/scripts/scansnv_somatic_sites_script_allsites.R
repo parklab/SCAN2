@@ -17,8 +17,9 @@ for (i in 1:ncol(tab)) {
     cat(sprintf("%8s %s\n", s, colnames(tab)[i]))
 }
 
-# in allsites mode, calculate cigars/AB/etc for all positions
-candidate.somatics <- tab
+# in allsites mode, calculate cigars/AB/etc for all positions on
+# this chromosome.
+candidate.somatics <- tab[tab$chr == snakemake@wildcards[['chr']],]
 
 write.table(candidate.somatics[,c(1:2, 4:5)], sep="\t",
     quote=FALSE, row.names=FALSE, file=snakemake@output[[1]])
