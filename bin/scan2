@@ -556,6 +556,7 @@ def do_progress(args):
         "--snakefile",  args.snakefile,
         "--configfile", a.config_path,
         "--directory", a.analysis_dir,
+        "--rerun-incomplete",
         "--quiet", "--dryrun" ]
 
     # Command above returns jobs that currently need to run.
