@@ -5,11 +5,6 @@ rule scansnv_genotype_scatter:
         mmq60="{muttype}/mmq60.tab",
         mmq1="{muttype}/mmq1.tab",
         som_ab="{muttype}/{sample}/{vartype}_ab.%s{chr}.rda" % config['chr_prefix'],
-        sc_cigars="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix'],
-        bulk_cigars="{muttype}/%s/{vartype}_cigars.%s{chr}.tab" % \
-            (config['bulk_sample'], config['chr_prefix']),
-        cigar_tuning="{muttype}/{sample}/cigar_tuning.rda",
-        fdr_tuning="{muttype}/{sample}/fdr_tuning.rda",
     output:
         "{muttype}/{sample}/{vartype}_genotypes.%s{chr}.rda" % config['chr_prefix']
     params:
@@ -23,23 +18,53 @@ rule scansnv_genotype_scatter:
         "{config[scripts]}/genotype2.R"
         "   {input.mmq60} {input.mmq1}"
         "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
-        "   {input.sc_cigars} {input.bulk_cigars} {input.cigar_tuning}"
-        "   {output} {config[target_fdr]} {input.fdr_tuning} spikein"
+        "   {output}"
         "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]} {params.chrom}"
+
+
+# parallelized per chromosome
+rule scansnv_cigar_scores_scatter:
+    input:
+        gtobject="{muttype}/{sample}/{vartype}_genotypes.pre.rda",
+        sc_cigars="{muttype}/{sample}/{vartype}_cigars.tab",
+        bulk_cigars="{muttype}/%s/{vartype}_cigars.tab" % config['bulk_sample']
+    output:
+        "{muttype}/{sample}/{vartype}_genotypes.cigars.%s{chr}.rda" % config['chr_prefix']
+    resources:
+        mem=4000
+    script:
+        "scripts/scansnv_cigar_scores_scatter_script.R"
+    
+
+rule scansnv_cigar_scores_gather:
+    input:
+        rdas=expand("{{muttype}}/{{sample}}/{{vartype}}_genotypes.cigars.{chr_prefix}{chr}.rda",
+            chr_prefix=config['chr_prefix'],
+            chr=config['chrs'])
+    output:
+        "{muttype}/{sample}/{vartype}_genotypes.rda"
+    benchmark:
+        "{muttype}/{sample}/benchmark_{vartype}_genotypes_cigar_scores_gather.tsv"
+    resources:
+        mem=24000
+    script:
+        "scripts/scansnv_cigar_scores_gather_script.R"
 
 
 rule scansnv_genotype_gather:
     input:
-        lambda wildcards:
+        rdas=lambda wildcards:
             expand("{muttype}/{sample}/{vartype}_genotypes.{chr_prefix}{chr}.rda",
                 vartype=wildcards.vartype,
                 muttype=wildcards.muttype,
                 sample=wildcards.sample,
                 chr_prefix=config['chr_prefix'],
-                chr=config['chrs'])
+                chr=config['chrs']),
+        ab_fits="ab_model/{sample}/fits.rda",
+        ab_training="ab_model/{sample}/training.rda"
     output:
-        "{muttype}/{sample}/{vartype}_genotypes.rda"
+        "{muttype}/{sample}/{vartype}_genotypes.pre.rda"
     resources:
-        mem=5000
+        mem=8000
     script:
-        "scripts/scansnv_genotype_gather_script.R"
+        "scripts/scansnv_genotype_gather_script_object.R"
