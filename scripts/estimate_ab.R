@@ -32,9 +32,8 @@ ab <- do.call(rbind, lapply(unique(sites$chr), function(chrom) {
 
     cat(sprintf("inferring AB for %d sites on chr%s:%d-%d\n", 
         nrow(sites), chrom, min(sites$pos), max(sites$pos)))
-    system.time(z <- infer.gp(ssnvs=sites, fit=fit,
-        hsnps=hsnps, chunk=1, flank=1e5, verbose=FALSE,
-        spikein=analysis.type == 'hsnp_spikein'))
+    system.time(z <- infer.gp1(ssnvs=sites, fit=fit,
+        hsnps=hsnps, flank=1e5, verbose=FALSE))
     cbind(sites, z)
 }))
 
