@@ -2,7 +2,7 @@
 
 rule training_hsnps:
     input:
-        "ab_model/{sample}/hsnps.tab"
+        "ab_model/{sample}/hsnps_phase_adjusted.tab"
     output:
         rda="ab_model/{sample}/training.rda"
     resources:
@@ -30,6 +30,17 @@ rule gzip_vcfs:
         bgzip -ci {input.phased_vcf} > {output.phased_vcf}
         tabix {output.phased_vcf}
         """
+
+
+rule training_hsnps_adjust_phase:
+    input:
+        tab="ab_model/{sample}/hsnps.tab",
+    output:
+        tab="ab_model/{sample}/hsnps_phase_adjusted.tab",
+    resources:
+        mem=4000
+    script:
+        "scripts/training_hsnps_adjust_phase_script.R"
 
 
 rule training_hsnps_helper:
