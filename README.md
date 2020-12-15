@@ -75,7 +75,6 @@ $ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
 # Running the SCAN2 demo
-## WORK IN PROGRESS - AVAILABLE SOON
 Download the demo chr22 BAMs. Our PTA data is only available through
 protected access at dbGaP. However, any sequencing data (whether
 single cell or not) can be used to test the pipeline installation.
@@ -90,12 +89,17 @@ $ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
 Run SCAN2. Replace instances of /path/to/... with the paths
-downloaded above. This demo runs in about 5 minutes on a single core
-machine by restricting analysis to a 100 KB segment of chr22 and by
+downloaded above. This demo runs in less than 5 minutes on an 8 core
+machine by restricting analysis to a 500 KB segment of chr22 and by
 using an impractically coarse grid for covariance function fitting.
 ```
+# Creates a directory for the analysis
 scan2 -d demo init
-scan2 -d demo config \
+cd demo
+
+# Configure analysis parameters. Can be run multiple times to change
+# parameters.
+scan2 config \
     --verbose \
     --ref /path/to/human_g1k_v37_decoy.fasta \
     --dbsnp /path/to/dbsnp_138_b37.vcf \
@@ -103,19 +107,97 @@ scan2 -d demo config \
     --abmodel-chunks=1 \
     --abmodel-samples-per-chunk=100 \
     --abmodel-steps=1 \
-    --sc-bam il-12.chr22_30M.bam \
-    --bulk-bam hunamp.chr22_30M.bam \
-    --regions 22:30000001-30100000
-scan2 -d demo validate
-scan2 -d demo run
+    --callable-regions True \
+    --score-all-sites \
+    --regions 22:30000001-30500000 \
+    --bulk-bam /path/to/hunamp.chr22.bam \
+    --sc-bam /path/to/il-12.chr22.bam 
+
+# Attempts to validate the chosen parameters and input files. Not
+# exhaustive, but helpful to prevent errors.
+scan2 validate
+
+# Run the analysis. Set the number of cores you wish you use; for
+# more advanced parallelization on a cluster or the cloud, see the
+# sections below.
+scan2 run --joblimit <N cores>
+```
+See `scan2 -h` for more details on configuration options and runtime arguments.
+
+After SCAN2 completes, single sample results are stored in 
+Rdata format `demo/snv/[single_cell_sample_name]/somatic_genotypes.rda`.
+
+Run R and load the RData file. IMPORTANT! Use the R installation in the SCAN2 conda
+environment for the SCAN2 R library.
+```
+$ R   
+library(scan2)
+#
+# Attaching package: 'scan2'
+#
+# The following object is masked from 'package:stats':
+#
+#    df
+
+# 'h25' is the name of the single cell sample
+load('demo/snv/h25/somatic_genotypes.rda')
 ```
 
-See `scan2 -h` for more details on arguments.
+We now provide an S4 class called 'SCAN2' that handles both the
+genotyping logic and allows convenient user interaction. Each
+single cell in a SCAN2 run will have a 'gt' object saved in the
+corresponding somatic_genotypes.rda file.
 
-After SCAN2 completes, single sample results are available in the
-Rdata file `demo/snv/[single_cell_sample_name]/somatic_genotypes.rda`.
-SNVs that pass SCAN2's calling thresholds will have `pass=TRUE` in the
-`somatic` data frame (see below).
+
+The S4 class below provides a summary of several features of the data.
+```
+gt
+# SCAN2 
+#   Single cell ID: h25 
+#   Bulk ID: hunamp 
+#   GATK: 429 raw sites
+#   GATK with low mapping quality: 429 raw sites
+#   AB model training hSNPs: 92 phased sites (hap1=57, hap2=35) 
+#       VAF correlation between neighboring hSNPs:
+#           <100 bp 0.993 <1000 bp 0.842 <10 kbp 0.587 <100 kbp 0.572 
+#         49 resampled hSNPs
+#   Allele balance:
+#       mean (0 is neutral): 0.212 
+#       uncertainty (Q25, median, Q75): 0.289 0.801 0.895 
+#       mean at training hSNPs: -0.028 
+#       correlation with VAF at training hSNPs 0.815 
+#   Mutation models: computed
+#   CIGAR data: 429 sites
+#   Static filters: 0 retained 429 removed 0 NA
+```
+
+ Now it is possible to extract the genotyped sites called using the
+static filters (such
+ as minimum depths, exclusion of dbSNP sites, etc.) and the two
+ single cell artifact models. lysis.fdr and mda.fdr <= 0.01 corresponds
+ to a target false discovery rate (FDR) of 1%. Note that SCAN2 does
+ **NOT** provide formal FDR control.
+
+
+ There should be no called somatic SNVs in this demo dataset.
+```
+snvs <- df(gt)
+snvs[snvs$static.filter & snvs$lysis.fdr <= 0.01 & snvs$mda.fdr <= 0.01,]
+ [1] chr               pos               dbsnp             refnt            
+ [5] altnt             mq                mqrs              h25              
+ [9] scref             scalt             hunamp            bref             
+[13] balt              dp                af                bulk.dp          
+[17] bulk.af           training.site     scref             scalt            
+[21] bref              balt              ab                gp.mu            
+[25] gp.sd             abc.pv            lysis.pv          lysis.beta       
+[29] mda.pv            mda.beta          M.cigars          ID.cigars        
+[33] HS.cigars         other.cigars      dp.cigars         M.cigars.bulk    
+[37] ID.cigars.bulk    HS.cigars.bulk    other.cigars.bulk dp.cigars.bulk   
+[41] id.score.y        id.score.x        hs.score.y        hs.score.x       
+[45] id.score          hs.score          static.filter     nt               
+[49] na                lysis.fdr         mda.fdr          
+<0 rows> (or 0-length row.names)
+```
 
 **NOTE**: VCF output is forthcoming.
 ```
