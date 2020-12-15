@@ -202,6 +202,19 @@ snvs[snvs$static.filter & snvs$lysis.fdr <= 0.01 & snvs$mda.fdr <= 0.01,]
 **NOTE**: VCF output is forthcoming.
 ```
 
+### Coming soon
+The new R class in the SCAN2 library provides several plotting utilities
+to better explore and understand the quality of single cell experiments.
+We are currently developing a step by step vignette to walk users through
+this process.
+
+In addition, the new pipeline and R class have been redesigned to allow
+fast recalculation of genotyping scores and filters. This allows users to
+explore the effects of changing calling parameters (such as target FDR
+thresholds and static thresholds); some of these used to require completely
+rerunning the pipeline, which is often impractical.
+
+
 ### WARNING!
 * The conda environment (named scan2 in these instructions) must always
   be `conda activate`d before running SCAN2.
