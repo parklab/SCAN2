@@ -201,7 +201,7 @@ snvs[snvs$static.filter & snvs$lysis.fdr <= 0.01 & snvs$mda.fdr <= 0.01,]
 
 **NOTE**: VCF output is forthcoming.
 
-### Coming soon
+## Coming soon
 The new R class in the SCAN2 library provides several plotting utilities
 to better explore and understand the quality of single cell experiments.
 We are currently developing a step by step vignette to walk users through
