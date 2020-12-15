@@ -201,11 +201,6 @@ snvs[snvs$static.filter & snvs$lysis.fdr <= 0.01 & snvs$mda.fdr <= 0.01,]
 
 **NOTE**: VCF output is forthcoming.
 ```
-# Called sSNVs can be extracted from the data frame via
-R> load('demo/snv/[single_cell_sample_name]/somatic_genotypes.rda')
-R> somatic[somatic$pass,]
-# The demo should not produce any passing variants.
-```
 
 ### WARNING!
 * The conda environment (named scan2 in these instructions) must always
