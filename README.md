@@ -31,13 +31,10 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 ## Installing SCAN2
 Create a conda environment for SCAN2 and install necessary packages
 ```
-$ conda create -n scan2 -c conda-forge -c bioconda snakemake mamba drmaa r-base bioconductor-annotatr bioconductor-regioner r-pracma r-yaml pysam  bioconductor-bsgenome.hsapiens.1000genomes.hs37d5 bioconductor-bsgenome.hsapiens.ucsc.hg19  bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-bsgenome.hsapiens.ncbi.grch38 r-fastghquad bedtools htslib gatk samtools
+$ conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew scan2 shapeit
 
 # Activate the scan2 conda environment
 $ conda activate scan2
-
-# Install SHAPEITv2 from the 'dranew' channel 
-$ mamba install -c conda-forge -c bioconda -c dranew shapeit 
 ```
 
 ## Downloading external data dependencies
