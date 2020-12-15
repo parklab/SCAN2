@@ -1,6 +1,6 @@
 package:
   name: r-scan2
-  version: '0.1'
+  version: '1.0'
 
 source:
   git_url: https://github.com/parklab/r-scan2.git
@@ -26,10 +26,20 @@ requirements:
     - zip               # [win]
   host:
     - r-base
-    - openblas 0.3.4 ha44fe06_0
+    - openblas
+    - r-plyr
+    - r-pbapply
+    - r-fastGHQuad
+    - r-yaml
+    - r-pracma
   run:
     - r-base
-    - openblas 0.3.4 ha44fe06_0
+    - openblas
+    - r-plyr
+    - r-pbapply
+    - r-fastGHQuad
+    - r-yaml
+    - r-pracma
 
 test:
   commands:
@@ -38,4 +48,4 @@ test:
 
 about:
   home: https://github.com/parklab/r-scan2
-  summary: Single cell somatic SNV and indel genotyper.
+  summary: R objects for interactive single cell SNV and indel genotyping
