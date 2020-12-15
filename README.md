@@ -174,7 +174,7 @@ gt
  Now it is possible to extract the genotyped sites called using the
 static filters (such
  as minimum depths, exclusion of dbSNP sites, etc.) and the two
- single cell artifact models. lysis.fdr and mda.fdr <= 0.01 corresponds
+ single cell artifact models. lysis.fdr and mda.fdr <= 0.01 correspond
  to a target false discovery rate (FDR) of 1%. Note that SCAN2 does
  **NOT** provide formal FDR control.
 
