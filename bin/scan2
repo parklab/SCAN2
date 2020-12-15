@@ -56,8 +56,8 @@ scan2_param_defaults = {
 # Unlike params, all files listed here must be readable upon a call
 # to validate() or run().
 scan2_file_defaults = {
-    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scansnv',
-    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',
+    'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scan2/Snakefile',
     'ref': None,
     'dbsnp': None,
     'bams': {},         # miscellaneous BAMs; not genotyped as single cells
@@ -594,7 +594,7 @@ def add_runtime_args(parser):
             help="Total available memory in MB.  If unspecified, memory is "
             "treated as unlimited.")
     parser.add_argument('--scripts', metavar='PATH',
-        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
         help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
     parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
@@ -623,7 +623,7 @@ if __name__ == "__main__":
         type=str,
         help='PATH containing the SCAN2 analysis. Required for all subcommands.')
     ap.add_argument('--snakefile', metavar='PATH', type=str,
-        default='/opt/anaconda1anaconda2anaconda3/lib/scansnv/Snakefile',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scan2/Snakefile',
         help='Path to the main Snakefile.  Unlikely to be necessary for standard use.')
     subparsers = ap.add_subparsers(dest='subcommand')
 
