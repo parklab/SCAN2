@@ -26,6 +26,7 @@ scan2_param_defaults = {
     'is_started': False,
     'gatk': 'gatk4_joint',
     'score_all_sites': False,
+    'parsimony_phasing': False,
     'target_fdr': 0.01,
     'min_sc_alt': 2,
     'min_sc_dp': 6,
@@ -755,6 +756,8 @@ if __name__ == "__main__":
         help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. [IMPORTANT! Eagle is currently unsupported.]')
     phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
+    phasing.add_argument('--parsimony-phasing', action='store_true',
+        help='Choose the phase of each training hSNP i to minimize |VAF_(i-1) - VAF_i|.  This overrides population-based phasing and does not produce well-phased mutations.  Instead, it ensures that switching errors (caused by panel phasing) in regions with allelic imbalance do not inflate model variance or lead to "ping-pong" allele balance estimates.')
     #phasing.add_argument('--eagle-panel', metavar='DIR',
         #help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
     #phasing.add_argument('--eagle-genmap', metavar='DIR',
