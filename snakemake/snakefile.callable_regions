@@ -10,34 +10,25 @@ rule callable_region_gather:
         rda="callable_regions/{sample}/callable_regions.rda",
         pdf="callable_regions/{sample}/callable_regions.pdf"
     resources:
-        mem=2000
+        mem=4000
     script:
         "scripts/callable_regions_gather_script.R"
 
           
-# Summarizes the 2 raw vectors of read depth (bulk and sc) into
-# a 2-dimensional table.
-rule callable_regions_summarize: 
-    input:
-        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
-    output:  
-        rda="callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda"
-    resources:
-        mem=2000
-    script:
-        "scripts/callable_regions_summarize_script.R"
-        
-    
-rule callable_region_bulk_intersect:
+# Both summarizes a vector into a (2-dimensional) table and adds
+# bulk depth information.
+# The memory limit here can be insufficient if the size of each
+# GATK chunk is large (>10MB or so).
+rule callable_region_summarize:
     input:
         sc="callable_regions/{sample}/chunk{gatk_chunk}.txt",
         bulk="callable_regions/{bulk_sample}/chunk{{gatk_chunk}}.txt".format(bulk_sample=config['bulk_sample'])
     output:
-        "callable_regions/{sample}/chunk{gatk_chunk}.bulk_intersect.txt"
+        "callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
     resources:
-        mem=1000
-    shell:
-        "paste {input.sc} {input.bulk} > {output}"
+        mem=4000
+    script:
+        "scripts/callable_regions_summarize_script.R"
 
 
 # Needs to match parallelization of GATK scattering, else the

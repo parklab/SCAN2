@@ -2,27 +2,39 @@ library(viridis)
 sc.sample <- snakemake@wildcards[['sample']]
 bulk.sample <- snakemake@config[['bulk_sample']]
 
-# format: 6 columns: chr pos singlecell chr pos bulk
-x <- read.table(snakemake@input[[1]], sep='\t', header=TRUE, check.names=FALSE)
+# format: 3 columns: chr pos depth (as an integer)
+# setting colClass="NULL" prevents reading the column, which saves
+# about 2/3rds RAM usage.
+sc <- read.table(snakemake@input[['sc']],
+    sep='\t', header=TRUE, check.names=FALSE,
+    colClasses=c('NULL', 'NULL', 'integer'))
+bulk <- read.table(snakemake@input[['bulk']],
+    sep='\t', header=TRUE, check.names=FALSE,
+    colClasses=c('NULL', 'NULL', 'integer'))
 
-# extra sanity checks: make sure columns 3 and 6 are the correct
-# single cell and bulk samples
-if (colnames(x)[3] != sc.sample)
+# extra sanity checks: make sure samples names match
+if (colnames(sc)[1] != sc.sample)
     stop(sprintf("expected column 3 to be single cell %s, got %s instead",
-        sc.sample, colnames(x)[3]))
-if (colnames(x)[6] != bulk.sample)
-    stop(sprintf("expected column 6 to be bulk sample %s, got %s instead",
-        bulk.sample, colnames(x)[6]))
+        sc.sample, colnames(sc)[1]))
+if (colnames(bulk)[1] != bulk.sample)
+    stop(sprintf("expected column 3 to be bulk sample %s, got %s instead",
+        bulk.sample, colnames(bulk)[1]))
 
 
-# by adding points from (0,0) ... (200,200), the table will be at
-# least 200x200 # then we can subset to whatever is reasonable.
+# clamp the maximum depth value at 500.
+clamp.dp <- 500
+x <- data.frame(pmin(clamp.dp, sc[,1]), pmin(clamp.dp, bulk[,1]))
+colnames(x) <- c(colnames(sc)[1], colnames(bulk)[1])
+
+# by adding points from (0,0) ... (500,500), the table will be at
+# least 500x500 then we can subset to whatever is reasonable.
 # subtract the diagnoal after to remove these.
-dummy <- cbind(0:200,0:200)
-colnames(dummy) <- colnames(x)[c(3,6)]
-x <- rbind(x[,c(3,6)], dummy)
+dummy <- data.frame(0:clamp.dp, 0:clamp.dp)
+colnames(dummy) <- c(colnames(sc)[1], colnames(bulk)[1])
+x <- rbind(x, dummy)
+
 dptab <- table(x)
-dptab <- dptab[1:201,1:201] - diag(201) # diag removes the dummy points
+dptab <- dptab[1:(clamp.dp+1),1:(clamp.dp+1)] - diag(clamp.dp + 1) # diag removes the dummy points
 
 # don't make plots for each chunk; final one is sufficient
 #genome.region <- snakemake@config[['gatk_regions']][as.integer(snakemake@wildcards[['gatk_chunk']])]
@@ -32,4 +44,4 @@ dptab <- dptab[1:201,1:201] - diag(201) # diag removes the dummy points
     #xlab=sc.sample, ylab=bulk.sample, main=genome.region)
 #dev.off()
 
-save(dptab, file=snakemake@output[['rda']])
+save(clamp.dp, dptab, file=snakemake@output[[1]])
