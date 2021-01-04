@@ -7,8 +7,12 @@ if (file.exists(snakemake@output[['tab']]))
     stop(paste("output file", snakemake@output[['tab']],
         "already exists, please delete it first"))
 
-unadjusted$af <- unadjusted$hap1 / unadjusted$dp
-adjusted <- adjust.phase(unadjusted)
+if (snakemake@config[['parsimony_phasing']]) {
+    unadjusted$af <- unadjusted$hap1 / unadjusted$dp
+    adjusted <- adjust.phase(unadjusted)
+} else {
+    adjusted <- unadjusted
+}
 
 write.table(adjusted, file=snakemake@output[['tab']],
     quote=F, row.names=FALSE, sep='\t')
