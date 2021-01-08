@@ -133,6 +133,7 @@ rule shapeit_scatter:
         "        {config[shapeit_refpanel]}/1000GP_Phase3.sample"
         "    --exclude-snp {params.excludefile}"
         "    {params.xflag}"
+        "    --seed 1596518786"
         "    -O {params.tmpout} ; "
         "shapeit -convert "
         "    --output-log {params.convertlog}"
