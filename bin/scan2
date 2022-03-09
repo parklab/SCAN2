@@ -275,7 +275,6 @@ class Analysis:
             #readable_file(self.cfg['shapeit_refpanel'])
             check_shapeit(self.cfg['shapeit_refpanel'])
         elif self.cfg['phaser'] == 'eagle':
-            error("sorry, Eagle is currently unsupported")
             if self.cfg['eagle_panel'] is None:
                 print("ERROR: --eagle-panel must be specified when --phaser=eagle")
                 exit(1)
@@ -758,10 +757,10 @@ if __name__ == "__main__":
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
     phasing.add_argument('--parsimony-phasing', action='store_true',
         help='Choose the phase of each training hSNP i to minimize |VAF_(i-1) - VAF_i|.  This overrides population-based phasing and does not produce well-phased mutations.  Instead, it ensures that switching errors (caused by panel phasing) in regions with allelic imbalance do not inflate model variance or lead to "ping-pong" allele balance estimates.')
-    #phasing.add_argument('--eagle-panel', metavar='DIR',
-        #help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
-    #phasing.add_argument('--eagle-genmap', metavar='DIR',
-        #help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
+    phasing.add_argument('--eagle-panel', metavar='DIR',
+        help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
+    phasing.add_argument('--eagle-genmap', metavar='DIR',
+        help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
     
     
     abmodel = config_parser.add_argument_group("AB model fitting",
