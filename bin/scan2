@@ -35,7 +35,7 @@ scan2_param_defaults = {
     'max_bulk_mosaic_vaf': 0.3,
     'min_base_quality_score': 20,
     'analyze_snvs': True,
-    'analyze_indels': False,
+    'analyze_indels': True,
     'analyze_mosaic_snvs': False,
     'callable_regions': True,
     'permute': 0,
@@ -50,6 +50,7 @@ scan2_param_defaults = {
     'chrs': [],
     'phaser': 'shapeit',
     'shapeit_refpanel': None,  # a directory, so readable_file fails
+    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',  # also a directory
     'chr_prefix': '',          # be nice to remove this; requires snakefile changes
     'bam_map': {}              # maps sample name -> bam path
 }
@@ -57,7 +58,6 @@ scan2_param_defaults = {
 # Unlike params, all files listed here must be readable upon a call
 # to validate() or run().
 scan2_file_defaults = {
-    'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',
     'snakefile': '/opt/anaconda1anaconda2anaconda3/lib/scan2/Snakefile',
     'ref': None,
     'dbsnp': None,
@@ -594,10 +594,6 @@ def add_runtime_args(parser):
     parser.add_argument('--memlimit', default=None, metavar='INT', type=int,
             help="Total available memory in MB.  If unspecified, memory is "
             "treated as unlimited.")
-    parser.add_argument('--scripts', metavar='PATH',
-        default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
-        help='Path to SCAN2 script files.  Usually points to an installed '
-            'set of files.')
     parser.add_argument('--cluster', default=None, type=str, metavar='ARGS',
         help="Pass ARGS to Snakemake's --cluster parameter.  Do not use "
             "--snakemake-args to access --cluster.  Memory requirements "
@@ -655,6 +651,10 @@ if __name__ == "__main__":
     
     config_parser.add_argument('--verbose', action='store_true', default=False,
         help='Print detailed list of all configuration changes.')
+    config_parser.add_argument('--scripts', metavar='PATH',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
+        help='Path to SCAN2 script files.  Usually points to an installed '
+            'set of files.')
     config_parser.add_argument('--permute', type=int,
         help='Number of permutation sets to create for somatic SNVs and indels.')
     config_parser.add_argument('--gatk', type=str,
