@@ -26,7 +26,7 @@ rule callable_region_summarize:
     output:
         "callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
     resources:
-        mem=4000
+        mem=7000
     script:
         "scripts/callable_regions_summarize_script.R"
 
