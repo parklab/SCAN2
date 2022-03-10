@@ -8,6 +8,10 @@ mutation with any read support in matched bulk samples.
 autosomes 1-22 and the X chromosome in female samples).
 
 
+# License
+SCAN2 is freely available for non-commercial use.
+
+
 
 # Installation
 SCAN2 is distributed as a conda package. Installation requires the conda
@@ -15,10 +19,9 @@ package management tool and a Linux-flavored OS.
 
 **Operating systems tested**
 * GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
-* Ubuntu 16.04.4 LTS AWS instance.
 
 
-## Installing miniconda
+## Install miniconda
 ```
 $ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 $ bash Miniconda3-latest-Linux-x86_64.sh
@@ -28,19 +31,49 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 # Log-out and back in to source .bashrc and put conda on $PATH
 ```
 
-## Installing SCAN2
+## Install SCAN2
 Create a conda environment for SCAN2 and install necessary packages
 ```
-$ conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew scan2 shapeit
+$ conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew -c python=3.10 soil scan2
 
 # Activate the scan2 conda environment
 $ conda activate scan2
 ```
 
-## Downloading external data dependencies
+## Install SigProfilerMatrixGenerator
+This involves using pip to install the
+base SigProfilerMatrixGenerator package, mamba to install the r-reticulate package
+into your conda environment and finally R to install an R wrapper.
+*IMPORTANT* you must have the scan2 conda environment activated (see above) before
+running these commands!
+```
+#### installation instructions for SigProfilerMatrixGenerator:
+pip install SigProfilerMatrixGenerator
+$ python
+>> from SigProfilerMatrixGenerator import install as genInstall
+>> genInstall.install('GRCh37', rsync=False, bash=True)
+
+# installing the R package
+mamba install -c conda-forge -c bioconda -c dranew r-reticulate r-devtools
+
+$ R
+> library(devtools)
+> install_github("AlexandrovLab/SigProfilerMatrixGeneratorR")
+> ### DO NOT UPDATE ANY PACKAGES WHEN PROMPTED
+```
+
+## Install supplemental packages
+Finally, install a few additional packages via
+```
+$ mamba install -c conda-forge -c bioconda r-base bioconductor-annotatr bioconductor-regioner r-pracma r-yaml pysam  bioconductor-bsgenome.hsapiens.1000genomes.hs37d5 bioconductor-bsgenome.hsapiens.ucsc.hg19  bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-bsgenome.hsapiens.ncbi.grch38 r-fastghquad bedtools htslib gatk samtools r-viridis bcftools r-upsetr r-future.apply r-vioplot r-pbapply r-plyr r-svglite r-lme4 r-lmerTest  r-argparse r-data.table ucsc-bigwigaverageoverbed r-rcpproll ucsc-bedgraphtobigwig bioconductor-dnacopy shyaml r-nnls r-multiway
+```
+Most of the above packagse should already be installed.
+
+
+# Download external data dependencies
 SCAN2 has been tested on the NCBI human reference build 37 and hg38.
 
-### Human reference version GRCh37 with decoy
+## Human reference version GRCh37 with decoy
 Download the human reference genome.
 ```
 $ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
@@ -70,8 +103,10 @@ $ tar xzvf 1000GP_Phase3_chrX.tgz
 $ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
-### Human reference version hg38
+## Human reference version hg38
 If you are running the demo below, you will need the GRCh37 genome.
+
+
 Download the reference genome.
 ```
 $ wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
