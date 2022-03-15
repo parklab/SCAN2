@@ -8,7 +8,7 @@ source:
 build:
   merge_build_host: True  # [win]
   # If this is a new build for the same version, increment the build number.
-  number: 0
+  number: 2
   # This is required to make R link correctly on Linux.
   rpaths:
     - lib/R/lib/
@@ -25,21 +25,41 @@ requirements:
     - coreutils         # [win]
     - zip               # [win]
   host:
-    - r-base
+    - python=3.8
+    - r-base=4.1
     - openblas
     - r-plyr
     - r-pbapply
-    - r-fastGHQuad
+    - r-fastghquad
     - r-yaml
     - r-pracma
+    - r-viridis
+    - bioconductor-bsgenome.hsapiens.1000genomes.hs37d5
+    - bioconductor-bsgenome.hsapiens.ncbi.grch38
+    - r-lme4
+    - r-lmerTest
+    - r-argparse
+    - r-data.table
+    - r-reticulate
+    - r-devtools
   run:
-    - r-base
+    - python=3.8
+    - r-base=4.1
     - openblas
     - r-plyr
     - r-pbapply
-    - r-fastGHQuad
+    - r-fastghquad
     - r-yaml
     - r-pracma
+    - r-viridis
+    - bioconductor-bsgenome.hsapiens.1000genomes.hs37d5
+    - bioconductor-bsgenome.hsapiens.ncbi.grch38
+    - r-lme4
+    - r-lmerTest
+    - r-argparse
+    - r-data.table
+    - r-reticulate
+    - r-devtools
 
 test:
   commands:

@@ -2,40 +2,30 @@ package:
     name: scan2
     version: "2.0"
 
+build:
+    number: 2
+
 requirements:
     run:
+      - python=3.8
       - snakemake
       - mamba
       - drmaa
-      - r-base
-      - bioconductor-annotatr
-      - bioconductor-regioner
-      - r-pracma
-      - r-yaml
-      - pysam
-      - bioconductor-bsgenome.hsapiens.1000genomes.hs37d5
-      - bioconductor-bsgenome.hsapiens.ucsc.hg19
-      - bioconductor-bsgenome.hsapiens.ucsc.hg38
-      - bioconductor-bsgenome.hsapiens.ncbi.grch38
-      - r-fastghquad
-      - bedtools
-      - htslib
+      - shapeit
+      - eagle-phase
       - gatk
       - gatk4
       - samtools
-      - r-viridis
+      - pysam
+      - bedtools
+      - htslib
       - bcftools
-      - r-upsetr
-      - r-future.apply
-      - r-vioplot
-      - r-pbapply
-      - r-plyr
       - r-scan2
-      - shapeit
+      - shyaml
 
 source:
     git_url: https://github.com/parklab/SCAN2.git
 
 about:
     home: https://github.com/parklab/SCAN2
-    summary: SNV genotyper for PTA-amplified single cells
+    summary: Somatic SNV and indel genotyper for PTA-amplified single cells

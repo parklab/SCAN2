@@ -31,13 +31,18 @@ $ bash Miniconda3-latest-Linux-x86_64.sh
 # Log-out and back in to source .bashrc and put conda on $PATH
 ```
 
-## Install SCAN2
+## Install SCAN2 - IMPORTANT: update 3/14 for extremely slow installs
 Create a conda environment for SCAN2 and install necessary packages
 ```
-$ conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew -c python=3.10 soil scan2
+# Create a base environment with the mamba package manager. Mamba is
+# a drop-in replacement for the conda package manager, which cannot solve
+# the dependency constraint problem in a reasonable amount of time.
+conda create -n scan2 -c conda-forge mamba python=3.8
 
 # Activate the scan2 conda environment
-$ conda activate scan2
+conda activate scan2
+# Install SCAN2
+mamba install -c conda-forge -c bioconda -c jluquette -c dranew -c soil  scan2 
 ```
 
 ## Install SigProfilerMatrixGenerator
@@ -52,22 +57,15 @@ pip install SigProfilerMatrixGenerator
 $ python
 >> from SigProfilerMatrixGenerator import install as genInstall
 >> genInstall.install('GRCh37', rsync=False, bash=True)
+>> quit()
 
-# installing the R package
-mamba install -c conda-forge -c bioconda -c dranew r-reticulate r-devtools
+# installing the SigProfilerMatrixGenerator R wrapper
 
 $ R
 > library(devtools)
 > install_github("AlexandrovLab/SigProfilerMatrixGeneratorR")
 > ### DO NOT UPDATE ANY PACKAGES WHEN PROMPTED
 ```
-
-## Install supplemental packages
-Finally, install a few additional packages via
-```
-$ mamba install -c conda-forge -c bioconda r-base bioconductor-annotatr bioconductor-regioner r-pracma r-yaml pysam  bioconductor-bsgenome.hsapiens.1000genomes.hs37d5 bioconductor-bsgenome.hsapiens.ucsc.hg19  bioconductor-bsgenome.hsapiens.ucsc.hg38 bioconductor-bsgenome.hsapiens.ncbi.grch38 r-fastghquad bedtools htslib gatk samtools r-viridis bcftools r-upsetr r-future.apply r-vioplot r-pbapply r-plyr r-svglite r-lme4 r-lmerTest  r-argparse r-data.table ucsc-bigwigaverageoverbed r-rcpproll ucsc-bedgraphtobigwig bioconductor-dnacopy shyaml r-nnls r-multiway
-```
-Most of the above packagse should already be installed.
 
 
 # Download external data dependencies
