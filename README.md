@@ -55,16 +55,16 @@ running these commands!
 #### installation instructions for SigProfilerMatrixGenerator:
 pip install SigProfilerMatrixGenerator
 $ python
->> from SigProfilerMatrixGenerator import install as genInstall
->> genInstall.install('GRCh37', rsync=False, bash=True)
->> quit()
+from SigProfilerMatrixGenerator import install as genInstall
+genInstall.install('GRCh37', rsync=False, bash=True)
+quit()
 
 # installing the SigProfilerMatrixGenerator R wrapper
 
 $ R
-> library(devtools)
-> install_github("AlexandrovLab/SigProfilerMatrixGeneratorR")
-> ### DO NOT UPDATE ANY PACKAGES WHEN PROMPTED
+library(devtools)
+install_github("AlexandrovLab/SigProfilerMatrixGeneratorR")
+### DO NOT UPDATE ANY PACKAGES WHEN PROMPTED
 ```
 
 
@@ -72,49 +72,54 @@ $ R
 SCAN2 has been tested on the NCBI human reference build 37 and hg38.
 
 ## Human reference version GRCh37 with decoy
+To run the SCAN2 demo, you will need to follow these instructions for the GRCh37 genome version.
 Download the human reference genome.
 ```
-$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
-$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.fai.gz
-$ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
+wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
+wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.fai.gz
+wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
 ```
 
 Download dbSNP **common variants**.
 dbSNP build 147 (common variants only) was used in the publication.
 Instructions for generating the required tribble index are provided at the bottom of this page.
 ```
-$ wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh37p13/VCF/common_all_20180423.vcf.gz
+wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh37p13/VCF/common_all_20180423.vcf.gz
+gunzip common_all_20180423.vcf.gz
+# Create Tribble index (see bottom of this page)
 ```
 
 Download SHAPEIT's haplotype reference panel.
 ```
-$ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz
-$ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz
+wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz
+wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz
 ```
 
 Unzip everything and move the chrX SHAPEIT files into the main SHAPEIT
 directory.
 ```
-$ gunzip *.gz
-$ tar xzvf 1000GP_Phase3.tgz
-$ tar xzvf 1000GP_Phase3_chrX.tgz
-$ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
+gunzip *.gz
+tar xzvf 1000GP_Phase3.tgz
+tar xzvf 1000GP_Phase3_chrX.tgz
+mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
 ## Human reference version hg38
-If you are running the demo below, you will need the GRCh37 genome.
+To run the SCAN2 demo, you will need the GRCh37 genome.
 
 
 Download the reference genome.
 ```
-$ wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
-$ wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.fai
-$ wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dict
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.fai
+wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dict
 ```
 
 Download dbSNP **common variants**.  Instructions for generating the required tribble index are provided at the bottom of this page.
 ```
-$ wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh38p7/VCF/common_all_20180418.vcf.gz
+wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh38p7/VCF/common_all_20180418.vcf.gz
+gunzip common_all_20180418.vcf.gz
+# Create Tribble index (see bottom of this page)
 ```
 
 Use the following instructions to generate a phasing panel for Eagle2.
@@ -208,7 +213,7 @@ scan2 run --joblimit <N cores>
 See `scan2 -h` for more details on configuration options and runtime arguments.
 
 After SCAN2 completes, single sample results are stored in 
-Rdata format `demo/snv/[single_cell_sample_name]/somatic_genotypes.rda`.
+Rdata format `demo/both/[single_cell_sample_name]/somatic_genotypes.rda`.
 
 Run R and load the RData file. IMPORTANT! Use the R installation in the SCAN2 conda
 environment for the SCAN2 R library.
@@ -223,7 +228,7 @@ library(scan2)
 #    df
 
 # 'h25' is the name of the single cell sample
-load('demo/snv/h25/somatic_genotypes.rda')
+load('demo/both/h25/somatic_genotypes.rda')
 ```
 
 We now provide an S4 class called 'SCAN2' that handles both the
@@ -314,7 +319,14 @@ Snakemake to offer parallelization via any of the following:
   `--drmaa`. **However, additional libraries may be necessary to
   interface with the DRMAA wrapper.**
     * E.g., in the SCAN2 publication, a SLURM cluster was accessed via
-      the slurm-drmaa 1.1.1 package.
+      the slurm-drmaa 1.1.1 package (https://github.com/natefoo/slurm-drmaa). This
+      package was maintained by the cluster system admins.
+      An example command line for running SCAN2 with DRMAA follows. Note the `--mem`
+      argument, which uses Snakemake's `{resources.mem}` placeholder to allow each
+      individual job in the SCAN2 pipeline to specify the amount of memory needed.
+        ```
+        scan2 run --joblimit 100 --drmaa ' -p YOUR_QUEUE_NAME -A YOUR_ACCOUNT -t 10:00 --mem={resources.mem}'
+        ```
     * If your scheduler is not DRMAA-compatible (or if the appropriate
       DRMAA interface is unavailable), Snakemake's `--cluster` option
       offers similar functionality to `--drmaa`, but with fewer features.
@@ -327,9 +339,18 @@ See Snakemake's documentation for more details on cluster and cloud execution: h
 ## Generating a Tribble index for dbSNP
 dbSNP VCFs must be indexed by Tribble (*not* tabix) for GATK. The dbSNP
 found in the GATK's resource bundle is already indexed. If you wish to use
-a different dbSNP version, the file can be indexed by `igvtools`.
+a different dbSNP version (as in the above section on downloading external
+data dependencies), use IGVtools as detailed below:
 
 ```
-$ mamba install -c bioconda igvtools
-$ igvtools index /path/to/your/dbsnp.vcf
+# IMPORTANT! IMPORTANT! Do not install igvtools into your SCAN2 conda
+# environment. Create a new environment for igvtools! At the time of this writing,
+# igvtools depends on an incompatible version of the JDK and will break the
+# GATK installation.
+conda deactivate                               # exit the SCAN2 environment
+conda create -n igvtools -c bioconda igvtools  # create a new environment with only igvtools installed
+conda activate igvtools
+igvtools index /path/to/your/dbsnp.vcf
+conda deactivate                               # exit the igvtools environment
+conda activate scan2                           # reactivate the SCAN2 environment
 ```
