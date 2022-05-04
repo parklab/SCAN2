@@ -8,6 +8,28 @@ mutation with any read support in matched bulk samples.
 autosomes 1-22 and the X chromosome in female samples).
 
 
+## Clonal vs. non-clonal somatic mutation detection
+SCAN2 currently will not call any mutation candidate with **any** supporting
+reads in the matched bulk sample. At standard WGS sequencing depths of 30x,
+this excludes nearly all germline variants, the majority of early
+post-zygotic mutations and, if the matched bulk is from a closely related
+tissue, many lower frequency clonal somatic mutations as well.
+We therefore often refer
+to SCAN2 calls as "non-clonal," although this is only approximately the
+case since clonal mutations with low frequency may also have 0 reads in
+the matched bulk.
+
+It is not necessarily a good
+idea to allow mutations with >0 reads in bulk since it may allow some
+germline heterozygous mutations or relatively rare artifacts (of
+sequencing, alignment, etc.) to be miscalled as somatic mutations. This
+is particularly true in single cells with very low (i.e., <100) somatic
+mutation burden.
+
+However, this restriction may be removed in the future after further
+testing.
+
+
 # License
 SCAN2 is freely available for non-commercial use.
 
