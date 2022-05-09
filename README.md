@@ -100,6 +100,7 @@ Download the human reference genome.
 wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
 wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.fai.gz
 wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.dict.gz
+gunzip *.gz
 ```
 
 Download dbSNP **common variants**.
@@ -120,7 +121,6 @@ wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz
 Unzip everything and move the chrX SHAPEIT files into the main SHAPEIT
 directory.
 ```
-gunzip *.gz
 tar xzvf 1000GP_Phase3.tgz
 tar xzvf 1000GP_Phase3_chrX.tgz
 mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
@@ -192,10 +192,10 @@ single cell or not) can be used to test the pipeline installation.
 We provide the following publically available data for MDA-amplified
 single cells (Dong et al *Nature Methods* 2017) for the demo:
 ```
-$ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
-$ wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
-$ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam
-$ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
+wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
+wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
+wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam
+wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
 Run SCAN2. Replace instances of /path/to/... with the paths
