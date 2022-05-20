@@ -39,7 +39,7 @@ print(sc_id)
 s <- make.scan(sc_id, bulk_id, 'hs37d5')
 s <- add.static.filter.params(s, scan2config)
 s <- read.gatk(s, gatk, quiet=TRUE, add.mutsig=FALSE)
-s <- add.training.data(s, '$hsnps', quiet=TRUE)
+s <- add.training.data(s, hsnps, quiet=TRUE)
 s <- resample.training.data(s)
 
 save(resample.data, file=out.hsnps.rda)
