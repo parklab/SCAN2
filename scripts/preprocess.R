@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 9) {
