@@ -41,6 +41,7 @@ s <- add.static.filter.params(s, scan2config)
 s <- read.gatk(s, gatk, quiet=TRUE, add.mutsig=FALSE)
 s <- add.training.data(s, hsnps, quiet=TRUE)
 s <- resample.training.data(s)
+resample.data <- s@resampled.training.data
 
 save(resample.data, file=out.hsnps.rda)
 out <- s@gatk[training.site==TRUE,.(chr, pos, refnt, altnt, training.hap1, training.hap2, training.phgt, resampled.training.site)]
