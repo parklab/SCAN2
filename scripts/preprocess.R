@@ -1,8 +1,9 @@
 #!/bin/bash
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) != ) {
-    stop("usage: preprocess.R gatk.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out.tab.gz out_details.rda"
+if (length(args) != 9) {
+    cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically\n")
+    stop("usage: preprocess.R gatk.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out_hsnp_resampling.tab.gz out_hsnp_resampling_details.rda out_cigars.tab.gz out.fdr.rda")
 }
 
 gatk=args[1]
