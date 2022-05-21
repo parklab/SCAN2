@@ -60,6 +60,6 @@ fwrite(null.sites, file=out.cigars, sep='\t')
 Rsamtools::bgzip(out.cigars, paste0(out.cigars, '.gz'))
 system(paste('tabix -p vcf -S 1', paste0(out.cigars, '.gz')))
 
-s <- compute.fdr.priors(s)
+s <- compute.fdr.prior.data(s)
 fdr.prior.data <- s@fdr.prior.data
 save(fdr.prior.data, file=out.fdr.rda)
