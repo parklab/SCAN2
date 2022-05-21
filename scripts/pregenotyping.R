@@ -3,18 +3,19 @@
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 9) {
     cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically\n")
-    stop("usage: preprocess.R gatk.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out_hsnp_resampling.tab.gz out_hsnp_resampling_details.rda out_cigars.tab.gz out.fdr.rda")
+    stop("usage: preprocess.R gatk.tab.gz gatk_lowmq.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out_hsnp_resampling.tab.gz out_hsnp_resampling_details.rda out_cigars.tab.gz out.fdr.rda")
 }
 
 gatk=args[1]
-hsnps=args[2]
-sccigars=args[3]
-bulkcigars=args[4]
-scan2config=args[5]
-out.hsnps=args[6]
-out.hsnps.rda=args[7]
-out.cigars=args[8]
-out.fdr.rda=args[9]
+gatklowmq=args[2]
+hsnps=args[3]
+sccigars=args[4]
+bulkcigars=args[5]
+scan2config=args[6]
+out.hsnps=args[7]
+out.hsnps.rda=args[8]
+out.cigars=args[9]
+out.fdr.rda=args[10]
 
 for (outfile in c(paste0(out.hsnps, c('', '.gz', '.tbi')), paste0(out.cigars, c('', '.gz', '.tbi')), out.hsnps.rda, out.fdr.rda)) {
     if (file.exists(outfile))
@@ -39,6 +40,7 @@ print(sc_id)
 s <- make.scan(sc_id, bulk_id, 'hs37d5')
 s <- add.static.filter.params(s, scan2config)
 s <- read.gatk(s, gatk, quiet=TRUE, add.mutsig=FALSE)
+s <- read.gatk.lowmq(s, gatklowmq, quiet=TRUE)
 s <- add.training.data(s, hsnps, quiet=TRUE)
 s <- resample.training.data(s)
 resample.data <- s@resampled.training.data
