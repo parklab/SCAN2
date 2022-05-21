@@ -3,7 +3,7 @@
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 10) {
     cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically\n")
-    stop("usage: pregenotyping.R gatk.tab.gz gatk_lowmq.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out_hsnp_resampling.tab.gz out_hsnp_resampling_details.rda out_cigardata.rda out.fdr.rda")
+    stop("usage: pregenotyping.R gatk.tab.gz gatk_lowmq.tab.gz hsnps.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz scan2_config.yaml out_hsnp_resampling.tab.gz out_hsnp_resampling_details.rda out_cigardata.tab.gz out.fdr.rda")
 }
 
 gatk=args[1]
