@@ -489,7 +489,7 @@ def do_run(args):
 
 # Runs a snakemake command provided by the user. Assumes 'args' contains
 # runtime args.
-def run_snakemake(command, args):
+def run_snakemake(snakemake_command, args):
     if args.memlimit:
         snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
 
