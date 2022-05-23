@@ -484,12 +484,12 @@ def do_run(args):
         "--jobs", str(args.joblimit),
     ]
 
-    run_snakemake(snakemake_command, args)
+    run_snakemake(snakemake_command, args, a)
 
 
 # Runs a snakemake command provided by the user. Assumes 'args' contains
 # runtime args.
-def run_snakemake(snakemake_command, args):
+def run_snakemake(snakemake_command, args, a):
     if args.memlimit:
         snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
 
@@ -526,7 +526,7 @@ def do_makepanel(args):
         "--jobs", str(args.joblimit),
     ]
 
-    run_snakemake(snakemake_command, args)
+    run_snakemake(snakemake_command, args, a)
 
 
 # Runs a snakemake command provided by the user. Assumes 'args' contains
