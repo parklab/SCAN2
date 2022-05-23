@@ -1,5 +1,72 @@
+# vim: syntax=python
+
+wildcard_constraints:
+    chr='|'.join(str(x) for x in config['chrs']),
+    gatk_chunk="\d+",
+    gatk_mmq="\d+",
+    #muttype="snv|indel|mosaic_snv",
+    muttype="snv|both|mosaic_snv",
+    phaser="shapeit|eagle"
+
+
 if config['analysis'] == 'call_mutations':
     include: "snakefile.call_mutations"
 
+    # Determine the analyses to run, depending on which options
+    # were selected by the user.
+    def determine_pipeline_output(wildcards):
+        prf = ''
+        d = dict()
+    
+        # Somatic indels and somatic SNVs
+        if config['analyze_snvs'] and config['analyze_indels']:
+            print("adding somatic SNVs and indels to schedule")
+            # PON filtering needs to be handled by a separate command
+            #d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.pon_filter.rda",
+            d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.rda",
+                sample=config['sc_bams'].keys())
+            if config['permute']:
+                d['permuted_indels'] = expand("both/{sample}/permuted_sites.rda",
+                    sample=config['sc_bams'].keys())
+    
+        # Somatic SNVs only
+        if config['analyze_snvs'] and not config['analyze_indels']:
+            print("adding somatic SNVs to schedule")
+            d['somatic_genotypes'] = expand("snv/{sample}/somatic_genotypes.rda",
+                sample=config['sc_bams'].keys())
+            if config['permute']:
+                d['permuted_snvs'] = expand("snv/{sample}/permuted_sites.rda",
+                    sample=config['sc_bams'].keys())
+    
+        if not config['analyze_snvs'] and config['analyze_indels']:
+            print("ERROR: cannot analyze indels without SNVs")
+            exit(1)
+    
+        # Mosaic SNVs
+        if config['analyze_mosaic_snvs']:
+            print("adding mosaic SNVs to schedule")
+            d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
+                sample=config['sc_bams'].keys())
+    
+        # Find bases passing minimum depth thresholds
+        if config['callable_regions']:
+            print("adding region callability to schedule")
+            d['callable_beds'] = \
+                expand("callable_regions/{sample}/callable_regions.rda",
+                    sample=config['sc_bams'].keys())
+    
+        return d
+    
+    
+    rule call_mutations:
+        input:
+            unpack(determine_pipeline_output)
+    
+
 if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"
+
+    rule makepanel:
+        input:
+            "gatk/hc_raw.mmq1.vcf",
+            "gatk/hc_raw.mmq60.vcf"
