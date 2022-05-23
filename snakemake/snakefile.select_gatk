@@ -1,0 +1,20 @@
+# Different GATK versions and calling methods are available. The
+# version used in the publication is 'gatk3_joint'. Other versions
+# are experimental.
+# N.B. various utility functions rely on GATK3. All of these except
+# CombineVariants, used to join phased genotypes in snakefile.phasing,
+# port easily to GATK4 equivalents.
+if config['gatk'] == 'gatk3_joint':
+    include: "snakefile.gatk3_joint"
+    print("Using GATK version 3 with joint calling")
+    print("This method was used in the publication.")
+    print("WARNING: joint calling requires rerunning GATK for cross-sample analysis of SNVs (mutation signatures) and indels. This can take an extremely long time to run for large sample sets.")
+elif config['gatk'] == 'gatk4_joint':
+    include: "snakefile.gatk4_joint"
+    print("Using GATK version 4 with joint calling")
+    print("WARNING: joint calling requires rerunning GATK for cross-sample analysis of SNVs (mutation signatures) and indels. This can take an extremely long time to run for large sample sets.")
+elif config['gatk'] == 'gatk4_gvcf':
+    include: "snakefile.gatk4_gvcf"
+    print("Using GATK version 4 with GVCF calling (EXPERIMENTAL)!")
+else:
+    raise RuntimeError("unrecognized GATK version and strategy: " + config['gatk'])
