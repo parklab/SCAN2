@@ -1,0 +1,161 @@
+# vim: syntax=python
+
+# These should probably be converted to subworkflows at some point.
+# For now, just for organizing rules into manageably-sized files.
+include: "snakefile.callable_regions"
+include: "snakefile.phasing"
+include: "snakefile.abmodel"
+include: "snakefile.permute"
+include: "snakefile.mosaic_snv"
+
+# Use the new SCAN2 R object
+include: "snakefile.genotype_object"
+# legacy script with all work done by genotype.somatic(). does not allow
+# for easily changing hard filters or FDR control.
+#include: "snakefile.genotype_legacy     
+
+include: "snakefile.select_gatk"
+
+# Perform genotyping at ALL sites, not just somatic candidates.
+# MUCH slower, but allows more data exploration and/or debugging
+# of somatic filters.
+if config['score_all_sites']:
+    include: "snakefile.allsites"
+else:
+    include: "snakefile.candidates_only"
+
+
+wildcard_constraints:
+    chr='|'.join(str(x) for x in config['chrs']),
+    gatk_chunk="\d+",
+    gatk_mmq="\d+",
+    #muttype="snv|indel|mosaic_snv",
+    muttype="snv|both|mosaic_snv",
+    phaser="shapeit|eagle"
+
+
+# Determine the analyses to run, depending on which options
+# were selected by the user.
+def determine_pipeline_output(wildcards):
+    prf = ''
+    d = dict()
+
+    # Somatic indels and somatic SNVs
+    if config['analyze_snvs'] and config['analyze_indels']:
+        print("adding somatic SNVs and indels to schedule")
+        # PON filtering needs to be handled by a separate command
+        #d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.pon_filter.rda",
+        d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.rda",
+            sample=config['sc_bams'].keys())
+        if config['permute']:
+            d['permuted_indels'] = expand("both/{sample}/permuted_sites.rda",
+                sample=config['sc_bams'].keys())
+
+    # Somatic SNVs only
+    if config['analyze_snvs'] and not config['analyze_indels']:
+        print("adding somatic SNVs to schedule")
+        d['somatic_genotypes'] = expand("snv/{sample}/somatic_genotypes.rda",
+            sample=config['sc_bams'].keys())
+        if config['permute']:
+            d['permuted_snvs'] = expand("snv/{sample}/permuted_sites.rda",
+                sample=config['sc_bams'].keys())
+
+    if not config['analyze_snvs'] and config['analyze_indels']:
+        print("ERROR: cannot analyze indels without SNVs")
+        exit(1)
+
+    # Mosaic SNVs
+    if config['analyze_mosaic_snvs']:
+        print("adding mosaic SNVs to schedule")
+        d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
+            sample=config['sc_bams'].keys())
+
+    # Find bases passing minimum depth thresholds
+    if config['callable_regions']:
+        print("adding region callability to schedule")
+        d['callable_beds'] = \
+            expand("callable_regions/{sample}/callable_regions.rda",
+                sample=config['sc_bams'].keys())
+
+    return d
+
+
+rule all:
+    input:
+        unpack(determine_pipeline_output)
+
+
+rule scansnv_vcftotab:
+    input:
+        "gatk/hc_raw.mmq{gatk_mmq}.vcf"
+    output:
+        vcf="{muttype}/mmq{gatk_mmq}.vcf",
+        tab="{muttype}/mmq{gatk_mmq}.tab"
+    params:
+        stoi=lambda wildcards:
+            '--select-type-to-include SNP' if wildcards.muttype == 'snv' else \
+                ('--select-type-to-include SNP --select-type-to-include INDEL' if wildcards.muttype == 'both' else 'ERROR_NOT_SUPPORTED'), #\
+                    #raise RuntimeException('muttype must be snv or indel, got ' + wildcards.muttype)),
+        totab_script=lambda wildcards:
+            'totab.sh' if wildcards.muttype == 'snv' else \
+                ('totab.indel.sh' if wildcards.muttype == 'both' else 'ERROR_NOT_SUPPORTED') #\
+                # the only difference between totab and totab.indel.sh is that the indel
+                # script does not require length(refnt)=1.  so it allows both indels and snvs
+                    #raise RuntimeException('muttype must be snv or indel, got ' + wildcards.muttype))
+    resources:
+        mem=4000
+    shell:
+        "gatk SelectVariants"
+        "   --java-options '-Xmx3G -Xms3G'"
+        "   -R {config[ref]}"
+        "   -V {input}"
+        "   {params.stoi} "
+        "   --restrict-alleles-to BIALLELIC"
+        "   --exclude-non-variants"
+        "   -select 'vc.getGenotype(\"{config[bulk_sample]}\").isCalled()'"
+        "   -O {output.vcf} ; "
+        "{config[scripts]}/{params.totab_script} {output.vcf} {output.tab}"
+
+
+
+rule scansnv_count_cigars:
+    input:
+        sites="{muttype}/{vartype}_positions.%s{chr}.tab" % config['chr_prefix'],
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+    output:
+        tab="{muttype}/{sample}/{vartype}_cigars.%s{chr}.tab" % config['chr_prefix']
+    benchmark:
+        "{muttype}/{sample}/benchmark_{vartype}_cigars.%s{chr}.tsv" % config['chr_prefix']
+    resources:
+        mem=1000
+    shell:
+        "{config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.tab}"
+
+
+rule scansnv_cigar_gather:
+    input:
+        lambda wildcards:
+            expand("{muttype}/{sample}/{vartype}_cigars.{chr_prefix}{chr}.tab",
+                muttype=wildcards.muttype,
+                sample=wildcards.sample,
+                chr_prefix=config['chr_prefix'],
+                vartype=wildcards.vartype, chr=config['chrs'])
+    output:
+        "{muttype}/{sample}/{vartype}_cigars.tab"
+    resources:
+        mem=1000
+    script:
+        "scripts/scansnv_cigar_gather_script.R"
+
+
+rule scansnv_indel_pon:
+    input:
+        rda="indel/{sample}/somatic_genotypes.rda"
+    output:
+        rda="indel/{sample}/somatic_genotypes.pon_filter.rda"
+    resources:
+        mem=6000
+    benchmark:
+        "indel/{sample}/benchmark_pon_filter.tsv"
+    script:
+        "scripts/scansnv_indel_pon_script.R"

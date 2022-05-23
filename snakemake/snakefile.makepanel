@@ -1,0 +1,8 @@
+# vim: syntax=python
+
+include: "snakefile.select_gatk"
+
+rule all:
+    input:
+        "gatk/hc_raw.mmq1.vcf",
+        "gatk/hc_raw.mmq60.vcf"
