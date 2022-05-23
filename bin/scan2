@@ -674,7 +674,7 @@ if __name__ == "__main__":
             'cannot be changed after the analysis has begun.')
     config_parser.set_defaults(executor=do_config)
     
-    config_parser.add_argument('--analysis', defaul='call_mutations',
+    config_parser.add_argument('--analysis', default='call_mutations',
         help='Which analysis should be run. Currently, "call_mutations" and '
              '"make_panel" are valid values.')
     config_parser.add_argument('--verbose', action='store_true', default=False,
