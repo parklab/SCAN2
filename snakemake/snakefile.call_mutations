@@ -8,7 +8,7 @@ include: "snakefile.training_hsnps"
 
 if config['abmodel_chunked_strategy']:
     include: "snakefile.abmodel_chunked"
-else
+else:
     include: "snakefile.abmodel_multithreaded"
 
 # Use the new SCAN2 R object
