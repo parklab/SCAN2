@@ -23,6 +23,7 @@ from sys import exit
 # are used to determine which command line arguments are not to be stored
 # in the configuration database.
 scan2_param_defaults = {
+    'genome': 'hs37d5',
     'analysis': 'call_mutations',
     'is_started': False,
     'gatk': 'gatk4_joint',
