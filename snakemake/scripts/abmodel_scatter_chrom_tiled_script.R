@@ -1,6 +1,5 @@
 #!/usr/bin/env Rscript
 
-
 # detect script being run by snakemake
 # if so, make a mock commandArgs function
 if ('snakemake' %in% ls()) {
@@ -10,7 +9,6 @@ if ('snakemake' %in% ls()) {
     sink(con, type='message')
 
     commandArgs <- function(...) {
-stop('this script has not been adapted for snakemake yet')
         ret <- unlist(c(
             snakemake@input['hsnps'],
             snakemake@params['chrom'],
