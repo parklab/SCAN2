@@ -10,7 +10,7 @@ rule cigar_scatter:
     benchmark:
         "call_mutations/{sample}/benchmark_cigars.{chr}.tsv"
     params:
-        chrom="{chrom}"
+        chrom="{chr}"
     resources:
         mem=1000
     shell:
