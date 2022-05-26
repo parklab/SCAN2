@@ -25,8 +25,8 @@ rule pregenotype:
         {config[scripts]}/pregenotyping.R
             {input.mmq60} {input.mmq1} {input.hsnps}
             {input.sccigars} {input.bulkcigars} {input.config}
-            {out.hsnps} {out.hsnp_details}
-            {out.cigardata} {out.fdrpriordata}
+            {output.hsnps} {output.hsnp_details}
+            {output.cigardata} {output.fdrpriordata}
         """
 
 
