@@ -5,6 +5,7 @@
 include: "snakefile.callable_regions"
 include: "snakefile.phasing"
 include: "snakefile.training_hsnps"
+include: "snakefile.cigars"
 
 if config['abmodel_chunk_strategy']:
     include: "snakefile.abmodel_chunked"
