@@ -22,7 +22,7 @@ rule cigar_scatter:
 # Concatenate and zip/index
 rule cigar_gather:
     input:
-        lambda wildcards:
+        tabs=lambda wildcards:
             expand("call_mutations/{sample}/cigars.{chr}.tab",
                     sample=wildcards.sample,
                     chr=config['chrs'])
@@ -33,6 +33,6 @@ rule cigar_gather:
         mem=1000
     script:
         """
-        (head -1 {input[0]} ; cat {input} | grep -v '^#') | bgzip -c > {output.tab}
+        (head -1 {input.tabs[0]} ; cat {input.tabs} | grep -v '^#') | bgzip -c > {output.tab}
         tabix -p vcf -S 1 {output.tab}
         """
