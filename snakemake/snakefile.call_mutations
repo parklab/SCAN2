@@ -6,7 +6,7 @@ include: "snakefile.callable_regions"
 include: "snakefile.phasing"
 include: "snakefile.training_hsnps"
 
-if config['abmodel_chunked_strategy']:
+if config['abmodel_chunk_strategy']:
     include: "snakefile.abmodel_chunked"
 else:
     include: "snakefile.abmodel_multithreaded"
