@@ -44,7 +44,7 @@ rule genotype:
         "call_mutations/{sample}/scan2_object.rda"
     params:
         sc_sample="{sample}",
-        bulk_sample=config['bulk_sample']
+        bulk_sample=config['bulk_sample'],
         genome=config['genome']
     threads: 16
     resources:
