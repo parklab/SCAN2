@@ -11,8 +11,14 @@ ap = argparse.ArgumentParser(
     "cluster of clipping operations nearby (i.e., within roughly the "
     "size of a read).")
 ap.add_argument('input_bam')
-ap.add_argument('input_list')
+ap.add_argument('input_list', help='BGZIPped and Tabix-indexed table of loci at which to extract CIGAR operations.')
 ap.add_argument('output_txt')
+ap.add_argument('--chrom', default=None, metavar='CHROMOSOME', type=str,
+    help='Only examine sites in input_list that are on CHROMOSOME.  Allows parallelization.')
+ap.add_argument('--start', default=None, metavar='INT', type=int,
+    help='Only examine sites in input_list that are on CHROMOSOME and position >= INT.')
+ap.add_argument('--end', default=None, metavar='INT', type=int,
+    help='Only examine sites in input_list that are on CHROMOSOME and position <= INT.')
 args = ap.parse_args()
 
 if os.path.isfile(args.output_txt):
@@ -20,15 +26,14 @@ if os.path.isfile(args.output_txt):
 
 samfile = pysam.AlignmentFile(args.input_bam, "rb")
 with open(args.output_txt, 'w') as outfile:
-    outfile.write('chr\tpos\tM.cigars\tID.cigars\tHS.cigars\tother.cigars\tdp.cigars\n')
-    with open(args.input_list, 'r') as posfile:
-        for line in posfile:
-            # header line
-            if line.startswith('chr\tpos\t'):
-                continue
-    
-            chrom, pos, refnt, altnt = line.strip().split("\t")
-            pos = int(pos)
+    outfile.write('#chr\tpos\tM.cigars\tID.cigars\tHS.cigars\tother.cigars\tdp.cigars\n')
+    with pysam.TabixFile(args.input_list) as tbx:
+        for record in tbx.fetch(reference=args.chrom, start=args.start, end=args.end, parser=pysam.asTuple()):
+            chrom = record[0]
+            pos = int(record[1])
+            # record[2] is dbsnp ID
+            refnt = record[3]
+            altnt = record[4]
 
             match = 0
             indel = 0

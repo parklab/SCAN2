@@ -1,0 +1,37 @@
+# vim: syntax=python
+
+rule cigar_scatter:
+    input:
+        sites="gatk/mmq60.tab.gz",
+        sitesidx="gatk/mmq60.tab.gz.tbi",
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+    output:
+        tab="call_mutations/{sample}/cigars.%s{chr}.tab" % config['chr_prefix']
+    benchmark:
+        "call_mutations/{sample}/benchmark_cigars.%s{chr}.tsv" % config['chr_prefix']
+    params:
+        chrom="{chrom}"
+    resources:
+        mem=1000
+    shell:
+        """
+        {config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.tab} --chrom {params.chrom}
+        """
+
+
+# Concatenate and zip/index
+rule cigar_gather:
+    input:
+        expand("call_mutations/{sample}/cigars.{chr_prefix}{chr}.tab",
+                chr_prefix=config['chr_prefix'],
+                chr=config['chrs'])
+    output:
+        tab="call_mutations/{sample}/cigars.tab.gz",
+        idx="call_mutations/{sample}/cigars.tab.gz.tbi"
+    resources:
+        mem=1000
+    script:
+        """
+        (head -1 {input[0]} ; cat {input} | grep -v '^#') | bgzip -c > {output.tab}
+        tabix -p vcf -S 1 {output.tab}
+        """

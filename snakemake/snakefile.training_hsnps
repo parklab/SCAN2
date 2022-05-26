@@ -1,0 +1,92 @@
+# vim: syntax=python
+
+# Produces the final hsnps table expected by the R scan2 library
+rule process_hsnps:
+    input:
+        "ab_model/{sample}/hsnps_phase_adjusted.tab"
+    output:
+        tabgz="ab_model/{sample}/hsnps.tab.gz",
+        idx="ab_model/{sample}/hsnps.tab.gz.tbi"
+    resources:
+        mem=1000
+    shell:
+        """
+        bgzip -c {input} > {output.tabgz}
+        tabix {output.tabgz}
+        """
+
+
+# LEGACY: this just converts the input tab to an rda. Used by legacy
+# AB model fitting with chunks.
+rule training_hsnps_rda:
+    input:
+        "ab_model/{sample}/hsnps_phase_adjusted.tab"
+    output:
+        rda="ab_model/{sample}/training.rda"
+    resources:
+        mem=4000
+    benchmark:
+        "ab_model/{sample}/training_benchmark.tsv"
+    script:
+        "scripts/training_hsnps_script.R"
+
+
+# because bcftools merge REQUIRES gzipped VCFs
+rule gzip_gatk_vcf:
+    input:
+        joint_vcf="gatk/hc_raw.mmq60.vcf",
+        phased_vcf=config['phaser'] + "/phased_hsnps.vcf"
+    output:
+        joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
+        phased_vcf=config['phaser'] + "/phased_hsnps.vcf.gz"
+    resources:
+        mem=2000
+    shell:
+        """
+        bgzip -ci {input.joint_vcf} > {output.joint_vcf}
+        tabix {output.joint_vcf}
+        bgzip -ci {input.phased_vcf} > {output.phased_vcf}
+        tabix {output.phased_vcf}
+        """
+
+
+rule training_hsnps_adjust_phase:
+    input:
+        tab="ab_model/{sample}/hsnps_unprocessed.tab",
+    output:
+        tab="ab_model/{sample}/hsnps_phase_adjusted.tab",
+    resources:
+        mem=4000
+    script:
+        "scripts/training_hsnps_adjust_phase_script.R"
+
+
+rule training_hsnps_helper:
+    input:
+        joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
+        phased_vcf=config['phaser'] + "/phased_hsnps.vcf.gz"
+    output:
+        tab="ab_model/{sample}/hsnps_unprocessed.tab",
+        combined_vcf="ab_model/{sample}/hsnps.vcf",
+        tmp_vcf="ab_model/{sample}/hsnps_helper_tmp.vcf",
+    params:
+        sn="{sample}"
+    resources:
+        mem=4000
+    shell:
+        "bcftools merge "
+        "    -o {output.tmp_vcf}"
+        "    {input.joint_vcf} {input.phased_vcf} ; "
+        "gatk SelectVariants"
+        "    --java-options '-Xmx3G -Xms3G'"
+        "    -R {config[ref]}"
+        "    -V {output.tmp_vcf}"
+        "    --sample-name {params.sn}"
+        "    --sample-name phasedgt"
+        "    --exclude-non-variants"
+        "    --select-type-to-include SNP"
+        "    -select 'vc.getGenotype(\"'{params.sn}'\").isCalled()'"
+        "    -select 'vc.getGenotype(\"phasedgt\").isCalled()'"
+        "    -select 'vc.isBiallelic()'"
+        "    -O {output.combined_vcf} ; "
+        "{config[scripts]}/totab.phase.sh {output.combined_vcf} {output.tab}"

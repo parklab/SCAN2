@@ -25,7 +25,7 @@ awk '
         printf "%s\t%s\t%s", x[1], ad[1], ad[2];
     }
     {
-        if ($0 !~ /#/ && length($4) == 1) { # && length($5) == 1) {
+        if ($0 !~ /#/) {
             n = split($8, info, ";");
             mq = "NA";
             mqrs = "NA";
@@ -46,7 +46,7 @@ awk '
             } printf "\n";
         } else {
             if ($1 ~ /#CHROM/) {
-                printf "chr\tpos\tdbsnp\trefnt\taltnt\tmq\tmqrs";
+                printf "#chr\tpos\tdbsnp\trefnt\taltnt\tmq\tmqrs";
                 for (i = 10; i <= NF; ++i)
                     printf "\t%s\tref\talt", $i;
                 printf "\n";

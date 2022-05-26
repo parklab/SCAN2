@@ -1,70 +1,63 @@
 # vim: syntax=python
 
-rule scansnv_genotype_scatter:
+rule pregenotype:
     input:
-        mmq60="{muttype}/mmq60.tab",
-        mmq1="{muttype}/mmq1.tab",
-        som_ab="{muttype}/{sample}/{vartype}_ab.%s{chr}.rda" % config['chr_prefix'],
+        mmq60="gatk/mmq60.tab.gz",
+        mmq1="gatk/mmq1.tab.gz",
+        hsnps="ab_model/{sample}/hsnps.tab.gz",
+        sccigars="call_mutations/{sample}/cigars.tab.gz",
+        bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
+        config="scan.yaml"
     output:
-        "{muttype}/{sample}/{vartype}_genotypes.%s{chr}.rda" % config['chr_prefix']
+        hsnps="call_mutations/{sample}/hsnps_resampled.tab.gz",
+        hsnpsidx="call_mutations/{sample}/hsnps_resampled.tab.gz.tbi",
+        hsnp_details="call_mutations/{sample}/hsnps_resampled_details.rda",
+        cigardata="call_mutations/{sample}/cigardata.tab.gz",
+        cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
+        fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
+    threads: 1
+    resources:
+        mem=20000
+    benchmark:
+        "call_mutations/{sample}/benchmark_pregenotyping.txt"
+    shell:
+        """
+        {config[scripts]}/pregenotyping.R
+            {input.mmq60} {input.mmq1} {input.hsnps}
+            {input.sccigars} {input.bulkcigars} {input.config}
+            {out.hsnps} {out.hsnp_details}
+            {out.cigardata} {out.fdrpriordata}
+        """
+
+
+rule genotype:
+    input:
+        mmq60="gatk/mmq60.tab.gz",
+        mmq1="gatk/mmq1.tab.gz",
+        hsnps="call_mutations/{sample}/hsnps.tab.gz",
+        fits="ab_model/{sample}/fits.rda",
+        sccigars="call_mutations/{sample}/cigars.tab.gz",
+        bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
+        cigardata="call_mutations/{sample}/cigardata.tab.gz",
+        fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
+    output:
+        "call_mutations/{sample}/scan2_object.rda"
     params:
         sc_sample="{sample}",
-        chrom="{chr}"
+        bulk_sample=config['bulk_sample']
+        genome=config['genome']
+    threads: 16
     resources:
-        mem=5000
+        mem=32000
     benchmark:
-        "{muttype}/{sample}/benchmark_{vartype}_genotypes.%s{chr}.tsv" % config['chr_prefix']
+        "call_mutations/{sample}/benchmark_genotype_%s{chr}.txt" % config['chr_prefix']
     shell:
-        "{config[scripts]}/genotype2.R"
-        "   {input.mmq60} {input.mmq1}"
-        "   {params.sc_sample} {config[bulk_sample]} {input.som_ab}"
-        "   {output}"
-        "   {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]} {params.chrom}"
-
-
-# parallelized per chromosome
-rule scansnv_cigar_scores_scatter:
-    input:
-        gtobject="{muttype}/{sample}/{vartype}_genotypes.pre.rda",
-        sc_cigars="{muttype}/{sample}/{vartype}_cigars.tab",
-        bulk_cigars="{muttype}/%s/{vartype}_cigars.tab" % config['bulk_sample']
-    output:
-        "{muttype}/{sample}/{vartype}_genotypes.cigars.%s{chr}.rda" % config['chr_prefix']
-    resources:
-        mem=4000
-    script:
-        "scripts/scansnv_cigar_scores_scatter_script.R"
-    
-
-rule scansnv_cigar_scores_gather:
-    input:
-        rdas=expand("{{muttype}}/{{sample}}/{{vartype}}_genotypes.cigars.{chr_prefix}{chr}.rda",
-            chr_prefix=config['chr_prefix'],
-            chr=config['chrs'])
-    output:
-        "{muttype}/{sample}/{vartype}_genotypes.rda"
-    benchmark:
-        "{muttype}/{sample}/benchmark_{vartype}_genotypes_cigar_scores_gather.tsv"
-    resources:
-        mem=24000
-    script:
-        "scripts/scansnv_cigar_scores_gather_script.R"
-
-
-rule scansnv_genotype_gather:
-    input:
-        rdas=lambda wildcards:
-            expand("{muttype}/{sample}/{vartype}_genotypes.{chr_prefix}{chr}.rda",
-                vartype=wildcards.vartype,
-                muttype=wildcards.muttype,
-                sample=wildcards.sample,
-                chr_prefix=config['chr_prefix'],
-                chr=config['chrs']),
-        ab_fits="ab_model/{sample}/fits.rda",
-        ab_training="ab_model/{sample}/training.rda"
-    output:
-        "{muttype}/{sample}/{vartype}_genotypes.pre.rda"
-    resources:
-        mem=8000
-    script:
-        "scripts/scansnv_genotype_gather_script_object.R"
+        """
+        {config[scripts]}/run_pipeline.R
+           {params.sc_sample} {params.bulk_sample}
+           {input.mmq60} {input.mmq1} {input.hsnps} {input.fits}
+           {input.sccigars} {input.bulkcigars}
+           {input.cigardata} {input.fdrpriordata} {params.genome}
+           {output}
+           {config[min_sc_alt]} {config[min_sc_dp]} {config[min_bulk_dp]} {params.chrom}
+        """

@@ -4,8 +4,6 @@ wildcard_constraints:
     chr='|'.join(str(x) for x in config['chrs']),
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    #muttype="snv|indel|mosaic_snv",
-    muttype="snv|both|mosaic_snv",
     phaser="shapeit|eagle"
 
 
@@ -18,29 +16,8 @@ if config['analysis'] == 'call_mutations':
         prf = ''
         d = dict()
     
-        # Somatic indels and somatic SNVs
-        if config['analyze_snvs'] and config['analyze_indels']:
-            print("adding somatic SNVs and indels to schedule")
-            # PON filtering needs to be handled by a separate command
-            #d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.pon_filter.rda",
-            d['indel_somatic_genotypes'] = expand("both/{sample}/somatic_genotypes.rda",
-                sample=config['sc_bams'].keys())
-            if config['permute']:
-                d['permuted_indels'] = expand("both/{sample}/permuted_sites.rda",
-                    sample=config['sc_bams'].keys())
-    
-        # Somatic SNVs only
-        if config['analyze_snvs'] and not config['analyze_indels']:
-            print("adding somatic SNVs to schedule")
-            d['somatic_genotypes'] = expand("snv/{sample}/somatic_genotypes.rda",
-                sample=config['sc_bams'].keys())
-            if config['permute']:
-                d['permuted_snvs'] = expand("snv/{sample}/permuted_sites.rda",
-                    sample=config['sc_bams'].keys())
-    
-        if not config['analyze_snvs'] and config['analyze_indels']:
-            print("ERROR: cannot analyze indels without SNVs")
-            exit(1)
+        d['indel_somatic_genotypes'] = expand("call_mutations/{sample}/scan2_object.rda",
+            sample=config['sc_bams'].keys())
     
         # Mosaic SNVs
         if config['analyze_mosaic_snvs']:

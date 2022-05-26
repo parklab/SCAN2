@@ -25,7 +25,7 @@ awk '
         printf "%s\t%s\t%s", x[1], ad[1], ad[2];
     }
     {
-        if ($0 !~ /#/) {
+        if ($0 !~ /#/ && length($4) == 1) { # && length($5) == 1) {
             n = split($8, info, ";");
             mq = "NA";
             mqrs = "NA";

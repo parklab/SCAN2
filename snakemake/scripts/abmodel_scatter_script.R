@@ -14,7 +14,7 @@ load(snakemake@input[['training']])
 data <- data[data$chr == snakemake@params[['chr']],]
 ctx <- abmodel.approx.ctx(x=data$pos,
     y=data$hap1, d=data$hap1+data$hap2,
-    hsnp.chunksize=snakemake@config[['abmodel_hsnp_chunk_size']]
+    hsnp.chunksize=snakemake@config[['abmodel_hsnp_tile_size']]
 )
 
 logp.samples <- abmodel.sample(
