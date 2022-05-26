@@ -12,7 +12,7 @@ rule process_hsnps:
     shell:
         """
         bgzip -c {input} > {output.tabgz}
-        tabix {output.tabgz}
+        tabix -p vcf -S 1 {output.tabgz}
         """
 
 
