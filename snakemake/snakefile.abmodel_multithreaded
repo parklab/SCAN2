@@ -3,10 +3,9 @@
 rule abmodel_gather:
     input:
         lambda wildcards:
-            expand("ab_model/{sample}/fit_{chr_prefix}{chr}.rda",
+            expand("ab_model/{sample}/fit_{chr}.rda",
                 sample=wildcards.sample,
-                chr=wildcards.chr,
-                chr_prefix=config['chr_prefix'])
+                chr=config['chrs'])
     output:
         fits="ab_model/{sample}/fits.rda",
         fit_details="ab_model/{sample}/fit_details.rda"
@@ -20,14 +19,15 @@ rule abmodel_scatter:
     input:
         hsnps="ab_model/hsnps.tab.gz"
     output:
-        rda="ab_model/{sample}/fit_%s{chr}.rda" % config['chr_prefix']
+        rda="ab_model/{sample}/fit_{chr}.rda"
     params:
         chrom="{chr}",
         n_tiles=config['abmodel_hsnp_n_tiles'],
         n_cores=config['abmodel_n_cores']
     benchmark:
-        "ab_model/{sample}/benchmark_fit_%s{chr}.tsv" % config['chr_prefix']
+        "ab_model/{sample}/benchmark_fit_{chr}.tsv"
+    threads: 16
     resources:
-        mem=1000
+        mem=8000
     script:
         "scripts/abmodel_scatter_chrom_tiled_script.R"
