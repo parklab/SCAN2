@@ -14,7 +14,7 @@ stop('this script has not been adapted for snakemake yet')
         ret <- unlist(c(
             snakemake@input['hsnps'],
             snakemake@params['chrom'],
-            snakemake@output['rda']
+            snakemake@output['rda'],
             snakemake@params['n_tiles'],
             snakemake@params['n_cores']
         ))
