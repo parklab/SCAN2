@@ -34,7 +34,7 @@ rule genotype:
     input:
         mmq60="gatk/mmq60.tab.gz",
         mmq1="gatk/mmq1.tab.gz",
-        hsnps="call_mutations/{sample}/hsnps.tab.gz",
+        hsnps="call_mutations/{sample}/hsnps_resampled.tab.gz",
         fits="ab_model/{sample}/fits.rda",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
