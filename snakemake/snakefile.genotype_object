@@ -22,10 +22,10 @@ rule pregenotype:
         "call_mutations/{sample}/benchmark_pregenotyping.txt"
     shell:
         """
-        {config[scripts]}/pregenotyping.R
-            {input.mmq60} {input.mmq1} {input.hsnps}
-            {input.sccigars} {input.bulkcigars} {input.config}
-            {output.hsnps} {output.hsnp_details}
+        {config[scripts]}/pregenotyping.R \
+            {input.mmq60} {input.mmq1} {input.hsnps} \
+            {input.sccigars} {input.bulkcigars} {input.config} \
+            {output.hsnps} {output.hsnp_details} \
             {output.cigardata} {output.fdrpriordata}
         """
 
@@ -53,10 +53,10 @@ rule genotype:
         "call_mutations/{sample}/benchmark_genotype.txt"
     shell:
         """
-        {config[scripts]}/run_pipeline.R
-           {params.sc_sample} {params.bulk_sample}
-           {input.mmq60} {input.mmq1} {input.hsnps} {input.fits}
-           {input.sccigars} {input.bulkcigars}
-           {input.cigardata} {input.fdrpriordata} {params.genome}
+        {config[scripts]}/run_pipeline.R \
+           {params.sc_sample} {params.bulk_sample} \
+           {input.mmq60} {input.mmq1} {input.hsnps} {input.fits} \
+           {input.sccigars} {input.bulkcigars} \
+           {input.cigardata} {input.fdrpriordata} {params.genome} \
            {output}
         """
