@@ -24,6 +24,8 @@ rule abmodel_scatter:
         chrom="{chr}",
         n_tiles=config['abmodel_hsnp_n_tiles'],
         n_cores=config['abmodel_n_cores']
+    log:
+        "ab_model/{sample}/abmodel_scatter_{chr}.log"
     benchmark:
         "ab_model/{sample}/benchmark_fit_{chr}.tsv"
     threads: 16
