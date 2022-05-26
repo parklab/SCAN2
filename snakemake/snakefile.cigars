@@ -6,9 +6,9 @@ rule cigar_scatter:
         sitesidx="gatk/mmq60.tab.gz.tbi",
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        tab="call_mutations/{sample}/cigars.%s{chr}.tab" % config['chr_prefix']
+        tab="call_mutations/{sample}/cigars.{chr}.tab"
     benchmark:
-        "call_mutations/{sample}/benchmark_cigars.%s{chr}.tsv" % config['chr_prefix']
+        "call_mutations/{sample}/benchmark_cigars.{chr}.tsv"
     params:
         chrom="{chrom}"
     resources:
@@ -22,9 +22,10 @@ rule cigar_scatter:
 # Concatenate and zip/index
 rule cigar_gather:
     input:
-        expand("call_mutations/{sample}/cigars.{chr_prefix}{chr}.tab",
-                chr_prefix=config['chr_prefix'],
-                chr=config['chrs'])
+        lambda wildcards:
+            expand("call_mutations/{sample}/cigars.{chr_prefix}{chr}.tab",
+                    sample=wildcards.sample,
+                    chr=config['chrs'])
     output:
         tab="call_mutations/{sample}/cigars.tab.gz",
         idx="call_mutations/{sample}/cigars.tab.gz.tbi"
