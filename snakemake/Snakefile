@@ -9,40 +9,13 @@ wildcard_constraints:
 
 if config['analysis'] == 'call_mutations':
     include: "snakefile.call_mutations"
-
-    # Determine the analyses to run, depending on which options
-    # were selected by the user.
-    def determine_pipeline_output(wildcards):
-        prf = ''
-        d = dict()
-    
-        d['indel_somatic_genotypes'] = expand("call_mutations/{sample}/scan2_object.rda",
-            sample=config['sc_bams'].keys())
-    
-        # Mosaic SNVs
-        if config['analyze_mosaic_snvs']:
-            print("adding mosaic SNVs to schedule")
-            d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
-                sample=config['sc_bams'].keys())
-    
-        # Find bases passing minimum depth thresholds
-        if config['callable_regions']:
-            print("adding region callability to schedule")
-            d['callable_beds'] = \
-                expand("callable_regions/{sample}/callable_regions.rda",
-                    sample=config['sc_bams'].keys())
-    
-        return d
-    
-    
     rule call_mutations:
         input:
-            unpack(determine_pipeline_output)
-    
+            expand("call_mutations/{sample}/scan2_object.rda",
+                sample=config['sc_bams'].keys())
 
 if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"
-
     rule makepanel:
         input:
             "gatk/hc_raw.mmq1.vcf",
