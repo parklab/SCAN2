@@ -23,7 +23,7 @@ rule cigar_scatter:
 rule cigar_gather:
     input:
         lambda wildcards:
-            expand("call_mutations/{sample}/cigars.{chr_prefix}{chr}.tab",
+            expand("call_mutations/{sample}/cigars.{chr}.tab",
                     sample=wildcards.sample,
                     chr=config['chrs'])
     output:
