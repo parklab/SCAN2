@@ -1,7 +1,7 @@
 library(scan2)
+library(data.table)
 
-unadjusted <- read.table(snakemake@input[['tab']],
-    header=TRUE, stringsAsFactors=FALSE)
+unadjusted <- fread(snakemake@input[['tab']])
 
 if (file.exists(snakemake@output[['tab']]))
     stop(paste("output file", snakemake@output[['tab']],
@@ -14,5 +14,4 @@ if (snakemake@config[['parsimony_phasing']]) {
     adjusted <- unadjusted
 }
 
-write.table(adjusted, file=snakemake@output[['tab']],
-    quote=F, row.names=FALSE, sep='\t')
+fwrite(adjusted, file=snakemake@output[['tab']], sep='\t')
