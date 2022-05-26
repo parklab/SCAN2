@@ -17,7 +17,7 @@ rule abmodel_gather:
 
 rule abmodel_scatter:
     input:
-        hsnps="ab_model/hsnps.tab.gz"
+        hsnps="ab_model/{sample}/hsnps.tab.gz"
     output:
         rda="ab_model/{sample}/fit_{chr}.rda"
     params:
