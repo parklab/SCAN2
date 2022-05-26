@@ -819,11 +819,11 @@ if __name__ == "__main__":
     abmodel.add_argument('--abmodel-hsnp-tile-size', type=int, metavar='INT',
         help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping tiles of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).')
     abmodel.add_argument('--abmodel-refine-steps', type=int, metavar='INT',
+        help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
     abmodel.add_argument('--abmodel-chunk-strategy', action='store_true', default=False,
         help='Legacy strategy for fitting AB model parameters.  In the chunked strategy, the job of sampling --abmodel-samples-per-chunk per refinement step is split into --abmodel-chunks single threaded jobs.  This was useful before multithreading support was added to AB parameter fitting and, especially, before reduced tile sampling was found to be effective.  It is unlikely that users will ever want to opt in to this strategy.')
     abmodel.add_argument('--abmodel-chunks', type=int, metavar='INT',
         help='Split each AB model sampling stage into INT jobs per chromosome.  When multiple threads or a cluster are available, this will drastically shorten total runtime.')
-        help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
     
     
     
