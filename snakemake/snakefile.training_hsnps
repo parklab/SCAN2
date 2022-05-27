@@ -12,7 +12,7 @@ rule process_hsnps:
     shell:
         # cut: get rid of useless genotype column
         """
-        cut -f1-4,6- {input} | bgzip -c > {output.tabgz}
+        bgzip -c {input} > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
 
