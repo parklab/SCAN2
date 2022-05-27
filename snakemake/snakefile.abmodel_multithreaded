@@ -9,6 +9,8 @@ rule abmodel_gather:
     output:
         fits="ab_model/{sample}/fits.rda",
         fit_details="ab_model/{sample}/fit_details.rda"
+    log:
+        "ab_model/{sample}/abmodel_gather.log"
     resources:
         mem=1000
     script:
