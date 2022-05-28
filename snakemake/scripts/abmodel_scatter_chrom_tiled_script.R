@@ -14,7 +14,7 @@ if ('snakemake' %in% ls()) {
             snakemake@params['chrom'],
             snakemake@output['rda'],
             snakemake@params['n_tiles'],
-            snakemake@params['n_cores']
+            n_cores=snakemake@threads
         ))
         ret
     }
@@ -46,6 +46,10 @@ if (file.exists(out.rda))
 
 
 suppressMessages(library(scan2))
+suppressMessages(library(future))
+
+cat(future::availableCores(), "cores detected by library(future),", n.cores, "requested by user", "\n")
+plan(multicore, workers=n.cores)
 
 s <- make.scan(bulk='dummy.bulk', genome='hs37d5', single.cell='dummy.sc')
 
