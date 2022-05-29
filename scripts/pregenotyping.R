@@ -46,8 +46,8 @@ s <- resample.training.data(s)
 resample.data <- s@resampled.training.data
 
 save(resample.data, file=out.hsnps.rda)
-out <- s@gatk[training.site==TRUE,.(chr, pos, refnt, altnt, training.hap1, training.hap2, training.phgt, resampled.training.site)]
-colnames(out) <- c('#chr', 'pos', 'refnt', 'altnt', 'hap1', 'hap2', 'phgt', 'resampled')
+out <- s@gatk[training.site==TRUE,.(chr, pos, refnt, altnt, training.hap1, training.hap2, training.dp, training.phgt, resampled.training.site)]
+colnames(out) <- c('#chr', 'pos', 'refnt', 'altnt', 'hap1', 'hap2', 'dp', 'phgt', 'resampled')
 fwrite(out, file=out.hsnps, sep='\t')
 Rsamtools::bgzip(out.hsnps, paste0(out.hsnps, '.gz'))
 system(paste('tabix -p vcf -S 1', paste0(out.hsnps, '.gz')))
