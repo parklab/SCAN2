@@ -38,7 +38,7 @@ if (file.exists(out.details))
 
 # --abmodel-use-fit is supplying the final AB fit file directly, so just copy the
 # user's input to the appropriate output file. fit_details will have no usable data.
-if (snakemake@params['use_fit']) {
+if (snakemake@params$use_fit) {
     fits <- get(load(in.rdas[1]))
     details <- NULL
 
