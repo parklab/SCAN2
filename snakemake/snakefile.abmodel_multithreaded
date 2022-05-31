@@ -5,12 +5,14 @@ rule abmodel_gather:
         lambda wildcards:
             # If the user supplied a fit file, do not depend on the chromosome level
             # fit_{chr}.rda files or else abmodel_scatter will be triggered.
-            { 'use_fit': config['abmodel_use_fit'][wildcards.sample] } if wildcards.sample in config['abmodel_use_fit'] else expand("ab_model/{sample}/fit_{chr}.rda",
+            config['abmodel_use_fit'][wildcards.sample] if wildcards.sample in config['abmodel_use_fit'] else expand("ab_model/{sample}/fit_{chr}.rda",
                     sample=wildcards.sample,
                     chr=config['chrs'])
     output:
         fits="ab_model/{sample}/fits.rda",
         fit_details="ab_model/{sample}/fit_details.rda"
+    params:
+        use_fit=lambda wildcards: wildcards.sample in config['abmodel_use_fit']
     log:
         "ab_model/{sample}/abmodel_gather.log"
     resources:
