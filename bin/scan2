@@ -41,7 +41,7 @@ scan2_param_defaults = {
     'analyze_mosaic_snvs': False,
     'callable_regions': True,
     'permute': 0,
-    'abmodel_use_fit': [],
+    'abmodel_use_fit': {},
     'abmodel_chunk_strategy': False,
     'abmodel_chunks': 10,
     'abmodel_samples_per_step': 20000,
@@ -243,6 +243,10 @@ class Analysis:
             regions = regions_from_string(value) if \
                 key == 'regions' else regions_from_file(value)
             return Analysis.handle_regions(regions)
+
+        if key == 'abmodel_use_fit':
+            # this is a list of tuples
+            return { key : dict([ tup for tup in value ]) }
 
         if key == 'phaser':
             return { 'phaser': value.lower() }   # Just ensure lowercase
