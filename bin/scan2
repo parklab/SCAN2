@@ -246,7 +246,7 @@ class Analysis:
 
         if key == 'abmodel_use_fit':
             # this is a list of tuples
-            return { key : dict([ tup for tup in value ]) }
+            return { key : dict([ (sample, readable_file(file)) for sample, file in value ]) }
 
         if key == 'phaser':
             return { 'phaser': value.lower() }   # Just ensure lowercase
