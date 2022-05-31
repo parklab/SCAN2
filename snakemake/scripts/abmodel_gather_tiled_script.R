@@ -9,19 +9,11 @@ if ('snakemake' %in% ls()) {
     sink(con, type='message')
 
     commandArgs <- function(...) {
-            ret <- unlist(c(
-                fits=snakemake@output['fits'],
-                fit.details=snakemake@output['fit_details'],
-                use.fit.file=snakemake@input[1]
-            ))
-        } else {
-            # normal operation: produce the fits
-            ret <- unlist(c(
-                fits=snakemake@output['fits'],
-                fit.details=snakemake@output['fit_details'],
-                snakemake@input   # one or more
-            ))
-        }
+        ret <- unlist(c(
+            fits=snakemake@output['fits'],
+            fit.details=snakemake@output['fit_details'],
+            snakemake@input   # one or more
+        ))
         ret
     }
     cat('Got command line arguments from snakemake:\n')
