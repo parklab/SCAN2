@@ -9,11 +9,21 @@ if ('snakemake' %in% ls()) {
     sink(con, type='message')
 
     commandArgs <- function(...) {
-        ret <- unlist(c(
-            snakemake@output['fits'],
-            snakemake@output['fit_details'],
-            snakemake@input   # one or more
-        ))
+        if ('use_fit' %in% names(snakemake$input)) {
+            # --abmodel-use-fit is supplying the final AB fit file directly
+            ret <- unlist(c(
+                fits=snakemake@output['fits'],
+                fit.details=snakemake@output['fit_details'],
+                use.fit.file=snakemake@input['use_fit']
+            ))
+        } else {
+            # normal operation: produce the fits
+            ret <- unlist(c(
+                fits=snakemake@output['fits'],
+                fit.details=snakemake@output['fit_details'],
+                snakemake@input   # one or more
+            ))
+        }
         ret
     }
     cat('Got command line arguments from snakemake:\n')
@@ -22,6 +32,7 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) < 3) {
+    cat("There is a hidden option 'use.fit.files' available to Snakemake that circumvents regular operation of this script.\n")
     stop("usage: abmodel_gather_tiled_script.R out_fits.rda out_details.rda in_fit1.rda [ in_fit2.rda .. in_fitN.rda ]")
 }
 
@@ -35,12 +46,19 @@ if (file.exists(out.fits))
 if (file.exists(out.details))
     stop(paste('output file', out.details, 'already exists, please delete it first'))
 
-# Each load() produces a list with one element named after the chromosome fit
-details <- do.call(c, lapply(in.rdas, function(f) get(load(f))))
-fits <- do.call(rbind, lapply(details, function(d) d$fit))
+if (names(in.rdas)[1] == 'use.fit.file') {
+    #system(paste('cp', in.rdas[1], out.fits))
+    cat(paste('cp', in.rdas[1], out.fits), '\n')
+    #system(paste('touch', out.details))
+    cat(paste('touch', out.details), '\n')
+} else {
+    # Each load() produces a list with one element named after the chromosome fit
+    details <- do.call(c, lapply(in.rdas, function(f) get(load(f))))
+    fits <- do.call(rbind, lapply(details, function(d) d$fit))
 
-save(fits, file=out.fits)
-save(details, file=out.details)
+    save(fits, file=out.fits)
+    save(details, file=out.details)
+}
 
 if ('snakemake' %in% ls()) {
     sink()
