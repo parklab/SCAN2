@@ -8,11 +8,12 @@ if ('snakemake' %in% ls()) {
 
     commandArgs <- function(...) {
         ret <- unlist(c(
-            snakemake@input['hsnps'],
-            snakemake@params['chrom'],
-            snakemake@output['rda'],
-            snakemake@params['n_tiles'],
-            n_cores=snakemake@threads
+            snakemake@params['sc.sample'],
+            snakemake@params['bulk.sample'],
+            snakemake@input['mmq60'],
+            snakemake@input['mmq1'],
+            snakemake@input['phased_vcf'],
+            snakemake@output['tab']
         ))
         ret
     }
@@ -21,7 +22,7 @@ if ('snakemake' %in% ls()) {
 }
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) != 10) {
+if (length(args) != 6) {
     cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically. If '.gz' is included, it will be automatically removed.\n")
     stop("usage: process_gatk.R single.cell.id bulk.id mmq60.tab mmq1.tab phased_all.vcf out.tab")
 }
