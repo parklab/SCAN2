@@ -46,7 +46,7 @@ rule genotype:
         sc_sample="{sample}",
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
-    threads: 16
+    threads: 20
     resources:
         mem=32000
     benchmark:
