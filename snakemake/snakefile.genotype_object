@@ -2,8 +2,8 @@
 
 rule pregenotype:
     input:
-        mmq60="gatk/mmq60.tab.gz",
-        mmq1="gatk/mmq1.tab.gz",
+        mmq60="call_mutations/mmq60.tab.gz",
+        mmq1="call_mutations/mmq1.tab.gz",
         hsnps="ab_model/{sample}/hsnps.tab.gz",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
@@ -32,8 +32,8 @@ rule pregenotype:
 
 rule genotype:
     input:
-        mmq60="gatk/mmq60.tab.gz",
-        mmq1="gatk/mmq1.tab.gz",
+        mmq60="call_mutations/mmq60.tab.gz",
+        mmq1="call_mutations/mmq1.tab.gz",
         hsnps="call_mutations/{sample}/hsnps_resampled.tab.gz",
         fits="ab_model/{sample}/fits.rda",
         sccigars="call_mutations/{sample}/cigars.tab.gz",

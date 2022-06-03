@@ -2,8 +2,8 @@
 
 rule cigar_scatter:
     input:
-        sites="gatk/mmq60.tab.gz",
-        sitesidx="gatk/mmq60.tab.gz.tbi",
+        sites="call_mutations/mmq60.tab.gz",
+        sitesidx="call_mutations/mmq60.tab.gz.tbi",
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
         tab="call_mutations/{sample}/cigars.{chr}.tab"
