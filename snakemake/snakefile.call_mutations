@@ -73,9 +73,9 @@ rule gatkvcf_to_tab:
     input:
         "gatk/hc_raw.mmq{gatk_mmq}.vcf"
     output:
-        vcf="gatk/mmq{gatk_mmq}.vcf",
-        tab="gatk/mmq{gatk_mmq}.tab.gz",
-        idx="gatk/mmq{gatk_mmq}.tab.gz.tbi"
+        vcf="call_mutations/hc.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.vcf",
+        tab="call_mutations/mmq{gatk_mmq}.tab.gz",
+        idx="call_mutations/mmq{gatk_mmq}.tab.gz.tbi"
     resources:
         mem=4000
     shell:
