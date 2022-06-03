@@ -23,18 +23,20 @@ rule abmodel_gather:
 
 rule abmodel_scatter:
     input:
-        hsnps="ab_model/{sample}/hsnps.tab.gz"
+        inttab="call_mutations/integrated_table.tab.gz"
     output:
         rda="ab_model/{sample}/fit_{chr}.rda"
     params:
+        bulk_sample="{sample}",
+        sc_sample="{sample}",
+        genome=config['genome'],
         chrom="{chr}",
-        n_tiles=config['abmodel_hsnp_n_tiles'],
-        n_cores=config['abmodel_n_cores']
+        n_tiles=config['abmodel_hsnp_n_tiles']
     log:
         "ab_model/{sample}/abmodel_scatter_{chr}.log"
     benchmark:
         "ab_model/{sample}/benchmark_fit_{chr}.tsv"
-    threads: 16
+    threads: config['abmodel_n_cores']
     resources:
         mem=8000
     script:
