@@ -10,6 +10,8 @@ rule integrate_tables:
         tabgz="call_mutations/integrated_table.tab.gz",
         tabidx="call_mutations/integrated_table.tab.gz.tbi",
         details="call_mutations/germline_resampling_details.rda"
+    log:
+        "call_mutations/integrate_tables.log"
     params:
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
@@ -17,6 +19,6 @@ rule integrate_tables:
     resources:
         mem=40000
     benchmark:
-        "call_mutations/benchmark_integrate_table.txt"
+        "call_mutations/benchmark_integrate_tables.txt"
     script:
         "scripts/integrate_tables.R"
