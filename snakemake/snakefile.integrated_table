@@ -6,7 +6,7 @@ rule integrate_tables:
         mmq1="call_mutations/mmq1.tab.gz",
         phasing="shapeit/phased_hets.vcf.gz"
     output:
-        tab="call_mutations/integrated_table.tab",
+        tab=temp("call_mutations/integrated_table.tab"),
         tabgz="call_mutations/integrated_table.tab.gz",
         tabidx="call_mutations/integrated_table.tab.gz.tbi",
         details="call_mutations/germline_resampling_details.rda"
