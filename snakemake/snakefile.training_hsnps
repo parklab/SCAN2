@@ -45,7 +45,7 @@ rule training_hsnps_adjust_phase:
 
 rule training_hsnps_helper:
     input:
-        joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
+        joint_vcf="gatk/hc_raw.mmq60.vcf",
         phased_vcf=config['phaser'] + "/phased_hets.vcf.gz"
     output:
         tab="ab_model/{sample}/hsnps_unprocessed.tab",
