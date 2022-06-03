@@ -26,9 +26,7 @@ rule pregenotype:
 
 rule genotype:
     input:
-        mmq60="call_mutations/mmq60.tab.gz",
-        mmq1="call_mutations/mmq1.tab.gz",
-        hsnps="call_mutations/{sample}/hsnps_resampled.tab.gz",
+        inttab="call_mutations/integrated_table.tab.gz",
         fits="ab_model/{sample}/fits.rda",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
@@ -49,7 +47,7 @@ rule genotype:
         """
         {config[scripts]}/run_pipeline.R \
            {params.sc_sample} {params.bulk_sample} \
-           {input.mmq60} {input.mmq1} {input.hsnps} {input.fits} \
+           {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
            {input.cigardata} {input.fdrpriordata} {params.genome} \
            {output}

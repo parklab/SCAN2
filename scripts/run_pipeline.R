@@ -2,21 +2,19 @@
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) < 12)
-    stop('usage: run_pipeline.R sc.sample bulk.sample mmq60.tab.gz mmq1.tab.gz hsnps.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda fdr_prior_data.rda genome_string output.rda [tmpsave.rda]')
+if (length(args) < 10)
+    stop('usage: run_pipeline.R sc.sample bulk.sample integrated_table.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda fdr_prior_data.rda genome_string output.rda [tmpsave.rda]')
 
 sc.sample <- args[1]
 bulk.sample <- args[2]
-mmq60 <- args[3]
-mmq1 <- args[4]
-hsnps <- args[5]
-abmodel.fits <- args[6]
-sccigars <- args[7]
-bulkcigars <- args[8]
-cigardata <- args[9]
-fdrpriordata <- args[10]
-genome.string <- args[11]
-out.rda <- args[12]
+int.tab <- args[3]
+abmodel.fits <- args[4]
+sccigars <- args[5]
+bulkcigars <- args[6]
+cigardata <- args[7]
+fdrpriordata <- args[8]
+genome.string <- args[9]
+out.rda <- args[10]
 
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
@@ -27,13 +25,12 @@ library(future)
 library(progressr)
 plan(multicore)
 
-if (length(args) == 13) {
-    tmpsave.rda <- args[13]
+if (length(args) == 11) {
+    tmpsave.rda <- args[11]
     with_progress(
         results <- run.pipeline(
             sc.sample=sc.sample, bulk.sample=bulk.sample,
-            mmq60=mmq60, mmq1=mmq1,
-            hsnps=hsnps, abfits=abmodel.fits,
+            int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
             tmpsave.rda=tmpsave.rda, genome=genome.string, verbose=TRUE)
@@ -42,8 +39,7 @@ if (length(args) == 13) {
     with_progress(
         results <- run.pipeline(
             sc.sample=sc.sample, bulk.sample=bulk.sample,
-            mmq60=mmq60, mmq1=mmq1,
-            hsnps=hsnps, abfits=abmodel.fits,
+            int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
             genome=genome.string, verbose=TRUE)
