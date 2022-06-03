@@ -46,7 +46,7 @@ for (f in c(out.tab, out.tab.gz, paste0(out.tab.gz, '.tbi'), out.rda)) {
 
 suppressMessages(library(scan2))
 suppressMessages(library(future))
-plan(multicore, workers=snakefile@threads)
+plan(multicore, workers=snakemake@threads)
 
 # Currently the chunking used here isn't configurable by user.
 results <- make.integrated.table(mmq60, mmq1, phasing, bulk.sample, genome)
