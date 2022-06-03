@@ -19,4 +19,4 @@ rule integrate_tables:
     benchmark:
         "call_mutations/benchmark_integrate_table.txt"
     script:
-        "scripts/integrate_table.R"
+        "scripts/integrate_tables.R"
