@@ -53,7 +53,7 @@ results <- make.integrated.table(mmq60, mmq1, phasing, bulk.sample, genome)
 
 inttab <- results$gatk
 colnames(inttab)[1] <- paste0('#', colnames(inttab)[1]) # hack to comment out the header
-data.table::fwrite(inttab, file=out.tab, sep='\t')
+data.table::fwrite(inttab, file=out.tab, sep='\t', na='NA')
 Rsamtools::bgzip(out.tab, out.tab.gz)
 Rsamtools::indexTabix(file=out.tab.gz, format='vcf', comment='#')
 
