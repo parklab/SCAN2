@@ -35,7 +35,7 @@ print(sc_id)
 # NOTE: the genome type in make.scan doesn't matter at all
 s <- make.scan(sc_id, bulk_id, 'hs37d5')
 s <- add.static.filter.params(s, scan2config)
-s <- read.integrated.table(s, int.tab, quiet=TRUE, add.mutsig=FALSE)
+s <- read.integrated.table(s, int.tab, quiet=TRUE)
 
 s <- add.cigar.data(s, sccigars, bulkcigars, quiet=TRUE)
 null.sites <- cigar.get.null.sites(s, legacy=TRUE, quiet=TRUE)
