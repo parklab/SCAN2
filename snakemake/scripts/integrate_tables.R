@@ -17,7 +17,8 @@ if ('snakemake' %in% ls()) {
             snakemake@params['genome'],
             snakemake@output['tab'],
             snakemake@output['tabgz'],
-            snakemake@output['details']
+            snakemake@output['details'],
+            snakemake@threads
         ))
         ret
     }
