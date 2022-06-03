@@ -2,16 +2,11 @@
 
 rule pregenotype:
     input:
-        mmq60="call_mutations/mmq60.tab.gz",
-        mmq1="call_mutations/mmq1.tab.gz",
-        hsnps="ab_model/{sample}/hsnps.tab.gz",
+        inttab="call_mutations/integrated_table.tab.gz",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
         config="scan.yaml"
     output:
-        hsnps="call_mutations/{sample}/hsnps_resampled.tab.gz",
-        hsnpsidx="call_mutations/{sample}/hsnps_resampled.tab.gz.tbi",
-        hsnp_details="call_mutations/{sample}/hsnps_resampled_details.rda",
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
         fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
@@ -23,9 +18,8 @@ rule pregenotype:
     shell:
         """
         {config[scripts]}/pregenotyping.R \
-            {input.mmq60} {input.mmq1} {input.hsnps} \
+            {input.inttab} \
             {input.sccigars} {input.bulkcigars} {input.config} \
-            {output.hsnps} {output.hsnp_details} \
             {output.cigardata} {output.fdrpriordata}
         """
 
