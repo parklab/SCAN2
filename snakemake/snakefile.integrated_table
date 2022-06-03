@@ -1,0 +1,22 @@
+# vim: syntax=python
+
+rule integrate_tables:
+    input:
+        mmq60="call_mutations/mmq60.tab.gz",
+        mmq1="call_mutations/mmq1.tab.gz",
+        phasing="shapeit/phased_hets.vcf.gz"
+    output:
+        tab="call_mutations/integrated_table.tab",
+        tabgz="call_mutations/integrated_table.tab.gz",
+        tabidx="call_mutations/integrated_table.tab.gz.tbi",
+        details="call_mutations/germline_resampling_details.rda"
+    params:
+        bulk_sample=config['bulk_sample'],
+        genome=config['genome']
+    threads: 20
+    resources:
+        mem=40000
+    benchmark:
+        "call_mutations/benchmark_integrate_table.txt"
+    script:
+        "scripts/integrate_table.R"
