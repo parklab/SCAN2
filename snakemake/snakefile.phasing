@@ -2,16 +2,16 @@
 
 rule phasing_gather:
     input:
-        expand("{phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+        expand("{phaser}/{chr_prefix}{chr}/phased_hets.vcf",
             phaser=config['phaser'],
             chr_prefix=config['chr_prefix'],
             chr=config['chrs'])
     output:
-        vcf=config['phaser'] + "/phased_all.vcf",
-        snv=config['phaser'] + "/phased_hsnps.vcf",
-        indel=config['phaser'] + "/phased_indels.vcf"
+        vcf=temp(config['phaser'] + "/phased_hets.vcf"),
+        vcf_gz=config['phaser'] + "/phased_hets.vcf.gz",
+        vcf_gz_idx=config['phaser'] + "/phased_hets.vcf.gz.tbi",
     params:
-        vcfs=' '.join(expand("-I {phaser}/{chr_prefix}{chr}/phased_hsnps.vcf",
+        vcfs=' '.join(expand("-I {phaser}/{chr_prefix}{chr}/phased_hets.vcf",
             phaser=config['phaser'],
             chr_prefix=config['chr_prefix'],
             chr=config['chrs']))
@@ -23,18 +23,8 @@ rule phasing_gather:
         "    -R {config[ref]}"
         "    {params.vcfs}"
         "    -O {output.vcf} ; "
-        "gatk SelectVariants"
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    -R {config[ref]}"
-        "    -V {output.vcf}"
-        "    --select-type-to-include SNP"
-        "    -O {output.snv} ;"
-        "gatk SelectVariants"
-        "      --java-options '-Xmx3G -Xms3G'"
-        "    -R {config[ref]}"
-        "    -V {output.vcf}"
-        "    --select-type-to-include INDEL"
-        "    -O {output.indel} ;"
+        "bgzip -c {output.vcf} > {output.vcf_gz};"
+        "tabix -pvcf {output.vcf_gz}"
 
 
 rule shapeit_prepare:
@@ -94,7 +84,7 @@ rule shapeit_scatter:
     input:
         "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
     output:
-        "shapeit/{chr_prefix}{{chr}}/phased_hsnps.vcf".format(chr_prefix=config['chr_prefix'])
+        "shapeit/{chr_prefix}{{chr}}/phased_hets.vcf".format(chr_prefix=config['chr_prefix'])
     params:
         excludefile="shapeit/{chr_prefix}{{chr}}/shapeit_check.snp.strand.exclude".format(chr_prefix=config['chr_prefix']),
         tmpout="shapeit/{chr_prefix}{{chr}}/{chr_prefix}{{chr}}.phased".format(chr_prefix=config['chr_prefix']),
@@ -155,7 +145,7 @@ rule eagle_scatter:
     input:
         "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
     output:
-        "eagle/{chr}/phased_hsnps.vcf"
+        "eagle/{chr}/phased_hets.vcf"
     params:
         tmpout="eagle/{chr}/phased_hsnps_tmp.vcf",
         zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",

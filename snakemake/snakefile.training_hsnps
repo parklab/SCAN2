@@ -32,25 +32,6 @@ rule training_hsnps_rda:
         "scripts/training_hsnps_script.R"
 
 
-# because bcftools merge REQUIRES gzipped VCFs
-rule gzip_gatk_vcf:
-    input:
-        joint_vcf="gatk/hc_raw.mmq60.vcf",
-        phased_vcf=config['phaser'] + "/phased_hsnps.vcf"
-    output:
-        joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
-        phased_vcf=config['phaser'] + "/phased_hsnps.vcf.gz"
-    resources:
-        mem=2000
-    shell:
-        """
-        bgzip -ci {input.joint_vcf} > {output.joint_vcf}
-        tabix {output.joint_vcf}
-        bgzip -ci {input.phased_vcf} > {output.phased_vcf}
-        tabix {output.phased_vcf}
-        """
-
-
 rule training_hsnps_adjust_phase:
     input:
         tab="ab_model/{sample}/hsnps_unprocessed.tab",
@@ -65,7 +46,7 @@ rule training_hsnps_adjust_phase:
 rule training_hsnps_helper:
     input:
         joint_vcf="gatk/hc_raw.mmq60.vcf.gz",
-        phased_vcf=config['phaser'] + "/phased_hsnps.vcf.gz"
+        phased_vcf=config['phaser'] + "/phased_hets.vcf.gz"
     output:
         tab="ab_model/{sample}/hsnps_unprocessed.tab",
         combined_vcf="ab_model/{sample}/hsnps.vcf",
