@@ -33,7 +33,7 @@ if (length(args) == 11) {
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
-            tmpsave.rda=tmpsave.rda, genome=genome.string, verbose=FALSE)
+            tmpsave.rda=tmpsave.rda, genome=genome.string, verbose=FALSE, report.mem=FALSE)
     , enable=TRUE)
 } else {
     with_progress(
@@ -42,7 +42,7 @@ if (length(args) == 11) {
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
-            genome=genome.string, verbose=FALSE)
+            genome=genome.string, verbose=FALSE, report.mem=FALSE)
     , enable=TRUE)
 }
 
