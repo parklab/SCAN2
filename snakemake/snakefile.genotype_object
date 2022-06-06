@@ -7,7 +7,8 @@ rule pregenotype:
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
         config="scan.yaml"
     output:
-        cigardata="call_mutations/{sample}/cigardata.tab.gz",
+        cigardata=temp("call_mutations/{sample}/cigardata.tab"),
+        cigardatagz="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
         fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
     threads: 1
