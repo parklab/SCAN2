@@ -38,6 +38,6 @@ rule abmodel_scatter:
         "ab_model/{sample}/benchmark_fit_{chr}.tsv"
     threads: config['abmodel_n_cores']
     resources:
-        mem=8000
+        mem=1000*config['abmodel_n_cores']  # 1 GB per core
     script:
         "scripts/abmodel_scatter_chrom_tiled_script.R"
