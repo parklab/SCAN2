@@ -27,23 +27,25 @@ plan(multicore)
 
 if (length(args) == 11) {
     tmpsave.rda <- args[11]
-    with_progress(
+    with_progress({
+        handlers(handler_newline())
         results <- run.pipeline(
             sc.sample=sc.sample, bulk.sample=bulk.sample,
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
             tmpsave.rda=tmpsave.rda, genome=genome.string, verbose=FALSE, report.mem=FALSE, legacy=FALSE)
-    , enable=TRUE)
+    }, enable=TRUE)
 } else {
-    with_progress(
+    with_progress({
+        handlers(handler_newline())
         results <- run.pipeline(
             sc.sample=sc.sample, bulk.sample=bulk.sample,
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
             trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
             genome=genome.string, verbose=FALSE, report.mem=FALSE, legacy=FALSE)
-    , enable=TRUE)
+    }, enable=TRUE)
 }
 
 save(results, file=out.rda, compress=FALSE)
