@@ -5,7 +5,6 @@
 include: "snakefile.select_gatk"
 include: "snakefile.callable_regions"
 include: "snakefile.phasing"
-include: "snakefile.training_hsnps"
 include: "snakefile.cigars"
 include: "snakefile.integrated_table"
 
