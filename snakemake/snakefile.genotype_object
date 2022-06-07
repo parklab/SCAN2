@@ -12,6 +12,9 @@ rule pregenotype:
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
         fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
     threads: 1
+    params:
+        sc_sample="{sample}",
+        bulk_sample=config['bulk_sample']
     resources:
         mem=20000
     benchmark:
@@ -19,7 +22,7 @@ rule pregenotype:
     shell:
         """
         {config[scripts]}/pregenotyping.R \
-            {input.inttab} \
+            {params.sc_sample} {params.bulk_sample} {input.inttab} \
             {input.sccigars} {input.bulkcigars} {input.config} \
             {output.cigardata} {output.fdrpriordata}
         """
