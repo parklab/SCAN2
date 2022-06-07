@@ -15,7 +15,7 @@ else:
     include: "snakefile.abmodel_multithreaded"
 
 # Use the new SCAN2 R object
-include: "snakefile.genotype_object"
+include: "snakefile.genotype"
 
 
 wildcard_constraints:
