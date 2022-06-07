@@ -2,6 +2,7 @@
 
 # These should probably be converted to subworkflows at some point.
 # For now, just for organizing rules into manageably-sized files.
+include: "snakefile.select_gatk"
 include: "snakefile.callable_regions"
 include: "snakefile.phasing"
 include: "snakefile.training_hsnps"
@@ -15,27 +16,12 @@ else:
 
 # Use the new SCAN2 R object
 include: "snakefile.genotype_object"
-# legacy script with all work done by genotype.somatic(). does not allow
-# for easily changing hard filters or FDR control.
-#include: "snakefile.genotype_legacy     
-
-include: "snakefile.select_gatk"
-
-# Perform genotyping at ALL sites, not just somatic candidates.
-# MUCH slower, but allows more data exploration and/or debugging
-# of somatic filters.
-#if config['score_all_sites']:
-    #include: "snakefile.allsites"
-#else:
-    #include: "snakefile.candidates_only"
 
 
 wildcard_constraints:
     chr='|'.join(str(x) for x in config['chrs']),
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    #muttype="snv|indel|mosaic_snv",
-    #muttype="snv|both|mosaic_snv",
     phaser="shapeit|eagle"
 
 
