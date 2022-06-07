@@ -35,7 +35,7 @@ rule abmodel_scatter:
     log:
         "ab_model/{sample}/abmodel_scatter_{chr}.log"
     benchmark:
-        "ab_model/{sample}/benchmark_fit_{chr}.tsv"
+        "ab_model/{sample}/benchmark_abmodel_scatter_{chr}.tsv"
     threads: config['abmodel_n_cores']
     resources:
         mem=1000*config['abmodel_n_cores']  # 1 GB per core
