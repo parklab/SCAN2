@@ -32,8 +32,9 @@ if (length(args) == 10) {
             sc.sample=sc.sample, bulk.sample=bulk.sample,
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
-            trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
-            tmpsave.rda=tmpsave.rda, genome=genome.string, verbose=FALSE, report.mem=FALSE, legacy=FALSE)
+            trainingcigars=cigardata,
+            tmpsave.rda=tmpsave.rda, genome=genome.string,
+            verbose=FALSE, report.mem=FALSE, legacy=FALSE)
     }, enable=TRUE)
 } else {
     with_progress({
@@ -42,8 +43,9 @@ if (length(args) == 10) {
             sc.sample=sc.sample, bulk.sample=bulk.sample,
             int.tab=int.tab, abfits=abmodel.fits,
             sccigars=sccigars, bulkcigars=bulkcigars,
-            trainingcigars=cigardata, fdr.prior.data=fdrpriordata,
-            genome=genome.string, verbose=FALSE, report.mem=FALSE, legacy=FALSE)
+            trainingcigars=cigardata,
+            genome=genome.string,
+            verbose=FALSE, report.mem=FALSE, legacy=FALSE)
     }, enable=TRUE)
 }
 
