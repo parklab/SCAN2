@@ -57,10 +57,7 @@ plan(multicore, workers=n.cores)
 results <- make.integrated.table(mmq60, mmq1, phasing, bulk.sample, genome)
 
 inttab <- results$gatk
-colnames(inttab)[1] <- paste0('#', colnames(inttab)[1]) # hack to comment out the header
-data.table::fwrite(inttab, file=out.tab, sep='\t', na='NA', quote=FALSE)
-Rsamtools::bgzip(out.tab, out.tab.gz)
-Rsamtools::indexTabix(file=out.tab.gz, format='vcf', comment='#')
+write.integrated.table(inttab=inttab, out.tab=out.tab, out.tab.gz=out.tab.gz)
 
 resampling.details <- results$resampling.details
 save(resampling.details, file=out.rda)
