@@ -5,26 +5,25 @@ rule pregenotype:
         inttab="call_mutations/integrated_table.tab.gz",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
-        config="scan.yaml"
     output:
         cigardata=temp("call_mutations/{sample}/cigardata.tab"),
         cigardatagz="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
-        fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
     threads: 1
     params:
         sc_sample="{sample}",
-        bulk_sample=config['bulk_sample']
+        bulk_sample=config['bulk_sample'],
+        genome=config['genome']
     resources:
-        mem=20000
+        mem=6000
     benchmark:
         "call_mutations/{sample}/benchmark_pregenotyping.txt"
     shell:
         """
         {config[scripts]}/pregenotyping.R \
             {params.sc_sample} {params.bulk_sample} {input.inttab} \
-            {input.sccigars} {input.bulkcigars} {input.config} \
-            {output.cigardata} {output.fdrpriordata}
+            {input.sccigars} {input.bulkcigars} {params.genome} \
+            {output.cigardata}
         """
 
 
@@ -35,7 +34,6 @@ rule genotype:
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
-        fdrpriordata="call_mutations/{sample}/fdr_prior_data.rda"
     output:
         "call_mutations/{sample}/scan2_object.rda"
     params:
@@ -53,6 +51,6 @@ rule genotype:
            {params.sc_sample} {params.bulk_sample} \
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
-           {input.cigardata} {input.fdrpriordata} {params.genome} \
+           {input.cigardata} {params.genome} \
            {output}
         """
