@@ -5,7 +5,7 @@
 rule make_arg_file:
     input:
     output:
-        "gatk/gather_args.txt"
+        "gatk/gather_mmq{gatk_mmq}_args.txt"
     shell:
         """
         for i in `seq 1 {config[gatk_chunks]}`; do
@@ -19,7 +19,7 @@ rule gatk_gather:
                 expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
                        gatk_mmq=wildcards.gatk_mmq,
                        gatk_chunk=range(1, config['gatk_chunks']+1)),
-        argfile="gatk/gather_args.txt"
+        argfile="gatk/gather_mmq{gatk_mmq}_args.txt"
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
     resources:
