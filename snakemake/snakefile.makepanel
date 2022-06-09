@@ -39,5 +39,5 @@ process_tab:
     shell:
         """
         {config[scripts]}/make_pon.r \
-            {input.tab} {input.meta} {output.tab}
+            {input.tab} {input.meta} {output.tab} {threads}
         """
