@@ -45,7 +45,7 @@ awk '
             printf "\n";
         } else {
             if ($1 ~ /#CHROM/) {
-                printf "chr\tpos\tdbsnp\trefnt\taltnt\tnalleles";
+                printf "#chr\tpos\tdbsnp\trefnt\taltnt\tnalleles";
                 for (i = 10; i <= NF; ++i)
                     printf "\t%s\tref\talt", $i;
                 printf "\n";
