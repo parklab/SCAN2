@@ -73,6 +73,7 @@ scan2_file_defaults = {
     'bams': {},         # miscellaneous BAMs; not genotyped as single cells
     'sc_bams': {},      # BAMs for single cells, will be genotyped
     'bulk_bam': None,   # single bulk BAM for phasing, filtering germlines
+    'metadata': None
     #'eagle_refpanel': {},
     #'eagle_genmap': None
 }

@@ -124,7 +124,7 @@ cat('Starting integrated table pipeline on', length(grs), 'chunks.\n')
 cat('Parallelizing with', future::nbrOfWorkers(), 'cores.\n')
 
 progressr::with_progress({
-    progressr::handlers(progressr::handler_newline())
+    handlers(handler_newline())
     p <- progressr::progressor(along=1:length(grs))
     xs <- future.apply::future_lapply(1:length(grs), function(i) {
         gr <- grs[i,]

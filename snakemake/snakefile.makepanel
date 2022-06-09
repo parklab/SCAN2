@@ -26,11 +26,13 @@ process_tab:
     input:
         tab="panel/hc_raw.mmq60.tab.gz",
         tabgz="panel/hc_raw.mmq60.tab.gz.tbi",
-        meta=config['metadata_path']
+        meta=config['metadata']
     output:
         tab=temp("panel/panel.tab"),
         tabgz="panel/panel.tab.gz",
         tabix="panel/panel.tab.gz.tbi"
+    params:
+        genome=config['genome']
     benchmark:
         "panel/benchmark_make_panel.txt"
     threads: 20
@@ -39,5 +41,5 @@ process_tab:
     shell:
         """
         {config[scripts]}/make_pon.r \
-            {input.tab} {input.meta} {output.tab} {threads}
+            {input.tab} {input.meta} {output.tab} {params.genome} {threads}
         """
