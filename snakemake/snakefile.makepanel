@@ -2,7 +2,7 @@
 
 include: "snakefile.select_gatk"
 
-vcf_to_tab:
+rule vcf_to_tab:
     input:
         "gatk/hc_raw.mmq60.vcf"
     output:
@@ -17,7 +17,7 @@ vcf_to_tab:
         """
 
 
-process_tab:
+rule process_tab:
     input:
         tab="panel/hc_raw.mmq60.tab.gz",
         tabgz="panel/hc_raw.mmq60.tab.gz.tbi",
