@@ -43,16 +43,19 @@ if (n.cores > 1) {
 read.alts.for.samples <- function(path, region, meta) {
     tf <- Rsamtools::TabixFile(path)
     open(tf)
+    # header is not parsed, it's a string of column names separated by tabs
     header <- read.tabix.header(tf)
 
-    cols.to.read <- rep("NULL", length(header))
+    cols <- strsplit(header, '\t')[[1]]
+
+    cols.to.read <- rep("NULL", length(cols))
     cols.to.read[1:6] <- c('character', 'integer', 'character', 'character',
         'character', 'integer')
-    df.samplenames <- c()
-    for (i in seq(7, length(header), 3)) {
-        if (header[i] %in% meta$sample) {
+    sample.ids <- c()
+    for (i in seq(7, length(cols), 3)) {
+        if (cols[i] %in% meta$sample) {
             cols.to.read[i+2] <- 'integer'
-            sample.ids <- c(sample.ids, header[i])
+            sample.ids <- c(sample.ids, cols[i])
         }
     }
 
