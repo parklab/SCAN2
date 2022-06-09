@@ -1,15 +1,16 @@
 #!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly=TRUE)
-if (!(length(args) %in% c(3,4)))
-    stop("usage: make_pon.R input.tab.gz metadata.csv output.tab [n.cores]")
+if (!(length(args) %in% 4:5))
+    stop("usage: make_pon.R input.tab.gz metadata.csv output.tab genome [n.cores]")
 
 inf <- args[1]
 metaf <- args[2]
 outf <- args[3]
+genome <- args[4]
 n.cores <- 1
-if (length(args) == 4)
-    n.cores <- as.integer(args[4])
+if (length(args) == 5)
+    n.cores <- as.integer(args[5])
 outf.gz <- paste0(outf, '.gz')
 
 
@@ -105,6 +106,7 @@ cat(sprintf("Loading sample metadata %s..\n", metaf))
 meta <- data.table::fread(metaf)
 
 # GRanges intervals for chunked pipeline
+genome.object <- scan2::genome.string.to.bsgenome.object(genome)
 grs <- tileGenome(seqlengths=seqinfo(genome.object)[as.character(1:22)],
                   tilewidth=10e6, cut.last.tile.in.chrom=TRUE)
 
