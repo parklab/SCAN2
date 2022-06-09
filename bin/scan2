@@ -939,7 +939,7 @@ if __name__ == "__main__":
              '--gatk options are used between makepanel and run.')
     makepanel_parser.set_defaults(executor=do_makepanel)
     makepanel_parser = add_runtime_args(makepanel_parser)
-    makepanel_parser.add_argument('metadata', required=True, metavar='CSV',
+    makepanel_parser.add_argument('metadata', metavar='CSV',
         help='CSV file containing metadata describing the samples in the panel. '
              'Must contain columns named: sample, donor and amp. The amp column '
              'is used to determine bulk vs. single cell status; amp=bulk (case '
