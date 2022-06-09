@@ -83,15 +83,15 @@ make.panel <- function(df, dmap, bulks) {
     cat("Bulk indexes: ")
     print(bulk.idxs)
 
-    unique.cells <- rowSums(df[,-c(1:6, bulk.idxs)] > 0)
+    unique.cells <- rowSums(df[,-c(1:6, bulk.idxs), drop=FALSE] > 0)
     unique.donors <- rowSums(do.call(cbind, lapply(unique(dmap), function(dn) {
         sns <- names(dmap)[dmap==dn]
         idxs <- which(colnames(df) %in% sns)
-        rowSums(df[,idxs]) > 0
+        rowSums(df[,idxs,drop=FALSE]) > 0
     })))
-    unique.bulks <- rowSums(df[,bulk.idxs] > 0)
+    unique.bulks <- rowSums(df[,bulk.idxs,drop=FALSE] > 0)
     # remove the entry with the maximum support
-    outs <- apply(df[,-(1:6)], 1, function(row)
+    outs <- apply(df[,-(1:6),drop=FALSE], 1, function(row)
         row[-which.max(row)]
     )
     cat("Getting maximum out-group..\n")
@@ -99,7 +99,7 @@ make.panel <- function(df, dmap, bulks) {
     cat("Getting sum out-group..\n")
     sum.out <- apply(outs, 2, sum)
     cat("Getting sum bulk..\n")
-    sum.bulk <- rowSums(df[,bulk.idxs])
+    sum.bulk <- rowSums(df[,bulk.idxs,drop=FALSE])
     cat("Building final data.frame\n")
     data.table::data.table(df[,1:6], unique.donors=unique.donors,
         unique.cells=unique.cells,
