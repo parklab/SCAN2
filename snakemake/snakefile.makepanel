@@ -21,7 +21,7 @@ rule process_tab:
     input:
         tab="panel/hc_raw.mmq60.tab.gz",
         tabgz="panel/hc_raw.mmq60.tab.gz.tbi",
-        meta=config['metadata']
+        meta=lambda wildcards: config['metadata']
     output:
         tab=temp("panel/panel.tab"),
         tabgz="panel/panel.tab.gz",
