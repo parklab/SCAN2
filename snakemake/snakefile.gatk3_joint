@@ -9,7 +9,7 @@ rule make_arg_file:
     shell:
         """
         for i in `seq 1 {config[gatk_chunks]}`; do
-            echo "-V gatk/hc_raw.mmq{gatk_mmq}_chunk$i.vcf" >> {output}
+            echo "-V gatk/hc_raw.mmq{wildcards.gatk_mmq}_chunk$i.vcf" >> {output}
         done
         """
 
