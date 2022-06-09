@@ -4,5 +4,40 @@ include: "snakefile.select_gatk"
 
 rule all:
     input:
-        "gatk/hc_raw.mmq1.vcf",
         "gatk/hc_raw.mmq60.vcf"
+
+
+vcf_to_tab:
+    input:
+        "gatk/hc_raw.mmq60.vcf"
+    output:
+        tabgz="panel/hc_raw.mmq60.tab.gz",
+        tabidx="panel/hc_raw.mmq60.tab.gz.tbi",
+    resources:
+        mem=1000
+    shell:
+        """
+        {config[scripts]}/totab.panel.sh {input} /dev/stdout | bgzip -c > {output.tabgz}
+        tabix -p vcf -S 1 {output.tabgz}
+        """
+
+
+process_tab:
+    input:
+        tab="panel/hc_raw.mmq60.tab.gz",
+        tabgz="panel/hc_raw.mmq60.tab.gz.tbi",
+        meta=config['metadata_path']
+    output:
+        tab=temp("panel/panel.tab"),
+        tabgz="panel/panel.tab.gz",
+        tabix="panel/panel.tab.gz.tbi"
+    benchmark:
+        "panel/benchmark_make_panel.txt"
+    threads: 20
+    resources:
+        mem=20000
+    shell:
+        """
+        {config[scripts]}/make_pon.r \
+            {input.tab} {input.meta} {output.tab}
+        """

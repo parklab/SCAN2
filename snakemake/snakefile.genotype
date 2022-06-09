@@ -49,7 +49,7 @@ rule genotype:
         "call_mutations/{sample}/benchmark_genotype.txt"
     shell:
         """
-        {config[scripts]}/run_pipeline.R \
+        {config[scripts]}/call_mutations.R \
            {params.sc_sample} {params.config_yaml} \
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \

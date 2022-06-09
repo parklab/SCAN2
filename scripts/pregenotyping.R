@@ -32,7 +32,7 @@ s <- add.cigar.data(s, sccigars, bulkcigars, quiet=TRUE)
 null.sites <- cigar.get.null.sites(s, legacy=TRUE, quiet=TRUE)
 null.sites <- null.sites[, .(chr, pos, refnt, altnt, muttype, id.score.x, id.score.y, hs.score.x, hs.score.y)]
 colnames(null.sites)[1] <- "#chr"
-fwrite(null.sites, file=out.cigars, sep='\t')
+data.table::fwrite(null.sites, file=out.cigars, sep='\t')
 out.cigars.gz <- paste0(out.cigars, '.gz')
 Rsamtools::bgzip(out.cigars, out.cigars.gz)
 Rsamtools::indexTabix(file=out.cigars.gz, format='vcf', comment='#')
