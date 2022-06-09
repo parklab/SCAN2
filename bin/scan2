@@ -27,20 +27,23 @@ scan2_param_defaults = {
     'analysis': 'call_mutations',
     'is_started': False,
     'gatk': 'gatk4_joint',
-    'score_all_sites': True,
     'parsimony_phasing': False,
     'target_fdr': 0.01,
-    'min_sc_alt': 2,
-    'min_sc_dp': 6,
-    'min_bulk_dp': 11, 
-    'max_bulk_alt': 0, 
-    'max_bulk_mosaic_vaf': 0.3,
+    'snv_min_sc_alt': 2,
+    'snv_min_sc_dp': 6,
+    'snv_min_bulk_dp': 11, 
+    'snv_max_bulk_alt': 0, 
+    'snv_max_bulk_mosaic_vaf': 0.3,
+    'indel_min_sc_alt': 2,
+    'indel_min_sc_dp': 10,
+    'indel_min_bulk_dp': 11, 
+    'indel_max_bulk_alt': 0, 
+    'indel_max_bulk_mosaic_vaf': 0.3,
     'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': True,
     'analyze_mosaic_snvs': False,
     'callable_regions': True,
-    'permute': 0,
     'abmodel_use_fit': {},
     'abmodel_chunk_strategy': False,
     'abmodel_chunks': 10,
@@ -765,28 +768,38 @@ if __name__ == "__main__":
     caller = config_parser.add_argument_group("Somatic SNV calling parameters. A minimum requirement of 2 reads supporting a putative mutation is probably good practice at most sequencing depths.  However, the minimum total depth for single cell and bulk may need to be altered.  The defaults of 6 and 11, respectively, were successful on single cells with >25x and bulk with >30x mean coverage.")
     caller.add_argument('--target-fdr', type=float, metavar='FLOAT',
         help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
-    caller.add_argument('--min-sc-alt', type=int, metavar='INT',
+    caller.add_argument('--snv-min-sc-alt', type=int, metavar='INT',
         help='Reject somatic SNVs with fewer than INT reads carrying the mutation in single cells.')
-    caller.add_argument('--min-sc-dp', type=int, metavar='INT',
+    caller.add_argument('--snv-min-sc-dp', type=int, metavar='INT',
         help='Reject somatic SNVs covered by fewer than INT reads in single cells.')
-    caller.add_argument('--min-bulk-dp', type=int,  metavar='INT',
+    caller.add_argument('--snv-min-bulk-dp', type=int,  metavar='INT',
         help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
-    caller.add_argument('--max-bulk-alt', type=int,  metavar='INT',
+    caller.add_argument('--snv-max-bulk-alt', type=int,  metavar='INT',
         help='Reject somatic SNVs supported by more than INT reads in bulk.')
-    caller.add_argument('--max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
-        help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+    #caller.add_argument('--snv-max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
+        #help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+    caller.add_argument('--indel-min-sc-alt', type=int, metavar='INT',
+        help='Reject somatic indels with fewer than INT reads carrying the mutation in single cells.')
+    caller.add_argument('--indel-min-sc-dp', type=int, metavar='INT',
+        help='Reject somatic indels covered by fewer than INT reads in single cells.')
+    caller.add_argument('--indel-min-bulk-dp', type=int,  metavar='INT',
+        help='Reject somatic indels covered by fewer than INT reads in bulk.')
+    caller.add_argument('--indel-max-bulk-alt', type=int,  metavar='INT',
+        help='Reject somatic indels supported by more than INT reads in bulk.')
+    #caller.add_argument('--indel-max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
+        #help='Reject mosaic indels with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
     caller.add_argument('--min-base-quality-score', type=int,
         help="Passed to GATK HaplotypeCaller's --min-base-quality-score. "
              "Currently only used in GATK4 GVCF.")
 
-    caller.add_argument('--no-somatic-snvs', action='store_true',
-        help='Do not genotype somatic SNVs.')
-    caller.add_argument('--somatic-indels', action='store_true',
-        help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
+    #caller.add_argument('--no-somatic-snvs', action='store_true',
+        #help='Do not genotype somatic SNVs.')
+    #caller.add_argument('--somatic-indels', action='store_true',
+        #help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
     caller.add_argument('--somatic-indel-pon', type=str,
         help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
-    caller.add_argument('--mosaic-snvs', action='store_true',
-        help='Enable detection of mosaic SNVs.')
+    #caller.add_argument('--mosaic-snvs', action='store_true',
+        #help='Enable detection of mosaic SNVs.')
     caller.add_argument('--callable-regions', metavar='true/false/yes/no',
         type=lambda x: bool(distutils.util.strtobool(x)),
         help='Determine the fraction of callable genome based on '

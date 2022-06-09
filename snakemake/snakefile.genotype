@@ -38,8 +38,10 @@ rule genotype:
         "call_mutations/{sample}/scan2_object.rda"
     params:
         sc_sample="{sample}",
-        bulk_sample=config['bulk_sample'],
-        genome=config['genome']
+        # bit of a hack here: assumes the script is run from the root of the
+        # working directory (i.e., the same as is assumed for input/output
+        # file names).
+        config_yaml='scan.yaml'
     threads: 20
     resources:
         mem=32000
@@ -48,9 +50,9 @@ rule genotype:
     shell:
         """
         {config[scripts]}/run_pipeline.R \
-           {params.sc_sample} {params.bulk_sample} \
+           {params.sc_sample} {params.config_yaml} \
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
-           {input.cigardata} {params.genome} \
+           {input.cigardata} \
            {output}
         """
