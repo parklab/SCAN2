@@ -127,8 +127,9 @@ progressr::with_progress({
 
         tb <- read.alts.for.samples(path=inf, region=gr, meta=meta)
         p(class='sticky', amount=0, paste0('read.alts.for.samples', i))
+print(head(tb))
 
-        ret <- make.panel(tb, dmap, meta$sample[meta$amp=='bulk'])
+        ret <- make.panel(tb, dmap, meta[amp=='bulk']$sample)
         p(class='sticky', amount=0, paste0('make.panel', i))
 
         p()
