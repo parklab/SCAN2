@@ -72,7 +72,6 @@ scan2_file_defaults = {
     'bams': {},         # miscellaneous BAMs; not genotyped as single cells
     'sc_bams': {},      # BAMs for single cells, will be genotyped
     'bulk_bam': None,   # single bulk BAM for phasing, filtering germlines
-    'metadata': None
     #'eagle_refpanel': {},
     #'eagle_genmap': None
 }
@@ -537,7 +536,7 @@ def do_makepanel(args):
         "--latency-wait", "30",
         "--rerun-incomplete",
         "--jobs", str(args.joblimit),
-        "--config", "analysis=makepanel"
+        "--config", "analysis=makepanel", "metadata=" + args.metadata
     ]
 
     run_snakemake(snakemake_command, args, a)
