@@ -18,5 +18,4 @@ if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"
     rule makepanel:
         input:
-            "gatk/hc_raw.mmq1.vcf",
-            "gatk/hc_raw.mmq60.vcf"
+            "panel/panel.tab.gz"

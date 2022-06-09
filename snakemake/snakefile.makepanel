@@ -2,11 +2,6 @@
 
 include: "snakefile.select_gatk"
 
-rule all:
-    input:
-        "gatk/hc_raw.mmq60.vcf"
-
-
 vcf_to_tab:
     input:
         "gatk/hc_raw.mmq60.vcf"

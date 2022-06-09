@@ -24,7 +24,6 @@ from sys import exit
 # in the configuration database.
 scan2_param_defaults = {
     'genome': 'hs37d5',
-    'analysis': 'call_mutations',
     'is_started': False,
     'gatk': 'gatk4_joint',
     'parsimony_phasing': False,
@@ -495,6 +494,7 @@ def do_run(args):
         "--latency-wait", "30",
         "--rerun-incomplete",
         "--jobs", str(args.joblimit),
+        "--config", "analysis=call_mutations"
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -537,6 +537,7 @@ def do_makepanel(args):
         "--latency-wait", "30",
         "--rerun-incomplete",
         "--jobs", str(args.joblimit),
+        "--config", "analysis=makepanel"
     ]
 
     run_snakemake(snakemake_command, args, a)
