@@ -35,6 +35,6 @@ rule process_tab:
         mem=20000
     shell:
         """
-        {config[scripts]}/make_pon.r \
+        {config[scripts]}/make_pon.R \
             {input.tab} {input.meta} {output.tab} {params.genome} {threads}
         """
