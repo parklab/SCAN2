@@ -78,34 +78,29 @@ make.panel <- function(df, dmap, bulks) {
     }
 
     bulk.idxs <- which(colnames(df) %in% bulks)
-    cat("Bulks: ")
-    print(bulks)
-    cat("Bulk indexes: ")
-    print(bulk.idxs)
 
-    unique.cells <- rowSums(df[,-c(1:6, bulk.idxs), drop=FALSE] > 0)
+    meta.idxs <- 1:6
+    sc.idxs <- setdiff(1:ncol(df), c(1:6, bulk.idxs))
+    unique.cells <- rowSums(df[,..sc.idxs, drop=FALSE] > 0)
     unique.donors <- rowSums(do.call(cbind, lapply(unique(dmap), function(dn) {
         sns <- names(dmap)[dmap==dn]
         idxs <- which(colnames(df) %in% sns)
-        rowSums(df[,idxs,drop=FALSE]) > 0
+        rowSums(df[,..idxs,drop=FALSE]) > 0
     })))
-    unique.bulks <- rowSums(df[,bulk.idxs,drop=FALSE] > 0)
+    unique.bulks <- rowSums(df[,..bulk.idxs,drop=FALSE] > 0)
+
     # remove the entry with the maximum support
-    outs <- apply(df[,-(1:6),drop=FALSE], 1, function(row)
-        row[-which.max(row)]
-    )
-    cat("Getting maximum out-group..\n")
-    max.out <- apply(outs, 2, max)
-    cat("Getting sum out-group..\n")
-    sum.out <- apply(outs, 2, sum)
-    cat("Getting sum bulk..\n")
-    sum.bulk <- rowSums(df[,bulk.idxs,drop=FALSE])
-    cat("Building final data.frame\n")
-    data.table::data.table(df[,1:6], unique.donors=unique.donors,
-        unique.cells=unique.cells,
-        unique.bulks=unique.bulks,
-        max.out=max.out, sum.out=sum.out,sum.bulk=sum.bulk,
-        stringsAsFactors=FALSE)
+    outs <- apply(df[,-..meta.idxs,drop=FALSE], 1, function(row) {
+        r <- row[-which.max(row)]
+        c(max(r), sum(r))
+    })
+    max.out <- outs[1,]
+    sum.out <- outs[2,]
+    sum.bulk <- rowSums(df[,..bulk.idxs,drop=FALSE])
+    ret <- data.table(df[,..meta.idxs])
+    ret[, c('unique.donors', 'unique.cells', 'unique.bulks', 'max.out', 'sum.out', 'sum.bulk') :=
+        list(unique.donors, unique.cells, unique.bulks, max.out, sum.out, sum.bulk)]
+    ret
 }
 
 
@@ -113,6 +108,8 @@ make.panel <- function(df, dmap, bulks) {
 # in the metadata table.
 cat(sprintf("Loading sample metadata %s..\n", metaf))
 meta <- data.table::fread(metaf)
+cat("Bulks: ")
+print(meta[amp=='bulk']$sample)
 
 # GRanges intervals for chunked pipeline
 genome.object <- scan2::genome.string.to.bsgenome.object(genome)
@@ -127,25 +124,26 @@ cat('Starting integrated table pipeline on', length(grs), 'chunks.\n')
 cat('Parallelizing with', future::nbrOfWorkers(), 'cores.\n')
 
 progressr::with_progress({
+    progressr::handlers(progressr::handler_newline())
     p <- progressr::progressor(along=1:length(grs))
     xs <- future.apply::future_lapply(1:length(grs), function(i) {
         gr <- grs[i,]
 
         tb <- read.alts.for.samples(path=inf, region=gr, meta=meta)
-        p(class='sticky', amount=0, paste0('read.alts.for.samples', i))
-print(head(tb))
+        p(class='sticky', amount=0, paste('read.alts.for.samples', i))
 
         ret <- make.panel(tb, dmap, meta[amp=='bulk']$sample)
-        p(class='sticky', amount=0, paste0('make.panel', i))
+        p(class='sticky', amount=0, paste('make.panel', i))
 
         p()
         ret
     })
-})
+}, enable=TRUE)
 
-pon <- rbindall(xs)
+pon <- data.table::rbindlist(xs)
 
 cat(sprintf("Saving PON to %s..\n", outf))
+colnames(pon)[1] <- paste0('#', colnames(pon)[1])
 data.table::fwrite(pon, file=outf, sep='\t', quote=FALSE)
 Rsamtools::bgzip(outf, outf.gz)
 Rsamtools::indexTabix(file=outf.gz, format='vcf', comment='#')
