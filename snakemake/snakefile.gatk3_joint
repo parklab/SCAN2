@@ -1,19 +1,27 @@
 # vim: syntax=python
 
+# Have to make the argument file without overflowing the command
+# line buffer.
+rule make_arg_file:
+    input:
+    output:
+        "gatk/gather_args.txt"
+    shell:
+        """
+        for i in `seq 1 {config[gatk_chunks]}`; do
+            echo "-V gatk/hc_raw.mmq{gatk_mmq}_chunk$i.vcf" >> {output}
+        done
+        """
+
 rule gatk_gather:
     input:
         vcf=lambda wildcards:
                 expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
                        gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=range(1, config['gatk_chunks']+1))
+                       gatk_chunk=range(1, config['gatk_chunks']+1)),
+        argfile="gatk/gather_args.txt"
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
-    params:
-        lambda wildcards:
-            #'\n'.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-            ' '.join(expand("-V gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                            gatk_mmq=wildcards.gatk_mmq,
-                            gatk_chunk=range(1, config['gatk_chunks']+1)))
     resources:
         mem=4000
     benchmark:
@@ -21,7 +29,7 @@ rule gatk_gather:
     shell:
         "gatk3 org.broadinstitute.gatk.tools.CatVariants"
         "    -Xmx3G -Xms3G"
-        "    {params}"
+        "    --arg_file {input.argfile}"
         "    -R {config[ref]}"
         "    -out {output.vcf}"
         "    -assumeSorted"
