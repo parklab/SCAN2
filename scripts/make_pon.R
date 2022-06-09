@@ -1,9 +1,8 @@
 #!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly=TRUE)
-
 if (!(length(args) %in% c(3,4)))
-    stop("usage: make_pon.r input.tab metadata.csv output.tab [n.cores]")
+    stop("usage: make_pon.R input.tab.gz metadata.csv output.tab [n.cores]")
 
 inf <- args[1]
 metaf <- args[2]
@@ -25,10 +24,12 @@ library(future)
 library(future.apply)
 library(progressr)
 
-if (n.cores > 1)
+if (n.cores > 1) {
     plan(multicore, workers=n.cores)
-else
+} else {
     plan(sequential)
+}
+
 
 
 # These panels can be extremely large, so need to read in only the
