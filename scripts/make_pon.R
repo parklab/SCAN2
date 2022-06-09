@@ -45,7 +45,7 @@ read.alts.for.samples <- function(path, region, meta) {
     open(tf)
     header <- read.tabix.header(tf)
 
-    cols.to.read <- rep("NULL", tot.cols)
+    cols.to.read <- rep("NULL", length(header))
     cols.to.read[1:6] <- c('character', 'integer', 'character', 'character',
         'character', 'integer')
     df.samplenames <- c()
