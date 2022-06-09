@@ -71,6 +71,12 @@ read.alts.for.samples <- function(path, region, meta) {
 # Counts the number of unique cells and unique donors that support each mutation
 # dmap - a named vector that maps sample ID -> donor ID
 make.panel <- function(df, dmap, bulks) {
+    if (nrow(df) == 0) {
+        return(data.table::data.table(df[,1:6], unique.donors=integer(0),
+            unique.cells=integer(0), unique.bulks=integer(0),
+            max.out=integer(0), sum.out=integer(0), sum.bulk=integer(0)))
+    }
+
     bulk.idxs <- which(colnames(df) %in% bulks)
     cat("Bulks: ")
     print(bulks)
