@@ -2,7 +2,7 @@
 
 args <- commandArgs(trailingOnly=TRUE)
 if (!(length(args) %in% 4:5))
-    stop("usage: make_pon.R input.tab.gz metadata.csv output.tab genome [n.cores]")
+    stop("usage: make_panel.R input.tab.gz metadata.csv output.tab genome [n.cores]")
 
 inf <- args[1]
 metaf <- args[2]
@@ -48,24 +48,23 @@ read.alts.for.samples <- function(path, region, meta) {
 
     cols <- strsplit(header, '\t')[[1]]
 
-    cols.to.read <- rep("NULL", length(cols))
+    # All columns past the first 6 are integer counts of alt reads
+    cols.to.read <- rep("integer", length(cols))
     cols.to.read[1:6] <- c('character', 'integer', 'character', 'character',
         'character', 'integer')
+
+    # only read in samples that are listed in the metadata
     sample.ids <- c()
-    for (i in seq(7, length(cols), 3)) {
-        if (cols[i] %in% meta$sample) {
-            cols.to.read[i+2] <- 'integer'
+    for (i in 7:length(cols)) {
+        if (!(cols[i] %in% meta$sample)) {
+            cols.to.read[i] <- 'NULL'
             sample.ids <- c(sample.ids, cols[i])
         }
     }
 
     # Only read the alt counts for samples in the metadata table.
-    tb <- read.tabix.data(path=path, region=region, header=header,
+    read.tabix.data(path=path, region=region, header=header,
         colClasses=cols.to.read)
-
-    # Since the GT column isn't read, sample names are lost
-    colnames(tb)[-(1:6)] <- sample.ids
-    tb
 }
     
 # Counts the number of unique cells and unique donors that support each mutation
