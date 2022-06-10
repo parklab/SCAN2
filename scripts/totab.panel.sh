@@ -33,7 +33,7 @@ awk '
         #printf "\n";
         #printf "%s\t%s\t%s", x[1], ad[1], nalt;
         # no longer print the unused GT string and ref read count
-        printf "\t" nalt;
+        printf nalt;
     }
     {
         split($5, alleles, ",");
