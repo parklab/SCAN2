@@ -58,6 +58,7 @@ scan2_param_defaults = {
     'chrs': [],
     'phaser': 'shapeit',
     'shapeit_refpanel': None,  # a directory, so readable_file fails
+    'cross_sample_panel': None, # must be readable IF specified, but pipeline should run without it too
     'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',  # also a directory
     'chr_prefix': '',          # be nice to remove this; requires snakefile changes
     'bam_map': {}              # maps sample name -> bam path
@@ -797,8 +798,8 @@ if __name__ == "__main__":
         #help='Do not genotype somatic SNVs.')
     #caller.add_argument('--somatic-indels', action='store_true',
         #help='Enables detection of somatic indels. If this option is specified, a panel of normals must be specified.')
-    caller.add_argument('--somatic-indel-pon', type=str,
-        help='Indel panel of normals to use for indel filtering. Indel calling is NOT precise without a panel of normals.')
+    caller.add_argument('--cross-sample-panel', type=readable_file, metavar='PATH',
+        help='A table of alt alleles detected over a large number of single cells and bulks. Currently used only for indel filtering but should probably also be used for SNV filtering. Indel calling is NOT precise without a panel of normals.')
     #caller.add_argument('--mosaic-snvs', action='store_true',
         #help='Enable detection of mosaic SNVs.')
     caller.add_argument('--callable-regions', metavar='true/false/yes/no',
