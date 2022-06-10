@@ -36,7 +36,7 @@ with_progress({
         sccigars=sccigars, bulkcigars=bulkcigars,
         trainingcigars=cigardata,
         config.yaml=config.yaml,
-        tmpsave.rda=tmpsave.rda, genome=genome.string,
+        genome=genome.string,
         verbose=FALSE, report.mem=FALSE, legacy=FALSE)
 }, enable=TRUE)
 
