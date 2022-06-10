@@ -15,8 +15,8 @@ if ('snakemake' %in% ls()) {
             snakemake@input['phasing'],
             # if the user did not provide a panel, this entry is NULL and c() drops
             # NULL values silently. replace with NA and handle it later.
-            ifelse(is.null(snakemake@params['cross_sample_panel']), NA,
-                snakemake@params['cross_sample_panel']),
+            ifelse(is.null(snakemake@params[['cross_sample_panel']]), NA,
+                snakemake@params[['cross_sample_panel']]),
             snakemake@params['bulk_sample'],
             snakemake@params['genome'],
             snakemake@output['tab'],
