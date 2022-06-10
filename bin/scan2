@@ -718,7 +718,7 @@ if __name__ == "__main__":
              '--gatk-vcf.')
     config_parser.add_argument('--gatk-vcf', type=str, metavar='PATH',
         help="VCF file for the --gatk vcf option. Ignored if --gatk is not 'vcf'. CURRENTLY UNSUPPORTED.")
-    config_parser.add_argument('--mimic-legacy', type=bool, default=False,
+    config_parser.add_argument('--mimic-legacy', action='store_true', default=False,
         help="Mimic some behaviors of older SCAN2 versions. Not comprehensive.")
     
 
