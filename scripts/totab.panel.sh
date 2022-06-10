@@ -31,7 +31,9 @@ awk '
             #printf "i=%d, ad[j]=%d, nalt=%d\n", j, ad[j], nalt;
         }
         #printf "\n";
-        printf "%s\t%s\t%s", x[1], ad[1], nalt;
+        #printf "%s\t%s\t%s", x[1], ad[1], nalt;
+        # no longer print the unused GT string and ref read count
+        printf "\t" nalt;
     }
     {
         split($5, alleles, ",");
@@ -46,8 +48,12 @@ awk '
         } else {
             if ($1 ~ /#CHROM/) {
                 printf "#chr\tpos\tdbsnp\trefnt\taltnt\tnalleles";
-                for (i = 10; i <= NF; ++i)
-                    printf "\t%s\tref\talt", $i;
+                for (i = 10; i <= NF; ++i) {
+                    # again - only print one column per sample (sum of alt reads),
+                    # and name this column after the sample.
+                    # printf "\t%s\tref\talt", $i;
+                    printf "\t%s", $i;
+                }
                 printf "\n";
             }
         }
