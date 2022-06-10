@@ -13,7 +13,10 @@ if ('snakemake' %in% ls()) {
             snakemake@input['mmq60'],
             snakemake@input['mmq1'],
             snakemake@input['phasing'],
-            snakemake@params['cross_sample_panel'],
+            # if the user did not provide a panel, this entry is NULL and c() drops
+            # NULL values silently. replace with NA and handle it later.
+            ifelse(is.null(snakemake@params['cross_sample_panel']), NA
+                snakemake@params['cross_sample_panel']),
             snakemake@params['bulk_sample'],
             snakemake@params['genome'],
             snakemake@output['tab'],
@@ -54,6 +57,9 @@ for (f in c(out.tab, out.tab.gz, paste0(out.tab.gz, '.tbi'), out.rda)) {
 suppressMessages(library(scan2))
 suppressMessages(library(future))
 plan(multicore, workers=n.cores)
+
+if (is.na(panel))
+    panel <- NULL
 
 # Currently the chunking used here isn't configurable by user.
 results <- make.integrated.table(mmq60, mmq1, phasing, panel=panel, bulk.sample, genome)
