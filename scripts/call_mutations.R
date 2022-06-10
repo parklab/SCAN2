@@ -21,6 +21,7 @@ library(yaml)
 y <- yaml::read_yaml(config.yaml)
 bulk.sample <- y$bulk_sample
 genome.string <- y$genome
+legacy <- y$mimic_legacy
 
 library(scan2)
 library(future)
@@ -37,7 +38,7 @@ with_progress({
         trainingcigars=cigardata,
         config.yaml=config.yaml,
         genome=genome.string,
-        verbose=FALSE, report.mem=FALSE, legacy=FALSE)
+        verbose=FALSE, report.mem=FALSE, legacy=legacy)
 }, enable=TRUE)
 
 save(results, file=out.rda, compress=FALSE)

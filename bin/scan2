@@ -52,6 +52,7 @@ scan2_param_defaults = {
     'abmodel_refine_steps': 4,
     'abmodel_n_cores': 1,
     'resample_M': 20,
+    'mimic_legacy': False,
     'bulk_sample': None,
     'gatk_chunks': None,
     'gatk_regions': [],
@@ -716,7 +717,9 @@ if __name__ == "__main__":
              'be reused. The path to the user-specified VCF must be supplied via '
              '--gatk-vcf.')
     config_parser.add_argument('--gatk-vcf', type=str, metavar='PATH',
-        help="VCF file for the --gatk vcf option. Ignored if --gatk is not 'vcf'.")
+        help="VCF file for the --gatk vcf option. Ignored if --gatk is not 'vcf'. CURRENTLY UNSUPPORTED.")
+    config_parser.add_argument('--mimic-legacy', type=bool, default=False,
+        help="Mimic some behaviors of older SCAN2 versions. Not comprehensive.")
     
 
     # required arguments
