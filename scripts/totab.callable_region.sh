@@ -24,7 +24,8 @@ awk 'BEGIN { OFS="\t"; } {
     } else {
         printf "#chr\tpos";
         for (i = 4; i <= NF; ++i) {
-            printf "\t%s", sub(/^Depth_for_/, "", $i);
+            sub(/^Depth_for_/, "", $i);
+            printf "\t%s", $i;
         }
         printf "\n";
     }
