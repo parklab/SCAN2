@@ -14,7 +14,7 @@ if [ -f $OUTPUT ] && [ $OUTPUT != '/dev/stdout' ]; then
 fi
 
 awk 'BEGIN { OFS="\t"; } {
-    if ($0 !~ /#/) {
+    if ($0 !~ /^Locus/) {
         split($1, firstcol, ":")
         printf "%s\t%s", firstcol[1], firstcol[2];
             for (i = 4; i <= NF; ++i) {
@@ -22,12 +22,10 @@ awk 'BEGIN { OFS="\t"; } {
         }
         printf "\n";
     } else {
-        if ($1 ~ /^Locus/) {
-            printf "#chr\tpos";
-            for (i = 4; i <= NF; ++i) {
-                printf "\t%s", sub(/^Depth_for_/, "", $i);
-            }
-            printf "\n";
+        printf "#chr\tpos";
+        for (i = 4; i <= NF; ++i) {
+            printf "\t%s", sub(/^Depth_for_/, "", $i);
         }
+        printf "\n";
     }
 }' $INPUT > $OUTPUT
