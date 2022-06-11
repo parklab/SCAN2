@@ -16,7 +16,7 @@ fi
 awk 'BEGIN { OFS="\t"; } {
     if ($0 !~ /#/) {
         split($1, firstcol, ":")
-        printf "%s\t%s\t%s\t%s\t%s\t%s", firstcol[1], firstcol[2];
+        print firstcol[1], firstcol[2];
             for (i = 4; i <= NF; ++i) {
             print "\t" $i;
         }
