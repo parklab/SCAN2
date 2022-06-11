@@ -23,7 +23,8 @@ rule abmodel_gather:
 
 rule abmodel_scatter:
     input:
-        inttab="call_mutations/integrated_table.tab.gz"
+        inttab="call_mutations/integrated_table.tab.gz",
+        inttabidx="call_mutations/integrated_table.tab.gz.tbi"
     output:
         rda="ab_model/{sample}/fit_{chr}.rda"
     params:

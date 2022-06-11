@@ -3,7 +3,9 @@
 rule pregenotype:
     input:
         inttab="call_mutations/integrated_table.tab.gz",
+        inttabidx="call_mutations/integrated_table.tab.gz.tbi",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
+        sccigarsidx="call_mutations/{sample}/cigars.tab.gz.tbi",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
     output:
         cigardata=temp("call_mutations/{sample}/cigardata.tab"),
@@ -30,10 +32,14 @@ rule pregenotype:
 rule genotype:
     input:
         inttab="call_mutations/integrated_table.tab.gz",
+        inttabidx="call_mutations/integrated_table.tab.gz.tbi",
         fits="ab_model/{sample}/fits.rda",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
+        sccigarsidx="call_mutations/{sample}/cigars.tab.gz.tbi",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
+        bulkcigarsidx="call_mutations/%s/cigars.tab.gz.tbi" % config['bulk_sample'],
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
+        cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
     output:
         "call_mutations/{sample}/scan2_object.rda"
     params:
