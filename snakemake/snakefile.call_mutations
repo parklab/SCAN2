@@ -3,7 +3,7 @@
 # These should probably be converted to subworkflows at some point.
 # For now, just for organizing rules into manageably-sized files.
 include: "snakefile.select_gatk"
-include: "snakefile.callable_regions"
+include: "snakefile.depth_profile"
 include: "snakefile.phasing"
 include: "snakefile.cigars"
 include: "snakefile.integrated_table"
@@ -39,13 +39,6 @@ def determine_pipeline_output(wildcards):
         print("adding mosaic SNVs to schedule")
         d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
             sample=config['sc_bams'].keys())
-
-    # Find bases passing minimum depth thresholds
-    if config['callable_regions']:
-        print("adding region callability to schedule")
-        d['callable_beds'] = \
-            expand("callable_regions/{sample}/callable_regions.rda",
-                sample=config['sc_bams'].keys())
 
     return d
 
