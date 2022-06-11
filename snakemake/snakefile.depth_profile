@@ -4,31 +4,35 @@
 # bulk depth information.
 # The memory limit here can be insufficient if the size of each
 # GATK chunk is large (>10MB or so).
-rule callable_region_summarize_per_sample:
+rule depth_profile_region_summarize_per_sample:
     input:
-        "callable_regions/joint_coverage_matrix.tab.gz"
+        "depth_profile/joint_depth_matrix.tab.gz",
+        "depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
-        "callable_regions/{sample}_coverage_table.rda",
+        "depth_profile/{sample}_depth_table.rda",
     resources:
         mem=7000
     threads: 20
-    script:
-        "scripts/callable_regions_summarize_script.R"
+    shell:
+        """
+        echo unimplemente
+        """
 
 
 rule callable_region_gather:
     input:
-        expand("callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
+        expand("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
             gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
-        tabgz="callable_regions/joint_coverage_matrix.tab.gz",
-        tabidx="callable_regions/joint_coverage_matrix.tab.gz.tbi"
+        tabgz="depth_profile/joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
+    threads: 1
     resources:
         mem=1000
     shell:
         """
         (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
-            | {config[scripts]}/totab.callable_regions.sh /dev/stdin /dev/stdout \
+            | {config[scripts]}/totab.depth_profile.sh /dev/stdin /dev/stdout \
             | bgzip -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
@@ -42,13 +46,14 @@ rule callable_region_scatter:
     input:
         scbam=config['bam_map'].values()
     output:
-        tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
+        tmp="depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
     params:
         bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
     benchmark:
-        "callable_regions/gatk_depthofcoverage/benchmark_depthofcoverage_chunk{gatk_chunk}.txt"
+        "depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage_chunk{gatk_chunk}.txt"
+    threads: 1
     resources:
         mem=6000
     shell:
