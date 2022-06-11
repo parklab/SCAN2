@@ -1,33 +1,36 @@
 # vim: syntax=python
 
-rule callable_region_gather:
-    input:
-        rdas=lambda wildcards:
-            expand("callable_regions/{sample}/table_chunk{gatk_chunk}.rda",
-                sample=wildcards.sample,
-                gatk_chunk=range(1, config['gatk_chunks']+1))
-    output:
-        rda="callable_regions/{sample}/callable_regions.rda",
-        pdf="callable_regions/{sample}/callable_regions.pdf"
-    resources:
-        mem=4000
-    script:
-        "scripts/callable_regions_gather_script.R"
-
-          
 # Both summarizes a vector into a (2-dimensional) table and adds
 # bulk depth information.
 # The memory limit here can be insufficient if the size of each
 # GATK chunk is large (>10MB or so).
-rule callable_region_summarize:
+rule callable_region_summarize_per_sample:
     input:
-        sc="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
+        "callable_regions/joint_coverage_matrix.tab.gz"
     output:
-        "callable_regions/{sample}/table_chunk{gatk_chunk}.rda",
+        "callable_regions/{sample}_coverage_table.rda",
     resources:
         mem=7000
+    threads: 20
     script:
         "scripts/callable_regions_summarize_script.R"
+
+
+rule callable_region_gather:
+    input:
+        expand("callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
+            gatk_chunk=range(1, config['gatk_chunks']+1))
+    output:
+        tabgz="callable_regions/joint_coverage_matrix.tab.gz",
+        tabidx="callable_regions/joint_coverage_matrix.tab.gz.tbi"
+    resources:
+        mem=1000
+    shell:
+        """
+        (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
+            | bgzip -c > {output.tabgz}
+        tabix -p vcf -S 1 {output.tabgz}
+        """
 
 
 # Needs to match parallelization of GATK scattering, else the
@@ -38,9 +41,7 @@ rule callable_region_scatter:
     input:
         scbam=config['bam_map'].values()
     output:
-        tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt",
-        tabgz="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tab.gz",
-        tabidx="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tab.gz.tbi"
+        tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
     params:
         bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
@@ -71,7 +72,4 @@ rule callable_region_scatter:
             --omit-per-sample-statistics true \
             --output-format TABLE \
             -O {output.tmp}
-        {config[scripts]/totab.callable_region.sh {output.tmp} /dev/stdout \
-            | bgzip -c > {output.tab.gz}
-        tabix -p vcf -S 1 {output.tab.gz}
         """
