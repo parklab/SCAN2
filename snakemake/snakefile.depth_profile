@@ -9,7 +9,7 @@ rule depth_profile_region_summarize_per_sample:
         "depth_profile/joint_depth_matrix.tab.gz",
         "depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
-        "depth_profile/{sample}_depth_table.rda",
+        "depth_profile/{sample}_depth_table.rda"
     resources:
         mem=7000
     threads: 20
