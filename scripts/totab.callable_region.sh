@@ -25,7 +25,7 @@ awk 'BEGIN { OFS="\t"; } {
         if ($1 ~ /^Locus/) {
             print "#chr\tpos";
             for (i = 4; i <= NF; ++i) {
-                print "\t" sub(/^Depth_for_/, '', $i);
+                print "\t" sub(/^Depth_for_/, "", $i);
             }
             print "\n";
         }
