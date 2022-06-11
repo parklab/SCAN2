@@ -32,7 +32,6 @@ rule callable_region_gather:
     shell:
         """
         (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
-            | {config[scripts]}/totab.depth_profile.sh /dev/stdin /dev/stdout \
             | bgzip -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
@@ -46,7 +45,8 @@ rule callable_region_scatter:
     input:
         scbam=config['bam_map'].values()
     output:
-        tmp="depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
+        tmp=temp("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt"),
+        txt="depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
     params:
         bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
@@ -78,4 +78,5 @@ rule callable_region_scatter:
             --omit-per-sample-statistics true \
             --output-format TABLE \
             -O {output.tmp}
+        {config[scripts]}/totab.depth_profile.sh {output.tmp} {output.txt} \
         """
