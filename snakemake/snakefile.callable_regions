@@ -39,7 +39,8 @@ rule callable_region_scatter:
         scbam=config['bam_map'].values()
     output:
         tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt",
-        txt="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
+        tabgz="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tab.gz",
+        tabidx="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tab.gz.tbi"
     params:
         bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
@@ -70,7 +71,7 @@ rule callable_region_scatter:
             --omit-per-sample-statistics true \
             --output-format TABLE \
             -O {output.tmp}
-        (echo 'chr:pos:used.to.be.params.sample' ; tail -n +2 {output.tmp}) \
-            | tr ':' '\t' 
-            | cut -f1-3 > {output.txt}
+        {config[scripts]/totab.callable_region.sh {output.tmp} /dev/stdout \
+            | bgzip -c > {output.tab.gz}
+        tabix -p vcf -S 1 {output.tab.gz}
         """
