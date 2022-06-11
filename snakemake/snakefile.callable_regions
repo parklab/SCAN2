@@ -70,7 +70,7 @@ rule callable_region_scatter:
             --omit-per-sample-statistics true \
             --output-format TABLE \
             -O {output.tmp}
-        (echo 'chr:pos:{params.sample}' ; tail -n +2 {output.tmp}) \
+        (echo 'chr:pos:used.to.be.params.sample' ; tail -n +2 {output.tmp}) \
             | tr ':' '\t' 
             | cut -f1-3 > {output.txt}
         """
