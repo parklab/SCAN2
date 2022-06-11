@@ -36,7 +36,7 @@ rule callable_region_summarize:
 # default HaplotypeCaller read filters) to be meaningful.
 rule callable_region_scatter:
     input:
-        scbam=lambda wildcards: config['bam_map'][wildcards.sample]
+        scbam=config['bam_map'].values()
     output:
         tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt",
         txt="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
