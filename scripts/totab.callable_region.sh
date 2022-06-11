@@ -16,18 +16,18 @@ fi
 awk 'BEGIN { OFS="\t"; } {
     if ($0 !~ /#/) {
         split($1, firstcol, ":")
-        print firstcol[1], firstcol[2];
+        printf "%s\t%s", firstcol[1], firstcol[2];
             for (i = 4; i <= NF; ++i) {
-            print "\t" $i;
+            printf "\t%d", $i;
         }
-        print "\n";
+        printf "\n";
     } else {
         if ($1 ~ /^Locus/) {
-            print "#chr\tpos";
+            printf "#chr\tpos";
             for (i = 4; i <= NF; ++i) {
-                print "\t" sub(/^Depth_for_/, "", $i);
+                printf "\t%s", sub(/^Depth_for_/, "", $i);
             }
-            print "\n";
+            printf "\n";
         }
     }
 }' $INPUT > $OUTPUT
