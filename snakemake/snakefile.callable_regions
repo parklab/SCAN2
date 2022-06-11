@@ -28,6 +28,7 @@ rule callable_region_gather:
     shell:
         """
         (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
+            | {config[scripts]}/totab.callable_regions.sh /dev/stdin /dev/stdout \
             | bgzip -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
