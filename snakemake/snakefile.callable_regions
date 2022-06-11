@@ -55,17 +55,16 @@ rule callable_region_scatter:
             -R {config[ref]} \
             {params.bams} \
             {params.regionflag} \
+            --minimum-mapping-quality 60 \
             --read-filter NotSecondaryAlignmentReadFilter \
-            --read-filter GoodCigarReadFilter 
+            --read-filter GoodCigarReadFilter \
             --read-filter NonZeroReferenceLengthAlignmentReadFilter \
             --read-filter PassesVendorQualityCheckReadFilter \
             --read-filter MappedReadFilter \
             --read-filter MappingQualityAvailableReadFilter \
-            --read-filter MappingQualityReadFilter \
             --read-filter NotDuplicateReadFilter \
             --read-filter MappingQualityReadFilter \
             --read-filter WellformedReadFilter \
-            --minimum-mapping-quality 60 \
             --omit-interval-statistics true \
             --omit-locus-table true \
             --omit-per-sample-statistics true \
