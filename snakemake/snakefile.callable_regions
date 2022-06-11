@@ -3,7 +3,7 @@
 rule callable_region_gather:
     input:
         rdas=lambda wildcards:
-            expand("callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
+            expand("callable_regions/{sample}/table_chunk{gatk_chunk}.rda",
                 sample=wildcards.sample,
                 gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
@@ -21,10 +21,9 @@ rule callable_region_gather:
 # GATK chunk is large (>10MB or so).
 rule callable_region_summarize:
     input:
-        sc="callable_regions/{sample}/chunk{gatk_chunk}.txt",
-        bulk="callable_regions/{bulk_sample}/chunk{{gatk_chunk}}.txt".format(bulk_sample=config['bulk_sample'])
+        sc="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
     output:
-        "callable_regions/{sample}/summary.chunk{gatk_chunk}.bulk_intersect.rda",
+        "callable_regions/{sample}/table_chunk{gatk_chunk}.rda",
     resources:
         mem=7000
     script:
@@ -39,37 +38,39 @@ rule callable_region_scatter:
     input:
         scbam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        tmp="callable_regions/{sample}/chunk{gatk_chunk}.tmp.txt",
-        txt="callable_regions/{sample}/chunk{gatk_chunk}.txt"
+        tmp="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt",
+        txt="callable_regions/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
     params:
-        sample="{sample}",
+        bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
     benchmark:
-        "callable_regions/{sample}/benchmark_depthofcoverage_chunk{gatk_chunk}.tsv"
+        "callable_regions/gatk_depthofcoverage/benchmark_depthofcoverage_chunk{gatk_chunk}.txt"
     resources:
-        mem=3200
+        mem=6000
     shell:
-        "gatk DepthOfCoverage"
-        "    --java-options '-Xmx3G -Xms3G' "
-        "    -R {config[ref]} "
-        "    -I {input.scbam} "
-        "    {params.regionflag} "
-        "    --minimum-mapping-quality 60 "
-        "    --read-filter NotSecondaryAlignmentReadFilter "
-        "    --read-filter GoodCigarReadFilter "
-        "    --read-filter NonZeroReferenceLengthAlignmentReadFilter "
-        "    --read-filter PassesVendorQualityCheckReadFilter "
-        "    --read-filter MappedReadFilter "
-        "    --read-filter MappingQualityAvailableReadFilter "
-        "    --read-filter NotDuplicateReadFilter "
-        "    --read-filter MappingQualityReadFilter "
-        "    --read-filter WellformedReadFilter "
-        "    --omit-interval-statistics true "
-        "    --omit-locus-table true "
-        "    --omit-per-sample-statistics true "
-        "    --output-format TABLE "
-        "    -O {output.tmp} ; "
-        "(echo 'chr:pos:{params.sample}' ; tail -n +2 {output.tmp}) "
-        "    | tr ':' '\t' "
-        "    | cut -f1-3 > {output.txt}"
+        """
+        gatk DepthOfCoverage \
+            --java-options '-Xmx5G -Xms5G' \
+            -R {config[ref]} \
+            {params.bams} \
+            {params.regionflag} \
+            --minimum-mapping-quality 60 \
+            --read-filter NotSecondaryAlignmentReadFilter \
+            --read-filter GoodCigarReadFilter 
+            --read-filter NonZeroReferenceLengthAlignmentReadFilter \
+            --read-filter PassesVendorQualityCheckReadFilter \
+            --read-filter MappedReadFilter \
+            --read-filter MappingQualityAvailableReadFilter \
+            --read-filter NotDuplicateReadFilter \
+            --read-filter MappingQualityReadFilter \
+            --read-filter WellformedReadFilter \
+            --omit-interval-statistics true \
+            --omit-locus-table true \
+            --omit-per-sample-statistics true \
+            --output-format TABLE \
+            -O {output.tmp}
+        (echo 'chr:pos:{params.sample}' ; tail -n +2 {output.tmp}) \
+            | tr ':' '\t' 
+            | cut -f1-3 > {output.txt}
+        """
