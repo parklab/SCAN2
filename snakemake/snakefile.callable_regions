@@ -62,6 +62,7 @@ rule callable_region_scatter:
             --read-filter PassesVendorQualityCheckReadFilter \
             --read-filter MappedReadFilter \
             --read-filter MappingQualityAvailableReadFilter \
+            --read-filter MappingQualityReadFilter \
             --read-filter NotDuplicateReadFilter \
             --read-filter MappingQualityReadFilter \
             --read-filter WellformedReadFilter \
