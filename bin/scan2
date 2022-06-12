@@ -50,7 +50,11 @@ scan2_param_defaults = {
     'abmodel_hsnp_tile_size': 100,
     'abmodel_hsnp_n_tiles': 250,
     'abmodel_refine_steps': 4,
-    'abmodel_n_cores': 1,
+    'abmodel_n_cores': 20,
+    'digest_depth_n_cores': 20,
+    'genotype_n_cores': 20,
+    'integrate_table_n_cores': 20,
+    'makepanel_n_cores': 20,
     'resample_M': 20,
     'mimic_legacy': False,
     'bulk_sample': None,
@@ -698,8 +702,6 @@ if __name__ == "__main__":
         default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
         help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
-    #config_parser.add_argument('--permute', type=int,
-        #help='Number of permutation sets to create for somatic SNVs and indels.')
     config_parser.add_argument('--gatk', type=str,
         help='GATK version and strategy for generating candidate somatic '
              'mutations and cross-sample support. Valid values are "gatk3_joint", '
@@ -720,6 +722,13 @@ if __name__ == "__main__":
         help="VCF file for the --gatk vcf option. Ignored if --gatk is not 'vcf'. CURRENTLY UNSUPPORTED.")
     config_parser.add_argument('--mimic-legacy', action='store_true', default=False,
         help="Mimic some behaviors of older SCAN2 versions. Not comprehensive.")
+    config_parser.add_argument('--genotype-n-cores', default=20, type=int,
+        help="Number of cores to be used in the final genotyping step.")
+    config_parser.add_argument('--integrate-table-n-cores', default=20, type=int,
+        help="Number of cores to be used when creating the integrated table.")
+    config_parser.add_argument('--digest-depth-n-cores', default=20, type=int,
+        help="Number of cores used to tabulate single cell and bulk sequencing "
+             "depth.")
     
 
     # required arguments
@@ -805,19 +814,13 @@ if __name__ == "__main__":
         help='A table of alt alleles detected over a large number of single cells and bulks. Currently used only for indel filtering but should probably also be used for SNV filtering. Indel calling is NOT precise without a panel of normals.')
     #caller.add_argument('--mosaic-snvs', action='store_true',
         #help='Enable detection of mosaic SNVs.')
-    caller.add_argument('--callable-regions', metavar='true/false/yes/no',
-        type=lambda x: bool(distutils.util.strtobool(x)),
-        help='Determine the fraction of callable genome based on '
-             'read depth in single cells and matched bulk. This callable '
-             'genome fraction is necessary for estimating the genome-wide '
-             'mutation burden. This flag is enabled by default; to disable, '
-             'callable region calculation, use --calable-regions false.')
-    caller.add_argument('--score-all-sites', action='store_true',
-        help='Perform somatic genotyping calculations at ALL non-reference '
-             'sites reported by GATK--including single read sequencing '
-             'artifacts, germline mutations, etc. Enabling this option '
-             'increases runtime of the genotype scatter and CIGAR op '
-             'counting steps by 10-100x.')
+    #caller.add_argument('--callable-regions', metavar='true/false/yes/no',
+        ##type=lambda x: bool(distutils.util.strtobool(x)),
+        #help='Determine the fraction of callable genome based on '
+             #'read depth in single cells and matched bulk. This callable '
+             #'genome fraction is necessary for estimating the genome-wide '
+             #'mutation burden. This flag is enabled by default; to disable, '
+             #'callable region calculation, use --calable-regions false.')
     
     
     phasing = config_parser.add_argument_group('Phasing options',
@@ -948,6 +951,8 @@ if __name__ == "__main__":
              'Must contain columns named: sample, donor and amp. The amp column '
              'is used to determine bulk vs. single cell status; amp=bulk (case '
              'sensitive) for bulks and any other value for single cells.')
+    makepanel_parser.add_argument('--makepanel-n-cores', type=int, default=20,
+        help='Number of cores to use when digesting cross-sample panel GATK output.')
     
     
     # Get the args and run the relavent subcommand

@@ -19,9 +19,9 @@ rule integrate_tables:
         bulk_sample=config['bulk_sample'],
         genome=config['genome'],
         cross_sample_panel=config['cross_sample_panel']
-    threads: 20
+    threads: config['integrate_table_n_cores']
     resources:
-        mem=40000
+        mem=2000*config['integrate_table_n_cores']
     benchmark:
         "call_mutations/benchmark_integrate_tables.txt"
     script:

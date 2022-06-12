@@ -30,9 +30,9 @@ rule process_tab:
         genome=config['genome']
     benchmark:
         "panel/benchmark_make_panel.txt"
-    threads: 20
+    threads: config['makepanel_n_cores']
     resources:
-        mem=20000
+        mem=1000*config['makepanel_n_cores']
     shell:
         """
         {config[scripts]}/make_panel.R \
