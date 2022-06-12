@@ -46,9 +46,12 @@ suppressMessages(library(scan2))
 suppressMessages(library(future))
 plan(multicore, workers=n.cores)
 
-# Currently the chunking used here isn't configurable by user.
-results <- digest.depth.profile(path=path, sc.sample=sc.sample, bulk.sample=bulk.sample,
-    genome=genome)
+with_progress({
+    # handler_newline causes alot of printing, but it's log-friendly
+    handlers(handler_newline())
+    results <- digest.depth.profile(path=path, sc.sample=sc.sample, bulk.sample=bulk.sample,
+        genome=genome)
+}, enable=TRUE)
 
 dptab <- results@dptab
 clamp.dp <- results@clamp.dp
