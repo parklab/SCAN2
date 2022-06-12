@@ -4,13 +4,14 @@
 # GATK chunk is large (>10MB or so).
 rule depth_profile_region_summarize_per_sample:
     input:
-        "depth_profile/joint_depth_matrix.tab.gz",
-        "depth_profile/joint_depth_matrix.tab.gz.tbi"
+        tab="depth_profile/joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
-        "depth_profile/{sample}_depth_table.rda"
+        rda="depth_profile/{sample}_depth_table.rda"
     params:
         sc_sample="{sample}",
-        bulk_sample=config['bulk_sample']
+        bulk_sample=config['bulk_sample'],
+        genome=config['genome']
     resources:
         # This memory value depends strongly on the size of GATK regions
         mem=1000*config['digest_depth_n_cores']
