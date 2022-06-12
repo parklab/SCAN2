@@ -24,6 +24,7 @@ if ('snakemake' %in% ls()) {
 }
 
 args <- commandArgs(trailingOnly=TRUE)
+print(args)
 if (length(args) < 5) {
     stop("usage: digest_depth.R joint_depth_matrix.tab.gz sc.sample bulk.sample genome out.rda [n.cores]")
 }
