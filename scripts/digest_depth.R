@@ -35,7 +35,7 @@ genome <- args[4]
 out.rda <- args[5]
 
 n.cores <- 1
-if (length(args) 6)
+if (length(args) == 6)
     n.cores <- as.integer(args[6])
 
 if (file.exists(out.rda))
