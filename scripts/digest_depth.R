@@ -44,11 +44,12 @@ if (file.exists(out.rda))
 
 suppressMessages(library(scan2))
 suppressMessages(library(future))
+suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
-with_progress({
+progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
-    handlers(handler_newline())
+    progressr::handlers(progressr::handler_newline())
     results <- digest.depth.profile(path=path, sc.sample=sc.sample, bulk.sample=bulk.sample,
         genome=genome)
 }, enable=TRUE)
