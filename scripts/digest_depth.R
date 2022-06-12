@@ -54,8 +54,8 @@ progressr::with_progress({
         genome=genome)
 }, enable=TRUE)
 
-dptab <- results@dptab
-clamp.dp <- results@clamp.dp
+dptab <- results$dptab
+clamp.dp <- results$clamp.dp
 save(dptab, clamp.dp, file=out.rda)
 
 if ('snakemake' %in% ls()) {
