@@ -1,7 +1,5 @@
 # vim: syntax=python
 
-# Both summarizes a vector into a (2-dimensional) table and adds
-# bulk depth information.
 # The memory limit here can be insufficient if the size of each
 # GATK chunk is large (>10MB or so).
 rule depth_profile_region_summarize_per_sample:
@@ -10,12 +8,16 @@ rule depth_profile_region_summarize_per_sample:
         "depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
         "depth_profile/{sample}_depth_table.rda"
+    params:
+        sc_sample="{sample}",
+        bulk_sample=config['bulk_sample']
     resources:
-        mem=7000
-    threads: 20
+        # This memory value depends strongly on the size of GATK regions
+        mem=1000*config['digest_depth_n_cores']
+    threads: config['digest_depth_n_cores']
     shell:
         """
-        echo unimplemente
+        {config[scripts]}/digest_depth.R
         """
 
 
@@ -26,13 +28,13 @@ rule callable_region_gather:
     output:
         tabgz="depth_profile/joint_depth_matrix.tab.gz",
         tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
-    threads: 1
+    threads: 4
     resources:
         mem=1000
     shell:
         """
         (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
-            | bgzip -c > {output.tabgz}
+            | bgzip --threads {threads} -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
 
