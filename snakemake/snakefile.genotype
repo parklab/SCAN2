@@ -40,6 +40,7 @@ rule genotype:
         bulkcigarsidx="call_mutations/%s/cigars.tab.gz.tbi" % config['bulk_sample'],
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
+        dptab="depth_profile/{sample}_depth_table.rda"
     output:
         "call_mutations/{sample}/scan2_object.rda"
     params:
@@ -59,6 +60,6 @@ rule genotype:
            {params.sc_sample} {params.config_yaml} \
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
-           {input.cigardata} \
-           {output}
+           {input.cigardata} {input.dptab} \
+           {output} {threads}
         """

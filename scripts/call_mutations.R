@@ -2,8 +2,8 @@
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) != 8)
-    stop('usage: call_mutations.R sc.sample config.yaml integrated_table.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda output.rda')
+if (length(args) < 9)
+    stop('usage: call_mutations.R sc.sample config.yaml integrated_table.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda dptab.rda output.rda [n.cores]')
 
 sc.sample <- args[1]
 config.yaml <- args[2]
@@ -12,7 +12,12 @@ abmodel.fits <- args[4]
 sccigars <- args[5]
 bulkcigars <- args[6]
 cigardata <- args[7]
-out.rda <- args[8]
+dptab <- args[8]
+out.rda <- args[9]
+
+n.cores <- 1
+if (length(args) == 10)
+    n.cores <- as.integer(args[10])
 
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
@@ -26,7 +31,7 @@ legacy <- y$mimic_legacy
 library(scan2)
 library(future)
 library(progressr)
-plan(multicore)
+plan(multicore, workers=n.cores)
 
 with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
@@ -35,7 +40,7 @@ with_progress({
         sc.sample=sc.sample, bulk.sample=bulk.sample,
         int.tab=int.tab, abfits=abmodel.fits,
         sccigars=sccigars, bulkcigars=bulkcigars,
-        trainingcigars=cigardata,
+        trainingcigars=cigardata, dptab=dptab,
         config.yaml=config.yaml,
         genome=genome.string,
         verbose=FALSE, report.mem=FALSE, legacy=legacy)
