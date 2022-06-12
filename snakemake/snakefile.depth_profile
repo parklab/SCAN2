@@ -18,7 +18,9 @@ rule depth_profile_region_summarize_per_sample:
     threads: config['digest_depth_n_cores']
     shell:
         """
-        {config[scripts]}/digest_depth.R
+        {config[scripts]}/digest_depth.R {input.tab} \
+            {params.sc_sample} {params.bulk_sample} {params.genome} \
+            {output.rda} {threads}
         """
 
 
