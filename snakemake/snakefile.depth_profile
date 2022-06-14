@@ -13,8 +13,9 @@ rule depth_profile_region_summarize_per_sample:
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
     resources:
-        # This memory value depends strongly on the size of GATK regions
-        mem=1000*config['digest_depth_n_cores']
+        # This memory value depends strongly on the size of GATK regions. Here we
+        # assume 10 Mb chunks and 10 bytes per position per sample.
+        mem=lambda wildcards, input, threads: 2200 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """
