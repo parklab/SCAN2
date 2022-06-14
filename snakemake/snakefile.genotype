@@ -17,7 +17,7 @@ rule pregenotype:
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
     resources:
-        mem=6000
+        mem=8000
     benchmark:
         "call_mutations/{sample}/benchmark_pregenotyping.txt"
     shell:
