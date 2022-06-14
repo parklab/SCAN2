@@ -12,10 +12,16 @@ rule depth_profile_region_summarize_per_sample:
         sc_sample="{sample}",
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
+    benchmark:
+        "depth_profile/benchmark_{sample}_region_summarize.txt"
     resources:
         # This memory value depends strongly on the size of GATK regions. Here we
         # assume 10 Mb chunks and 10 bytes per position per sample.
-        mem=lambda wildcards, input, threads: 2200 * threads
+        #
+        # it is unclear to me why this much RAM is needed when reading in chunks
+        # and reading only 2 samples at a time, but these values are derived from
+        # many real world runs.
+        mem=lambda wildcards, input, threads: 2800 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """
