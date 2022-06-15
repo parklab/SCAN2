@@ -20,8 +20,10 @@ rule depth_profile_region_summarize_per_sample:
         #
         # it is unclear to me why this much RAM is needed when reading in chunks
         # and reading only 2 samples at a time, but these values are derived from
-        # many real world runs.
-        mem=lambda wildcards, input, threads: 2800 * threads
+        # many real world runs. the max. memory used was 1555 MB per thread; did
+        # not scale with number of samples in each batch, as expected. give 1800 MB,
+        # a little extra headroom.
+        mem=lambda wildcards, input, threads: 1800 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """
@@ -38,6 +40,8 @@ rule callable_region_gather:
     output:
         tabgz="depth_profile/joint_depth_matrix.tab.gz",
         tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
+    benchmark:
+        "depth_profile/benchmark_joint_depth_matrix.txt"
     threads: 4
     resources:
         mem=1000

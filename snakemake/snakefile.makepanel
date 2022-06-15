@@ -10,6 +10,8 @@ rule vcf_to_tab:
         tabidx="panel/hc_raw.mmq60.tab.gz.tbi",
     resources:
         mem=1000
+    benchmark:
+        "gatk/benchmark_vcf_to_tab.txt"
     shell:
         """
         {config[scripts]}/totab.panel.sh {input} /dev/stdout | bgzip -c > {output.tabgz}
