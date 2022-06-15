@@ -56,7 +56,7 @@ rule gatkvcf_to_tab:
         tab="call_mutations/mmq{gatk_mmq}.tab.gz",
         idx="call_mutations/mmq{gatk_mmq}.tab.gz.tbi"
     benchmark:
-        "call_mutations/benchmark_gatkvcf_to_tab.txt"
+        "call_mutations/benchmark_gatkvcf_to_tab_mmq{gatk_mmq}.txt"
     resources:
         mem=4000
     shell:
