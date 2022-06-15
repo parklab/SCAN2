@@ -110,8 +110,8 @@ cat("Bulks: ")
 print(meta[amp=='bulk']$sample)
 
 # GRanges intervals for chunked pipeline
-genome.object <- scan2::genome.string.to.bsgenome.object(genome)
-grs <- tileGenome(seqlengths=seqinfo(genome.object)[as.character(1:22)],
+genome.seqinfo <- scan2::genome.string.to.seqinfo.object(genome)
+grs <- tileGenome(seqlengths=genome.seqinfo[as.character(1:22)],
                   tilewidth=10e6, cut.last.tile.in.chrom=TRUE)
 
 # map donor <-> sample IDs
