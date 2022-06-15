@@ -30,7 +30,7 @@ rule cigar_gather:
         tab="call_mutations/{sample}/cigars.tab.gz",
         idx="call_mutations/{sample}/cigars.tab.gz.tbi"
     benchmark:
-        idx="call_mutations/{sample}/benchmark_cigar_gather.txt"
+        "call_mutations/{sample}/benchmark_cigar_gather.txt"
     resources:
         mem=500
     shell:
