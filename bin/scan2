@@ -839,7 +839,7 @@ if __name__ == "__main__":
     
     abmodel = config_parser.add_argument_group("AB model fitting",
         "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
-    abmodel.add_argument('--abmodel-n-cores', type=int, default=1, metavar='INT',
+    abmodel.add_argument('--abmodel-n-cores', type=int, metavar='INT',
         help='Multithread with INT cores when fitting the AB model parameters.  This is the preferred way of fitting the AB model and contrasts with the chunk strategy, described below.')
     abmodel.add_argument('--abmodel-samples-per-step', type=int, metavar='INT',
         help='Sample the AB model log-likelihood function INT times during each parameter space refinement step.')
