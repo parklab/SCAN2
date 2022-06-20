@@ -59,7 +59,7 @@ progressr::with_progress({
 }, enable=TRUE)
 
 
-write.table(head(as.data.frame(results)[,1:3]),
+write.table(as.data.frame(results)[,1:3],
     file=out.bed, row.names=F, col.names=F, quote=F, sep='\t')
 
 if ('snakemake' %in% ls()) {
