@@ -30,7 +30,6 @@ s <- make.scan(sc.id, bulk.id, genome)
 s <- read.integrated.table(s, int.tab, quiet=TRUE)
 s <- add.cigar.data(s, sccigars, bulkcigars, quiet=TRUE)
 null.sites <- cigar.get.null.sites(s, legacy=TRUE, quiet=TRUE)
-#null.sites <- null.sites[, .(chr, pos, refnt, altnt, muttype, id.score.x, id.score.y, hs.score.x, hs.score.y)]
 null.sites <- null.sites[, .(chr, pos, refnt, altnt, muttype, M.cigars, ID.cigars, HS.cigars, other.cigars, dp.cigars, M.cigars.bulk, ID.cigars.bulk, HS.cigars.bulk, other.cigars.bulk, dp.cigars.bulk)]
 colnames(null.sites)[1] <- "#chr"
 data.table::fwrite(null.sites, file=out.cigars, sep='\t')
