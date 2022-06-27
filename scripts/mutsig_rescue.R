@@ -28,22 +28,21 @@ if ('snakemake' %in% ls()) {
 args <- parser$parse_args(commandArgs(trailingOnly=TRUE))
 
 out.txt <- args$output_table
-files <- args$objects
+files <- args$object
 n.cores <- args$threads
 add.muts <- args$add_muts
 
-str(files)
-print(files)
-
-stop('done')
+if (length(files) < 1)
+    stop('must supply one or more --object arguments')
 
 suppressMessages(library(scan2))
 suppressMessages(library(future))
 suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
-in.rdas <- NULL
-out.rdas <- NULL
+in.rdas <- objects[,1]
+out.rdas <- objects[,2]
+
 already.exists <- sapply(c(out.txt, out.rdas), file.exists)
 if (any(already.exists))
     stop(paste('output file(s) already exist, please delete them first: ',
