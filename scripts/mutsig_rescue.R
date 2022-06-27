@@ -4,7 +4,7 @@ library(argparse)
 
 parser <- ArgumentParser()
 
-parser$add_argument('output_table', type='character', metavar='FILE',
+parser$add_argument('output_table', type='character',
     help='Tab-delimited output table containing all VAF-based calls and signature-rescued called in this batch. This table DOES NOT include additional mutations from --add-muts, if specified.')
 parser$add_argument('--object', nargs=2, action='append', metavar=c('in.rda', 'out.rda'),
     help='This argument requires two values: the first is the input RDA file containing a valid SCAN2 object. The second is an output file (which cannot already exist) to which a new SCAN2 object containing signature-rescued calls will be written. This argument can be specified multiple times to create a batch.')
