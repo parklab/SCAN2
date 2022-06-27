@@ -53,7 +53,7 @@ if (!is.null(add.muts))
 
 summary <- scan2::mutsig.rescue(setNames(in.rdas, out.rdas), add.muts=add.muts)
 
-data.table::fwrite(summary$all.calls, file=out.txt, sep='\t')
+data.table::fwrite(summary$all.muts, file=out.txt, sep='\t')
 
 if ('snakemake' %in% ls()) {
     sink()
