@@ -49,7 +49,7 @@ if (any(already.exists))
         c(out.txt, out.rdas)[already.exists], collapse='\n'))
 
 
-summary <- scan2::mutsig.rescue(setNames(out.rdas, in.rdas), add.muts=add.muts)
+summary <- scan2::mutsig.rescue(setNames(in.rdas, out.rdas), add.muts=add.muts)
 
 data.table::fwrite(summary$all.calls, file=out.txt, sep='\t')
 
