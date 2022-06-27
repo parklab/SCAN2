@@ -40,8 +40,8 @@ suppressMessages(library(future))
 suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
-in.rdas <- objects[,1]
-out.rdas <- objects[,2]
+in.rdas <- files[,1]
+out.rdas <- files[,2]
 
 already.exists <- sapply(c(out.txt, out.rdas), file.exists)
 if (any(already.exists))
