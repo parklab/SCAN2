@@ -19,3 +19,12 @@ if config['analysis'] == 'makepanel':
     rule makepanel:
         input:
             "panel/panel.tab.gz"
+
+if config['analysis'] == 'rescue':
+    include: "snakefile.rescue"
+    rule rescue_batch:
+        input:
+            "rescued_muts.txt",
+            "sig_homogeneity_tests.txt",
+            expand("rescue/{sample}_scan2_object_rescue.rda",
+                sample=config['scan2_object'].keys())
