@@ -38,11 +38,6 @@ homogeneity.file <- args$sig_homogeneity_test
 if (length(files) < 1)
     stop('must supply one or more --object arguments')
 
-suppressMessages(library(scan2))
-suppressMessages(library(future))
-suppressMessages(library(progressr))
-plan(multicore, workers=n.cores)
-
 in.rdas <- files[,1]
 out.rdas <- files[,2]
 
@@ -50,6 +45,11 @@ already.exists <- sapply(c(homogeneity.file, out.txt, out.rdas), file.exists)
 if (any(already.exists))
     stop(paste('output file(s) already exist, please delete them first: ',
         c(homogeneity.file, out.txt, out.rdas)[already.exists], collapse='\n'))
+
+suppressMessages(library(scan2))
+suppressMessages(library(future))
+suppressMessages(library(progressr))
+plan(multicore, workers=n.cores)
 
 if (!is.null(add.muts))
     add.muts <- data.table::fread(add.muts)
@@ -60,7 +60,7 @@ data.table::fwrite(summary$muts, file=out.txt, sep='\t')
 
 if (!is.null(homogeneity.file)) {
     tests <- do.call(rbind, lapply(1:length(summary$sig.homogeneity.tests), function(i)
-        data.frame(sample=names(summary$sig.homogeneity.tests)[i], summary$sig.homogeneity.test[[i]])))
+        data.frame(sample=names(summary$sig.homogeneity.tests)[i], summary$sig.homogeneity.tests[[i]])))
     data.table::fwrite(tests, file=homogeneity.file, sep='\t')
 }
 
