@@ -12,7 +12,7 @@ parser$add_argument('--object', nargs=2, action='append', metavar=c('in.rda', 'o
     help='This argument requires two values: the first is the input RDA file containing a valid SCAN2 object. The second is an output file (which cannot already exist) to which a new SCAN2 object containing signature-rescued calls will be written. This argument can be specified multiple times to create a batch.')
 parser$add_argument('--add-muts', metavar='FILE', type='character', default=NULL,
     help='CSV file containing somatic mutations, one per line, that should be added to the batch for calculating the true mutation specrum. The file must contain at least two columns: muttype (entries in this column can have value "snv" or "indel") and mutsig (values in this column must be SBS96- or ID83-channel values; e.g. ACC:C>A for SBS96 or 3:Del:R:0 for ID83)')
-parser$add_argument("--rescue-target-fdr", metavar='FLOAT', type='numeric', default=0.01,
+parser$add_argument("--rescue-target-fdr", metavar='FLOAT', type='double', default=0.01,
     help='Target FDR cutoff for calling somatic mutations after rescue adjustments are applied. Similar to SCAN2\'s --target-fdr parameter, this is also not formal FDR control.  Value between 0-1, lower values correspond to more stringent calling.')
 parser$add_argument('--threads', default=1, type='integer', metavar='N',
     help='Use N threads to load the SCAN2 objects and perform signature rescue. WARNING: each human-sized SCAN2 object requires ~6 GB RAM per thread.')
