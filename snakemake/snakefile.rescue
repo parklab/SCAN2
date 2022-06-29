@@ -12,9 +12,10 @@ rule mutsig_rescue:
         addmuts='' if config['add_muts'] is None else '--add-muts ' + config['add_muts'],
         objflags=' '.join([ '--object ' + v + ' objects/' + k + '/_scan2_object_rescue.rda' for k, v in config['scan2_objects'].items()])
     threads: config['rescue_n_cores']
-    # ~6 GB RAM per worker, unfortunately. Could be down to ~3 GB if
-    # we could prevent copying the @gatk table after load()ing the object.
-    mem=lambda wildcards, input, threads: 6000*threads
+    resources:
+        # ~6 GB RAM per worker, unfortunately. Could be down to ~3 GB if
+        # we could prevent copying the @gatk table after load()ing the object.
+        mem=lambda wildcards, input, threads: 6000*threads
     benchmark:
         "rescue/benchmark_mutsig_rescue.txt"
     shell:
