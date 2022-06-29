@@ -23,6 +23,7 @@ from sys import exit
 # are used to determine which command line arguments are not to be stored
 # in the configuration database.
 scan2_param_defaults = {
+    'analysis': 'call_mutations',
     'genome': 'hs37d5',
     'is_started': False,
     'gatk': 'gatk4_joint',
@@ -501,8 +502,7 @@ def do_run(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit),
-        "--config", "analysis=call_mutations"
+        "--jobs", str(args.joblimit)
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -544,7 +544,7 @@ def do_makepanel(args):
         "--latency-wait", "30",
         "--rerun-incomplete",
         "--jobs", str(args.joblimit),
-        "--config", "analysis=makepanel", "metadata=" + args.metadata
+        "metadata=" + args.metadata
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -559,8 +559,7 @@ def do_rescue(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit),
-        "--config", "analysis=rescue"
+        "--jobs", str(args.joblimit)
     ]
 
     run_snakemake(snakemake_command, args, a)
