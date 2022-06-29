@@ -81,7 +81,7 @@ scan2_file_defaults = {
     'bams': {},         # miscellaneous BAMs; not genotyped as single cells
     'sc_bams': {},      # BAMs for single cells, will be genotyped
     'bulk_bam': None,   # single bulk BAM for phasing, filtering germlines
-    'scan2_object': {},
+    'scan2_objects': {},
     'add_muts': None
     #'eagle_refpanel': {},
     #'eagle_genmap': None
@@ -245,12 +245,15 @@ class Analysis:
         To skip special handling, simply return the original key and value.
         """
         if key in [ 'bam', 'sc_bam', 'bulk_bam', 'scan2_object' ]:
-            if key in [ 'bam', 'sc_bam', 'scan2_object' ]:  # these provide lists
+            if key in [ 'bam', 'sc_bam' ]:  # these provide lists
                 return { key + 's' :
                     dict([ (sample_from_bam(bam), readable_file(bam)) for bam in value ]) }
             if key == 'bulk_bam':
                 return { 'bulk_bam': readable_file(value),
                          'bulk_sample': sample_from_bam(value) }
+            if key == 'scan2_object':       # list with nargs=2
+                return { key + 's' :
+                    dict([ (sample_id, readable_file(rda)) for sample_id, rda in value ]) }
 
         if key in [ 'regions', 'regions_file' ]:
             regions = regions_from_string(value) if \
