@@ -147,9 +147,9 @@ class Analysis:
 
 
     def __str__(self):
-        return "%s SCAN2 analysis type=%s, ID=%s" % \
+        return "%s SCAN2 analysis type=%s (change with config --analysis), ID=%s" % \
             ('LOCKED' if self.is_started() else 'UNLOCKED',
-             self.analysis,
+             str(self.analysis),
              str(self.analysis_uuid))
 
 
@@ -173,6 +173,7 @@ class Analysis:
         """Requires self.config_path to already be set."""
         with open(self.config_path, 'r') as yf:
             self.cfg = yaml.load(yf, Loader=yaml.FullLoader)
+        self.analysis = self.cfg['analysis']
         self.analysis_uuid = self.cfg['analysis_uuid']
 
 
