@@ -82,7 +82,8 @@ scan2_file_defaults = {
     'sc_bams': {},      # BAMs for single cells, will be genotyped
     'bulk_bam': None,   # single bulk BAM for phasing, filtering germlines
     'scan2_objects': {},
-    'add_muts': None
+    'add_muts': None,
+    'makepanel_metadata': None
     #'eagle_refpanel': {},
     #'eagle_genmap': None
 }
@@ -147,7 +148,7 @@ class Analysis:
 
 
     def __str__(self):
-        return "%s SCAN2 analysis type=%s (change with config --analysis), ID=%s" % \
+        return "%s SCAN2 analysis type=%s (change with `config --analysis`), ID=%s" % \
             ('LOCKED' if self.is_started() else 'UNLOCKED',
              str(self.analysis),
              str(self.analysis_uuid))
@@ -327,7 +328,7 @@ class Analysis:
         Check that all necessary files exist and ensure the list of
         BAMs and single cell/bulk sample IDs make sense.
         """
-        if self.cfg['analysis'] == 'call_mutations':
+        if self.cfg['analysis'] == 'call_mutations' or self.cfg['analysis'] == 'makepanel':
             # Additional checks: index files
             print("Checking reference genome..")
             check_refgenome(self.cfg['ref'])
@@ -338,9 +339,14 @@ class Analysis:
             print("Checking BAMs..")
             self.check_bams()
 
-            # Additional checks: very specific reference panel layout
-            print("Checking phasing reference panel..")
-            self.check_phaser()
+            if self.cfg['analysis'] == 'call_mutations':
+                # Additional checks: very specific reference panel layout
+                print("Checking phasing reference panel..")
+                self.check_phaser()
+
+            if self.cfg['analysis'] == 'makepanel':
+                print("Checking panel metadata..")
+                readable_file(self.cfg['makepanel-metadata'])
 
         if self.cfg['analysis'] == 'rescue':
             print("Checking SCAN2 objects..")
@@ -566,8 +572,7 @@ def do_makepanel(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit),
-        "metadata=" + args.metadata
+        "--jobs", str(args.joblimit)
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -756,11 +761,11 @@ if __name__ == "__main__":
         help="VCF file for the --gatk vcf option. Ignored if --gatk is not 'vcf'. CURRENTLY UNSUPPORTED.")
     config_parser.add_argument('--mimic-legacy', action='store_true', default=False,
         help="Mimic some behaviors of older SCAN2 versions. Not comprehensive.")
-    config_parser.add_argument('--genotype-n-cores', default=20, type=int,
+    config_parser.add_argument('--genotype-n-cores', default=20, type=int, metavar='N',
         help="Number of cores to be used in the final genotyping step.")
-    config_parser.add_argument('--integrate-table-n-cores', default=20, type=int,
+    config_parser.add_argument('--integrate-table-n-cores', default=20, type=int, metavar='N',
         help="Number of cores to be used when creating the integrated table.")
-    config_parser.add_argument('--digest-depth-n-cores', default=20, type=int,
+    config_parser.add_argument('--digest-depth-n-cores', default=20, type=int, metavar='N',
         help="Number of cores used to tabulate single cell and bulk sequencing "
              "depth.")
     
@@ -771,9 +776,11 @@ if __name__ == "__main__":
         help='Path to reference genome FASTA file.  As required by GATK, '
              'two additional files must be present: an index (.fai) and a '
              'dictionary (.dict).')
-    req.add_argument('--genome', type=str, metavar='hs37d5|hg38|mm10',
-        help='Reference genome to use.  This is not cross-checked against '
-             'the provided reference genome or phasing panels.  It is used '
+    req.add_argument('--genome', type=str,
+        choices=[ 'hs37d5', 'hg38', 'mm10' ],
+        help='Reference genome to use.  This is not checked against '
+             'the provided reference genome or phasing panels, the user '
+             'must ensure these match the supplied genome.  It is used '
              'when determining mutation signatures (e.g., to fetch '
              'trinucleotide contexts around candidate mutations).  Valid '
              'values must match those recognized by the R SCAN2 package '
@@ -913,6 +920,14 @@ if __name__ == "__main__":
              'interpretation and caveats as --target-fdr.')
 
 
+    makepanel = config_parser.add_argument_group("Cross-sample filter creation (scan2 makepanel)")
+    makepanel.add_argument('--makepanel-metadata', metavar='CSV', type=readable_file,
+        help='CSV file containing metadata describing the samples in the panel. '
+             'Must contain columns named: sample, donor and amp. The amp column '
+             'is used to determine bulk vs. single cell status; amp=bulk (case '
+             'sensitive) for bulks and any other value for single cells.')
+
+
     ##########################################################################
     # The 'validate' subcommand
     #
@@ -976,11 +991,6 @@ if __name__ == "__main__":
              '--gatk options are used between makepanel and run.')
     makepanel_parser.set_defaults(executor=do_makepanel)
     makepanel_parser = add_runtime_args(makepanel_parser)
-    makepanel_parser.add_argument('metadata', metavar='CSV', type=readable_file,
-        help='CSV file containing metadata describing the samples in the panel. '
-             'Must contain columns named: sample, donor and amp. The amp column '
-             'is used to determine bulk vs. single cell status; amp=bulk (case '
-             'sensitive) for bulks and any other value for single cells.')
     makepanel_parser.add_argument('--makepanel-n-cores', type=int, default=20, metavar='N',
         help='Number of cores to use when digesting cross-sample panel GATK output.')
     
