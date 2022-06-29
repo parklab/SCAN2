@@ -35,7 +35,9 @@ all.muts <- do.call(rbind, lapply(args$muts, function(mutfile)
 sample.to.subject.map <- setNames(unique(all.muts$sample), unique(all.muts$sample))
 if (!is.null(args$metadata)) {
     meta <- fread(args$metadata)
-    sample.to.subject.map <- setNames(meta$sample, meta$subject)
+    sample.to.subject.map <- setNames(meta$subject, meta$sample)
+    cat("got metadata sample to subject map:\n")
+    print(sample.to.subject.map)
 }
 
 
