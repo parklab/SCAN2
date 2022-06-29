@@ -19,7 +19,7 @@ if (length(args$muts) < 1)
 
 muttypes <- c('snv', 'indel')
 
-output.tables <- paste(args$output_prefix, rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_')
+output.tables <- paste0(paste(args$output_prefix, rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_'), '.txt')
 names(output.tables) <- paste(rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_')
 already.exists <- sapply(output.tables, file.exists)
 if (any(already.exists))
