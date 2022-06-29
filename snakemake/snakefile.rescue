@@ -17,7 +17,7 @@ rule mutsig_rescue:
         # we could prevent copying the @gatk table after load()ing the object.
         mem=lambda wildcards, input, threads: 6000*threads
     benchmark:
-        "rescue/benchmark_mutsig_rescue.txt"
+        "benchmark_mutsig_rescue.txt"
     shell:
         """
         {config[scripts]}/mutsig_rescue.R \
