@@ -346,7 +346,7 @@ class Analysis:
 
             if self.cfg['analysis'] == 'makepanel':
                 print("Checking panel metadata..")
-                readable_file(self.cfg['makepanel-metadata'])
+                readable_file(self.cfg['makepanel_metadata'])
 
         if self.cfg['analysis'] == 'rescue':
             print("Checking SCAN2 objects..")
