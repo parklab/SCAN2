@@ -26,5 +26,5 @@ if config['analysis'] == 'rescue':
         input:
             "rescued_muts.txt",
             "sig_homogeneity_tests.txt",
-            expand("rescue/{sample}_scan2_object_rescue.rda",
-                sample=config['scan2_object'].keys())
+            expand("objects/{sample}_scan2_object_rescue.rda",
+                sample=config['scan2_objects'].keys())
