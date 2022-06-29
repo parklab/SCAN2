@@ -212,7 +212,7 @@ class Analysis:
                     print("Updating %s: %s -> %s" % (k, str(self.cfg[k]), str(v)))
                 if k in scan2_file_defaults and type(v) == str:
                     # only top-level files are automatically converted,
-                    # deeper files must require handle_special().
+                    # deeper files require handle_special().
                     v = readable_file(v)   # returns the absolute path
                 self.cfg[k] = v
                 updates = updates + 1
@@ -244,8 +244,8 @@ class Analysis:
         to the configuration database.
         To skip special handling, simply return the original key and value.
         """
-        if key in [ 'bam', 'sc_bam', 'bulk_bam' ]:
-            if key in [ 'bam', 'sc_bam' ]:  # sc_bam and bam provide a lists
+        if key in [ 'bam', 'sc_bam', 'bulk_bam', 'scan2_object' ]:
+            if key in [ 'bam', 'sc_bam', 'scan2_object' ]:  # these provide lists
                 return { key + 's' :
                     dict([ (sample_from_bam(bam), readable_file(bam)) for bam in value ]) }
             if key == 'bulk_bam':
