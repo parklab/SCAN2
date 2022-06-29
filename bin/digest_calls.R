@@ -17,6 +17,14 @@ args <- parser$parse_args(commandArgs(trailingOnly=TRUE))
 if (length(args$muts) < 1)
     stop('at least one --muts argument must be given')
 
+muttypes <- c('snv', 'indel')
+
+output.tables <- paste(args$output_prefix, rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_')
+names(output.tables) <- paste(rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_')
+already.exists <- sapply(output.tables, file.exists)
+if (any(already.exists))
+    stop(paste('the following output files already exist, please delete them first:', output.tables[already.exists], collapse='\n'))
+
 
 library(scan2)
 
@@ -26,11 +34,6 @@ step5.clustered_mut_filter=F         # remove SNVs within 50bp in the same sampl
 step6.finalize=F    
 step7.save_output=T                  # write (but don't overwrite) the rda file
 
-# XXX: NEED METADATA FOR SAMPLE -> DONOR MAPPING
-
-# Filtering for things like recurrence/clustering is done separately
-# for SNVs and indels.  Perhaps clustering would be better if the two
-# were combined?
 
 all.muts <- do.call(rbind, lapply(args$muts, function(mutfile)
     data.table::fread(mutfile)[, .(sample, chr, pos, refnt, altnt, muttype, pass, rescue)]))
@@ -47,7 +50,9 @@ all.muts <- all.muts[order(chr, pos),]
 all.muts[, subject := sample.to.subject.map[sample]]
 all.muts[, id := paste(chr, pos, refnt, altnt)]
 
-muttypes <- c('snv', 'indel')
+# Filtering for things like recurrence/clustering is done separately
+# for SNVs and indels.  Perhaps clustering would be better if the two
+# were combined?
 for (mt in muttypes) {
     # Determine confidence class for every SNV
     muts <- all.muts[muttype == mt]
@@ -60,29 +65,21 @@ for (mt in muttypes) {
     # This does NOT filter SNVs called more than once in the same
     # individual (=likely lineage marker), in which case one of the
     # multply-called mutations is retained. That filter is applied later.
-    cat('Raw recurrence rates (PTA):\n')
-    print(table(table(nmut$id[nmut$passA | nmut$passB])))
+    cat('Raw recurrence rates:\n')
+    print(table(table(nmut$id)))
     
-    cat('Recurrence x donor table (all muts)\n')
-    z <- split(nmut$donor, nmut$id)
-    donors <- sapply(z, function(v) length(unique(v)))
+    cat('Recurrence x subject table\n')
+    z <- split(nmut$subject, nmut$id)
+    subjects <- sapply(z, function(v) length(unique(v)))
     recs <- sapply(z, length)
-    print(addmargins(table(recs,donors)))
-    nmut$rec.filter <- donors[nmut$id] > 1
-
-    cat('Recurrence x donor table (any passA,B,M)\n')
-    z <- split(nmut$donor[nmut$passA | nmut$passB],
-            nmut$id[nmut$passA | nmut$passB])
-    donors <- sapply(z, function(v) length(unique(v)))
-    recs <- sapply(z, length)
-    print(addmargins(table(recs,donors)))
+    print(addmargins(table(recs, subjects)))
+    muts[, rec.filter := subjects[id] > 1]
 
 
-# nearby points created by a single sample are more likely to
-# be artifacts. Remove the whole cluster, because it is often
-# true that the entire cluster is caused by the same few reads
-# that probably align poorly or are clipped.
-if (step5.clustered_mut_filter) {
+    # nearby points created by a single sample are more likely to
+    # be artifacts. Remove the whole cluster, because it is often
+    # true that the entire cluster is caused by the same few reads
+    # that probably align poorly or are clipped.
     filter.single.sample.clusters <- function(muts, threshold=300) {
         by.sample <- split(muts, muts$sample)
         muts <- do.call(rbind, lapply(by.sample, function(d) {
@@ -94,54 +91,35 @@ if (step5.clustered_mut_filter) {
                 dchr
             }))
         }))
-        muts <- muts[order(muts$chr, muts$pos),]
-        filt.name <- paste0('clustered.filt.', threshold)
-        muts[[filt.name]] <- muts$nearest < threshold
+        # return back to original order
+        muts <- muts[order(chr, pos)]
+        muts[, cluster.filter := nearest < threshold]
         cat(sprintf('Removing %d sites within %d bp in the same sample\n',
-            sum(muts[[filt.name]]), threshold))
-        print(addmargins(table(muts$sample, muts[[filt.name]])))
+            sum(muts$cluster.filter), threshold))
+        print(addmargins(table(muts$sample, muts$cluster.filter)))
         muts
     }
     
-    nmut <- filter.single.sample.clusters(nmut, threshold=50)
-}
+    muts <- filter.single.sample.clusters(muts, threshold=args$cluster_filter_bp)
 
-
-if (step6.finalize) {
-    nmut <- nmut[nmut$passA | nmut$passB | nmut$passM,]
-
-    # if there are any recurrences left, be sure to only pick one. if the
-    # mutation is observed in both MDA and PTA, prefer the PTA one. otherwise,
-    # keep one of any copy.
-    # these recurrent mutations that occur in the same subject are likely
+    # if there are any recurrent mutations remaining,
+    # then they recur in the same subject and are likely
     # lineage-related true mutations. it's important not to count them as
-    # multiple independent mutations or widely-inherited lineage markers, e.g.,
+    # multiple independent mutations or high clonality lineage markers
     # could drive enrichment signals.
-    ord.samples <- c(names(ss.pta), names(ss.mda))
-    nmut <- do.call(rbind, lapply(ord.samples, function(sn)
-        nmut[nmut$sample == sn,]))
-    nmut$lineage.filter <- duplicated(nmut$id)
-    #nmut <- nmut[!nmut$duplicated,]
-    nmut <- nmut[order(nmut$chr, nmut$pos),]
-    nmut$final.filter <- nmut$rec.filter | nmut$clustered.filt.50 | nmut$lineage.filter
+    muts[, lineage.filter := duplicated(id)]
+    muts[, final.filter := rec.filter | cluster.filter | lineage.filter]
 
-    # give a pass status that assigns each mutation to its most confident set
-    # the priority of pass status is A > B > M
-    # so if a mutation is both passA and passB, it gets assigned to the passA set.
-    nmut$status <- ifelse(nmut$passA, 'A',
-        ifelse(nmut$passB, 'B',
-                    ifelse(nmut$passM, 'M', 'ERROR')))
-}
+    for (passtype in c('pass', 'pass_and_rescue')) {
+        outfile=output.tables[paste0(mt, '_', passtype)]
+        if (file.exists(outfile))
+            stop(paste('output file', outfile, 'already exists, please delete it first'))
+        if (passtype == 'pass')
+            outmuts <- muts[pass == TRUE]
+        if (passtype == 'pass_and_rescue')
+            outmuts <- muts[pass == TRUE | rescue == TRUE]
 
-if (step7.save_output) {
-    cat('step7\n')
-    rdafile='/n/data1/hms/dbmi/park/jluquette/pta/integrated_calls/calls_20220506_clus50bp_rec1donor_passABM_all_sites_in_table.rda'
-    if (file.exists(rdafile))
-        stop(paste('output RDA file', rdafile, 'already exists, please delete it first'))
-    save(nmut, file=rdafile)
-
-    csvfile='/n/data1/hms/dbmi/park/jluquette/pta/integrated_calls/calls_20220506_clus50bp_rec1donor_passABM_all_sites_in_table.csv'
-    if (file.exists(csvfile))
-        stop(paste('output csv file', csvfile, 'already exists, please delete it first'))
-    fwrite(nmut, file=csvfile)
+        cat('writing', outfile, '\n')
+        data.table::fwrite(outmuts[final.filter == TRUE], file=outfile)
+    }
 }
