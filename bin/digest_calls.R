@@ -113,6 +113,6 @@ for (mt in muttypes) {
             outmuts <- muts[pass == TRUE | rescue == TRUE]
 
         cat('writing', outfile, '\n')
-        data.table::fwrite(outmuts[final.filter == TRUE], file=outfile)
+        data.table::fwrite(outmuts[final.filter == FALSE], file=outfile)
     }
 }
