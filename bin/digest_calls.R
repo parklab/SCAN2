@@ -26,7 +26,7 @@ if (any(already.exists))
     stop(paste('the following output files already exist, please delete them first:', output.tables[already.exists], collapse='\n'))
 
 
-library(scan2)
+suppressMessages(library(scan2))
 
 all.muts <- do.call(rbind, lapply(args$muts, function(mutfile)
     data.table::fread(mutfile)[, .(sample, chr, pos, refnt, altnt, muttype, pass, rescue)]))
