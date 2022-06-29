@@ -283,7 +283,7 @@ class Analysis:
                  'chrs': chrs_from_regions(regions) }
 
 
-    def check_scan2_obects(self):
+    def check_scan2_objects(self):
         if len(self.cfg['scan2_objects']) == 0:
             error('no SCAN2 objects were specified (--scan2-object)')
         [ readable_file(r) for r in self.cfg['scan2_objecs'].values() ]
