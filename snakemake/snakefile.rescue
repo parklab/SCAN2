@@ -24,5 +24,6 @@ rule mutsig_rescue:
             {params.objflags} \
             --sig-homogeneity-test {output.sht} \
             --threads {threads} \
+            --rescue-target-fdr {config[rescue_target_fdr]} \
             {output.muts}
         """

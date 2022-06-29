@@ -28,6 +28,7 @@ scan2_param_defaults = {
     'gatk': 'gatk4_joint',
     'parsimony_phasing': False,
     'target_fdr': 0.01,
+    'rescue_target_fdr': 0.01,
     'snv_min_sc_alt': 2,
     'snv_min_sc_dp': 6,
     'snv_min_bulk_dp': 11, 
@@ -792,7 +793,7 @@ if __name__ == "__main__":
     
     caller = config_parser.add_argument_group("Somatic SNV calling parameters. A minimum requirement of 2 reads supporting a putative mutation is probably good practice at most sequencing depths.  However, the minimum total depth for single cell and bulk may need to be altered.  The defaults of 6 and 11, respectively, were successful on single cells with >25x and bulk with >30x mean coverage.")
     caller.add_argument('--target-fdr', type=float, metavar='FLOAT',
-        help='Desired false discovery rate (FDR).  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
+        help='Desired false discovery rate (FDR), a number between 0 and 1 that represents the fraction of the final call set that is expected to be false positives.  This is not formal FDR control via, e.g., q-values.  In general, lower values will increase specificity at the cost of sensitivity.')
     caller.add_argument('--snv-min-sc-alt', type=int, metavar='INT',
         help='Reject somatic SNVs with fewer than INT reads carrying the mutation in single cells.')
     caller.add_argument('--snv-min-sc-dp', type=int, metavar='INT',
@@ -885,6 +886,9 @@ if __name__ == "__main__":
              'have value "snv" or "indel") and mutsig (values in this column must '
              'be SBS96- or ID83-channel values; e.g. ACC:C>A for SBS96 or '
              '3:Del:R:0 for ID83)')
+    rescue.add_argument('--rescue-target-fdr', metavar='FLOAT', type=float,
+        help='Target FDR for mutation signature rescue. Subject to the same '
+             'interpretation and caveats as --target-fdr.')
 
 
     ##########################################################################
