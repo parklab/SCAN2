@@ -59,10 +59,10 @@ for (mt in muttypes) {
     # individual (=likely lineage marker), in which case one of the
     # multply-called mutations is retained. That filter is applied later.
     cat('Raw recurrence rates:\n')
-    print(table(table(nmut$id)))
+    print(table(table(muts$id)))
     
     cat('Recurrence x subject table\n')
-    z <- split(nmut$subject, nmut$id)
+    z <- split(muts$subject, muts$id)
     subjects <- sapply(z, function(v) length(unique(v)))
     recs <- sapply(z, length)
     print(addmargins(table(recs, subjects)))
