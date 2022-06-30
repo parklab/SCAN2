@@ -67,6 +67,7 @@ plan(multicore, workers=n.cores)
 
 muts <- data.table::fread(muts.path)
 muts <- muts[sample == sc.sample & muttype == mt & (pass == TRUE | (passtype == 'rescue' & rescue == TRUE))]
+cat('Got', nrow(muts), 'mutations of type', mt, '\n')
 
 progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
