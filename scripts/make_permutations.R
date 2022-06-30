@@ -51,6 +51,7 @@ if (length(args) == 10)
 
 if (muttype != 'snv' & muttype != 'indel')
     stop("muttype must be either 'snv' or 'indel' (case-sensitive)")
+mt <- muttype
 
 if (passtype != 'pass' & passtype != 'rescue')
     stop("passtype must be either 'pass' or 'rescue' (case-sensitive)")
@@ -65,7 +66,7 @@ suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
 muts <- data.table::fread(muts.path)
-muts <- muts[sample == sc.sample & (pass == TRUE | (passtype == 'rescue' & rescue == TRUE))]
+muts <- muts[sample == sc.sample & muttype == mt & (pass == TRUE | (passtype == 'rescue' & rescue == TRUE))]
 
 progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
