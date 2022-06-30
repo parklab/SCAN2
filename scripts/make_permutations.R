@@ -72,14 +72,14 @@ cat('Got', nrow(muts), 'mutations of type', mt, '\n')
 progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
     progressr::handlers(progressr::handler_newline())
-    results <- make.permuted.mutations(muts=muts,
+    permdata <- make.permuted.mutations(muts=muts,
         sc.sample=sc.sample,
         callable.bed=callable.path, genome=genome.string,
         genome.file=genomefile.path, muttype=muttype,
         n.permutations=n.permutations, quiet=TRUE)
 }, enable=TRUE)
 
-save(results, file=out.rda, compress=FALSE)
+save(permdata, file=out.rda, compress=FALSE)
 
 if ('snakemake' %in% ls()) {
     sink()
