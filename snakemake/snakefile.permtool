@@ -1,14 +1,18 @@
 # vim: syntax=python
 
-wildcard_constraints:
-    muttype='snv|indel',
-    passtype='pass|rescue'
+import yaml
+
+# Read in all of the SCAN2 config files and create a sample -> config variable mapping
+yaml_by_sample = {}
+for sample, path in config['permtool_config_map'].items():
+    with open(path) as cf: 
+        yaml_by_sample[sample] = yaml.load(path, Loader=yaml.FullLoader)
 
 
 rule combine_permutations:
     input:
         rdas=expand("perms_by_sample/{sample}/{{muttype}}_{{passtype}}.rda",
-            config['sc_samples'])
+            config['permtool_samples'])
     output:
         perms="perms_{muttype}_{passtype}.rda",
         seeds="seedinfo_{muttype}_{passtype}.rda"
@@ -18,7 +22,7 @@ rule combine_permutations:
         perms="benchmark_combine_permutations_{muttype}_{passtype}.txt"
     params:
         genome=config['genome']
-    threads: config['combine_permutations_n_cores']
+    threads: config['permtool_combine_permutations_n_cores']
     resources:
         mem=lambda wildcards, input, threads: 1500*threads
     shell:
@@ -34,7 +38,7 @@ rule combine_permutations:
 
 rule make_permutations:
     input:
-        muttab=config['mut_table'],
+        muttab=config['permtool_muts'],
         bed="callable_regions/{sample}_{muttype}.bed"
     output:
         rda="perms_by_sample/{sample}/{muttype}_{passtype}.rda"
@@ -47,7 +51,7 @@ rule make_permutations:
         genome=config['genome'],
         muttype="{muttype}",
         passtype="{passtype}"
-    threads: config['make_permutations_n_cores']
+    threads: config['permtool_make_permutations_n_cores']
     resources:
         mem=lambda wildcards, input, threads: 1500*threads
     shell:
@@ -57,10 +61,10 @@ rule make_permutations:
             {params.sample} \
             {input.bed} \
             {params.genome} \
-            {config[bedtools_genome]} \
+            {config[permtools_bedtools_genome_file]} \
             {params.muttype} \
             {params.passtype} \
-            {config[n_permutations]} \
+            {config[permtool_n_permutations]} \
             {output.rda} \
             {threads}
         """
@@ -68,7 +72,7 @@ rule make_permutations:
 
 rule make_callable_bed:
     input:
-        lambda wildcards: config['joint_depth_matrix'][wildcards.sample]
+        lambda wildcards: config['permtool_matrix_map'][wildcards.sample]
     output:
         "callable_regions/{sample}_{muttype}.bed"
     log:
@@ -78,10 +82,10 @@ rule make_callable_bed:
     params:
         sample="{sample}",
         genome=config['genome'],
-        bulk_sample=config['bulk_sample'][wildcards.sample],
-        min_sc_dp=lambda wildcards: config['dp_cutoffs'][wildcards.sample]['min_sc_dp'],
-        min_bulk_dp=lambda wildcards: config['dp_cutoffs'][wildcards.sample]['min_bulk_dp']
-    threads: config['callable_bed_n_cores']
+        bulk_sample=yaml_by_sample[wildcards.sample]['bulk_sample'],
+        min_sc_dp=lambda wildcards: yaml_by_sample[wildcards.sample][('' if wildcards.muttype == 'snv' else 'indel_') + 'min_sc_dp'],
+        min_bulk_dp=lambda wildcards: yaml_by_sample[wildcards.sample][('' if wildcards.muttype == 'snv' else 'indel_') + 'min_bulk_dp'],
+    threads: config['permtool_callable_bed_n_cores']
     resources:
         mem=lambda wildcards, input, threads: 1500*threads
     shell:
