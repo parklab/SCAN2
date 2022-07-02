@@ -83,8 +83,8 @@ rule make_callable_bed:
         sample="{sample}",
         genome=config['genome'],
         bulk_sample=lambda wildcards: yaml_by_sample[wildcards.sample]['bulk_sample'],
-        min_sc_dp=lambda wildcards: yaml_by_sample[wildcards.sample][('' if wildcards.muttype == 'snv' else 'indel_') + 'min_sc_dp'],
-        min_bulk_dp=lambda wildcards: yaml_by_sample[wildcards.sample][('' if wildcards.muttype == 'snv' else 'indel_') + 'min_bulk_dp'],
+        min_sc_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + '_min_sc_dp'],
+        min_bulk_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + '_min_bulk_dp'],
     threads: config['permtool_callable_bed_n_cores']
     resources:
         mem=lambda wildcards, input, threads: 1500*threads
