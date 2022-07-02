@@ -32,7 +32,7 @@ rule combine_permutations:
             {output.perms} \
             {output.seeds} \
             {threads} \
-            {input.rdas}
+            {input.rdas} >& {log}
         """
 
 
@@ -66,7 +66,7 @@ rule make_permutations:
             {params.passtype} \
             {config[permtool_n_permutations]} \
             {output.rda} \
-            {threads}
+            {threads} >& {log}
         """
 
 
@@ -98,5 +98,5 @@ rule make_callable_bed:
             {params.min_sc_dp} \
             {params.min_bulk_dp} \
             {output} \
-            {threads}
+            {threads} >& {log}
         """
