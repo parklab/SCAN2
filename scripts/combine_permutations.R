@@ -24,7 +24,7 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) != 5) {
+if (length(args) < 5) {
     stop("usage: combine_permutations.R genome_string perms_output.rda seedinfo_output.rda n.cores perms1.rda [ perms2.rda ... permsN.rda ]")
 }
 
