@@ -269,9 +269,9 @@ class Analysis:
         if key == 'permtool_sample':
             return {
                 'permtool_config_map' :
-                    dict([ (sample_id, self.make_config_path(scan2_dir)) for sample_id, scan2_dir in value ]),
+                    dict([ (sample_id, readable_file(self.make_config_path(scan2_dir))) for sample_id, scan2_dir in value ]),
                 'permtool_matrix_map' :
-                    dict([ (sample_id, os.path.join(scan2_dir, 'depth_profile', 'joint_depth_matrix.tab.gz')) for sample_id, scan2_dir in value ]) }
+                    dict([ (sample_id, readable_file(os.path.join(scan2_dir, 'depth_profile', 'joint_depth_matrix.tab.gz'))) for sample_id, scan2_dir in value ]) }
 
         if key in [ 'regions', 'regions_file' ]:
             regions = regions_from_string(value) if \
