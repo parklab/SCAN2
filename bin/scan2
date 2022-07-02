@@ -623,6 +623,20 @@ def do_rescue(args):
     run_snakemake(snakemake_command, args, a)
 
 
+def do_permtool(args):
+    a = Analysis(args.analysis_dir)
+
+    snakemake_command = [
+        "--snakefile",  args.snakefile,
+        "--configfile", a.config_path,
+        "--directory", a.analysis_dir,
+        "--latency-wait", "30",
+        "--rerun-incomplete",
+        "--jobs", str(args.joblimit)
+    ]
+
+    run_snakemake(snakemake_command, args, a)
+
 
 def do_show(args):
     a = Analysis(args.analysis_dir)
@@ -1062,6 +1076,23 @@ if __name__ == "__main__":
         help='Parallelize somatic mutation rescue over N cores. Each core reads '
              'and processes a full SCAN2 object. For typical human cells, about '   
              '6 GB of RAM is necessary per core.')
+
+
+    ##########################################################################
+    # The 'permtool' subcommand
+    #
+    # Permutes mutations to create background mutation rates for enrichment
+    # testing.
+    #
+    # permtool runs an analysis, so runtime_args are appropriate.
+    permtool_parser = subparsers.add_parser('permtool',
+        help='Shuffle somatic mutations around the part of the genome callable '
+             'by SCAN2. Also ensures that shuffled mutations match in mutation '
+             'spectrum. Importantly, the user must preprocess somatic mutations '
+             'to remove, e.g., duplicated sites. SCAN2\'s digest_calls.R script '
+             'performs some recommended preprocessing steps.')
+    permtool_parser.set_defaults(executor=do_permtool)
+    permtool_parser = add_runtime_args(permtool_parser)
 
 
     # Get the args and run the relavent subcommand
