@@ -61,7 +61,7 @@ rule make_permutations:
             {params.sample} \
             {input.bed} \
             {params.genome} \
-            {config[permtools_bedtools_genome_file]} \
+            {config[permtool_bedtools_genome_file]} \
             {params.muttype} \
             {params.passtype} \
             {config[permtool_n_permutations]} \
