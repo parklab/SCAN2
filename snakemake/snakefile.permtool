@@ -6,7 +6,7 @@ import yaml
 yaml_by_sample = {}
 for sample, path in config['permtool_config_map'].items():
     with open(path) as cf: 
-        yaml_by_sample[sample] = yaml.load(path, Loader=yaml.FullLoader)
+        yaml_by_sample[sample] = yaml.load(cf, Loader=yaml.FullLoader)
 
 
 rule combine_permutations:
