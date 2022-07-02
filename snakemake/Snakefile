@@ -4,7 +4,9 @@ wildcard_constraints:
     chr='|'.join(str(x) for x in config['chrs']),
     gatk_chunk="\d+",
     gatk_mmq="\d+",
-    phaser="shapeit|eagle"
+    phaser="shapeit|eagle",
+    muttype='snv|indel',
+    passtype='pass|rescue'
 
 
 if config['analysis'] == 'call_mutations':
@@ -28,3 +30,11 @@ if config['analysis'] == 'rescue':
             "sig_homogeneity_tests.txt",
             expand("objects/{sample}_scan2_object_rescue.rda",
                 sample=config['scan2_objects'].keys())
+
+if config['analysis'] == 'permtool':
+    include: "snakefile.permtool"
+    input:
+        expand("perms_{muttype}_{passtype}.rda",
+            muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ]),
+        expand("seedinfo_{muttype}_{passtype}.rda",
+            muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])

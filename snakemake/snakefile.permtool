@@ -1,0 +1,98 @@
+# vim: syntax=python
+
+wildcard_constraints:
+    muttype='snv|indel',
+    passtype='pass|rescue'
+
+
+rule combine_permutations:
+    input:
+        rdas=expand("perms_by_sample/{sample}/{{muttype}}_{{passtype}}.rda",
+            config['sc_samples'])
+    output:
+        perms="perms_{muttype}_{passtype}.rda",
+        seeds="seedinfo_{muttype}_{passtype}.rda"
+    log:
+        perms="combine_permutations_{muttype}_{passtype}.log"
+    benchmark:
+        perms="benchmark_combine_permutations_{muttype}_{passtype}.txt"
+    params:
+        genome=config['genome']
+    threads: config['combine_permutations_n_cores']
+    resources:
+        mem=lambda wildcards, input, threads: 1500*threads
+    shell:
+        """
+        {config[scripts]}/combine_permutations.R \
+            {params.genome} \
+            {output.perms} \
+            {output.seeds} \
+            {threads} \
+            {input.rdas}
+        """
+
+
+rule make_permutations:
+    input:
+        muttab=config['mut_table'],
+        bed="callable_regions/{sample}_{muttype}.bed"
+    output:
+        rda="perms_by_sample/{sample}/{muttype}_{passtype}.rda"
+    log:
+        "perms_by_sample/{sample}/{muttype}_{passtype}.log"
+    benchmark:
+        rda="perms_by_sample/{sample}/benchmark_{muttype}_{passtype}.txt"
+    params:
+        sample="{sample}",
+        genome=config['genome'],
+        muttype="{muttype}",
+        passtype="{passtype}"
+    threads: config['make_permutations_n_cores']
+    resources:
+        mem=lambda wildcards, input, threads: 1500*threads
+    shell:
+        """
+        {config[scripts]}/make_permutations.R \
+            {input.muttab} \
+            {params.sample} \
+            {input.bed} \
+            {params.genome} \
+            {config[bedtools_genome]} \
+            {params.muttype} \
+            {params.passtype} \
+            {config[n_permutations]} \
+            {output.rda} \
+            {threads}
+        """
+
+
+rule make_callable_bed:
+    input:
+        lambda wildcards: config['joint_depth_matrix'][wildcards.sample]
+    output:
+        "callable_regions/{sample}_{muttype}.bed"
+    log:
+        "callable_regions/{sample}_{muttype}.log"
+    benchmark:
+        "callable_regions/benchmark_{sample}_{muttype}.txt"
+    params:
+        sample="{sample}",
+        genome=config['genome'],
+        bulk_sample=config['bulk_sample'][wildcards.sample],
+        min_sc_dp=lambda wildcards: config['dp_cutoffs'][wildcards.sample]['min_sc_dp'],
+        min_bulk_dp=lambda wildcards: config['dp_cutoffs'][wildcards.sample]['min_bulk_dp']
+    threads: config['callable_bed_n_cores']
+    resources:
+        mem=lambda wildcards, input, threads: 1500*threads
+    shell:
+        """
+        {config[scripts]}/make_callable_regions_bed.R \
+            {input} \
+            {params.sample} \
+            {params.bulk_sample} \
+            {params.genome} \
+            {params.min_sc_dp} \
+            {params.min_bulk_dp} \
+            {output} \
+            {threads}
+        """
