@@ -71,6 +71,7 @@ scan2_param_defaults = {
     'chr_prefix': '',          # be nice to remove this; requires snakefile changes
     'bam_map': {},             # maps sample name -> bam path
     'permtool_config_map': {},
+    'permtool_matrix_map': {},
     'permtool_n_permutations': 10000,
     'permtool_callable_bed_n_cores': 20,
     'permtool_make_permutations_n_cores': 20,
