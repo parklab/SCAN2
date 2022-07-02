@@ -33,8 +33,9 @@ if config['analysis'] == 'rescue':
 
 if config['analysis'] == 'permtool':
     include: "snakefile.permtool"
-    input:
-        expand("perms_{muttype}_{passtype}.rda",
-            muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ]),
-        expand("seedinfo_{muttype}_{passtype}.rda",
-            muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])
+    rule permtool:
+        input:
+            expand("perms_{muttype}_{passtype}.rda",
+                muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ]),
+            expand("seedinfo_{muttype}_{passtype}.rda",
+                muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])
