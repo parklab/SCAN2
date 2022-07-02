@@ -265,7 +265,7 @@ class Analysis:
                 return { key + 's' :
                     dict([ (sample_id, readable_file(rda)) for sample_id, rda in value ]) }
 
-        if key in == 'permtool_sample':
+        if key == 'permtool_sample':
             return {
                 'permtool_config_map' :
                     dict([ (sample_id, self.make_config_path(scan2_dir)) for sample_id, scan2_dir in value ]),
