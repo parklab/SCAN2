@@ -17,9 +17,9 @@ rule combine_permutations:
         perms="perms_{muttype}_{passtype}.rda",
         seeds="seedinfo_{muttype}_{passtype}.rda"
     log:
-        perms="combine_permutations_{muttype}_{passtype}.log"
+        "combine_permutations_{muttype}_{passtype}.log"
     benchmark:
-        perms="benchmark_combine_permutations_{muttype}_{passtype}.txt"
+        "benchmark_combine_permutations_{muttype}_{passtype}.txt"
     params:
         genome=config['genome']
     threads: config['permtool_combine_permutations_n_cores']
@@ -45,7 +45,7 @@ rule make_permutations:
     log:
         "perms_by_sample/{sample}/{muttype}_{passtype}.log"
     benchmark:
-        rda="perms_by_sample/{sample}/benchmark_{muttype}_{passtype}.txt"
+        "perms_by_sample/{sample}/benchmark_{muttype}_{passtype}.txt"
     params:
         sample="{sample}",
         genome=config['genome'],
