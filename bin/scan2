@@ -381,11 +381,11 @@ class Analysis:
             readable_file(self.cfg['permtool_bedtools_genome_file'])
 
             print("Checking per-sample SCAN2 config files..")
-            for sample, config in self.cfg['permtool_config_map']:
+            for sample, config in self.cfg['permtool_config_map'].items():
                 readable_file(config)
 
             print("Checking depth matrix files..")
-            for sample, matrix in self.cfg['permtool_matrix_map']:
+            for sample, matrix in self.cfg['permtool_matrix_map'].items():
                 readable_file(matrix)
 
 
