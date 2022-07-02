@@ -12,7 +12,7 @@ for sample, path in config['permtool_config_map'].items():
 rule combine_permutations:
     input:
         rdas=expand("perms_by_sample/{sample}/{{muttype}}_{{passtype}}.rda",
-            config['permtool_samples'])
+            yaml_by_sample.keys())
     output:
         perms="perms_{muttype}_{passtype}.rda",
         seeds="seedinfo_{muttype}_{passtype}.rda"
