@@ -1090,7 +1090,11 @@ if __name__ == "__main__":
              'by SCAN2. Also ensures that shuffled mutations match in mutation '
              'spectrum. Importantly, the user must preprocess somatic mutations '
              'to remove, e.g., duplicated sites. SCAN2\'s digest_calls.R script '
-             'performs some recommended preprocessing steps.')
+             'performs some recommended preprocessing steps. Memory required for '
+             'this pipeline is around 4 GB per core. During the '
+             'make_permutations phase, bedtools shuffle can require ~2 GB of '
+             'memory per thread at peak depending on the size of the callable '
+             'regions file.')
     permtool_parser.set_defaults(executor=do_permtool)
     permtool_parser = add_runtime_args(permtool_parser)
 
