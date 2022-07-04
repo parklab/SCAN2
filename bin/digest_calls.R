@@ -116,9 +116,9 @@ for (mt in muttypes) {
     muts[, lineage.filter := duplicated(id)]
     muts[, final.filter := rec.filter | cluster.filter | lineage.filter]
 
-    final.muts <- rbind(final.muts, muts)
+    final.muts <- rbind(final.muts, muts[pass == TRUE & rescue == TRUE & final.filter == TRUE])
 
-    if (args$separate_files) {
+    if (!is.null(args$separate_files)) {
         for (passtype in c('pass', 'pass_and_rescue')) {
             outfile=output.tables[paste0(mt, '_', passtype)]
             if (file.exists(outfile))
@@ -134,4 +134,4 @@ for (mt in muttypes) {
     }
 }
 
-data.table::fwrite(all.muts[final.filter == FALSE], file=main.output.table)
+data.table::fwrite(all.muts, file=main.output.table)
