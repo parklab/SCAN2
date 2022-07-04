@@ -8,7 +8,7 @@ parser$add_argument('output_prefix', type='character', metavar='PREFIX',
 parser$add_argument('--metadata', metavar='FILE', default=NULL,
     help='CSV file mapping single cell sample IDs (as in the sample column of --muts files) to individual IDs (i.e., brain donors). If this file is not specified, then each cell will be treated as though it comes from a different donor. This affects the recurrence filter, which removes any mutation occurring in more than one individual. If a mutation occurs in multiple cells from the same individual, such as a lineage marker, then one of them is retained but this can only be determined if sample->subject metadata is given.')
 parser$add_argument('--muts', action='append', metavar='FILE', required=TRUE,
-    help='CSV file of somatic mutations with at least the following columns: sample, chr, pos, refnt, altnt, muttype, pass, rescue. This argument can be specified multiple times to combine tables from multiple runs. Must be specified at least once.')
+    help='CSV file of somatic mutations with at least the following columns: sample, chr, pos, refnt, altnt, muttype, mutsig, pass, rescue. This argument can be specified multiple times to combine tables from multiple runs. Must be specified at least once.')
 parser$add_argument("--cluster-filter-bp", metavar='INT', type='integer', default=50,
     help='Remove mutations that are within INT base pairs of the nearest mutation of the same type (i.e., snv or indel) AND in the same sample.')
 
@@ -29,7 +29,7 @@ if (any(already.exists))
 suppressMessages(library(scan2))
 
 all.muts <- do.call(rbind, lapply(args$muts, function(mutfile)
-    data.table::fread(mutfile)[, .(sample, chr, pos, refnt, altnt, muttype, pass, rescue)]))
+    data.table::fread(mutfile)[, .(sample, chr, pos, refnt, altnt, muttype, mutsig, pass, rescue)]))
 
 # Default (no metadata): each cell is treated as coming from a unique subject
 sample.to.subject.map <- setNames(unique(all.muts$sample), unique(all.muts$sample))
