@@ -53,7 +53,7 @@ rule make_permutations:
         passtype="{passtype}"
     threads: config['permtool_make_permutations_n_cores']
     resources:
-        mem=lambda wildcards, input, threads: 3000*threads
+        mem=lambda wildcards, input, threads: 4000*threads
     shell:
         """
         {config[scripts]}/make_permutations.R \
