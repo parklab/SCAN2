@@ -1,16 +1,18 @@
 #!/usr/bin/env Rscript
 
 library(argparse)
-parser <- ArgumentParser()
+parser <- ArgumentParser(description='Prepare somatic mutations for enrichment analysis by filtering recurrent mutations and clustered mutations in the same sample. IMPORTANT: SNVs and indels are filtered separately; so if a SNV and indel are near each other in the same sample, they will not be detected by the cluster filter.')
 
-parser$add_argument('output_prefix', type='character', metavar='PREFIX',
-    help='This script creates 4 tables: one for each combination of pass vs. rescue and snv vs. indel. These tables will be named PREFIX_{pass|pass_and_rescue}_{snv|indel}.txt')
+parser$add_argument('output', type='character',
+    help='Output table containing only final, filtered mutations. SNVs and indels, pass and rescue mutations are in this table.')
 parser$add_argument('--metadata', metavar='FILE', default=NULL,
     help='CSV file mapping single cell sample IDs (as in the sample column of --muts files) to individual IDs (i.e., brain donors). If this file is not specified, then each cell will be treated as though it comes from a different donor. This affects the recurrence filter, which removes any mutation occurring in more than one individual. If a mutation occurs in multiple cells from the same individual, such as a lineage marker, then one of them is retained but this can only be determined if sample->subject metadata is given.')
 parser$add_argument('--muts', action='append', metavar='FILE', required=TRUE,
     help='CSV file of somatic mutations with at least the following columns: sample, chr, pos, refnt, altnt, muttype, mutsig, pass, rescue. This argument can be specified multiple times to combine tables from multiple runs. Must be specified at least once.')
 parser$add_argument("--cluster-filter-bp", metavar='INT', type='integer', default=50,
     help='Remove mutations that are within INT base pairs of the nearest mutation of the same type (i.e., snv or indel) AND in the same sample.')
+parser$add_argument("--separate-files", type='character', metavar='PREFIX', default=NULL,
+    help='Create separate output tables for each combination of pass vs. rescue and snv vs. indel. These tables will be named PREFIX_{pass|pass_and_rescue}_{snv|indel}.txt')
 
 args <- parser$parse_args(commandArgs(trailingOnly=TRUE))
 
@@ -19,11 +21,18 @@ if (length(args$muts) < 1)
 
 muttypes <- c('snv', 'indel')
 
-output.tables <- paste0(paste(args$output_prefix, rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_'), '.txt')
+main.output.table <- args$output
+
+output.tables <- paste0(paste(args$separate_files, rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_'), '.txt')
 names(output.tables) <- paste(rep(muttypes, 2), rep(c('pass', 'pass_and_rescue'), each=2), sep='_')
-already.exists <- sapply(output.tables, file.exists)
+
+check.tables <- main.output.table
+if (!is.null(args$separate.files))
+    check.tables <- c(check.tables, output.tables)
+
+already.exists <- sapply(check.tables, file.exists)
 if (any(already.exists))
-    stop(paste('the following output files already exist, please delete them first:', output.tables[already.exists], collapse='\n'))
+    stop(paste('the following output files already exist, please delete them first:', check.tables[already.exists], collapse='\n'))
 
 
 suppressMessages(library(scan2))
@@ -44,6 +53,8 @@ if (!is.null(args$metadata)) {
 all.muts <- all.muts[order(chr, pos),]
 all.muts[, subject := sample.to.subject.map[sample]]
 all.muts[, id := paste(chr, pos, refnt, altnt)]
+
+final.muts <- c()
 
 # Filtering for things like recurrence/clustering is done separately
 # for SNVs and indels.  Perhaps clustering would be better if the two
@@ -105,16 +116,22 @@ for (mt in muttypes) {
     muts[, lineage.filter := duplicated(id)]
     muts[, final.filter := rec.filter | cluster.filter | lineage.filter]
 
-    for (passtype in c('pass', 'pass_and_rescue')) {
-        outfile=output.tables[paste0(mt, '_', passtype)]
-        if (file.exists(outfile))
-            stop(paste('output file', outfile, 'already exists, please delete it first'))
-        if (passtype == 'pass')
-            outmuts <- muts[pass == TRUE]
-        if (passtype == 'pass_and_rescue')
-            outmuts <- muts[pass == TRUE | rescue == TRUE]
+    final.muts <- rbind(final.muts, muts)
 
-        cat('writing', outfile, '\n')
-        data.table::fwrite(outmuts[final.filter == FALSE], file=outfile)
+    if (args$separate_files) {
+        for (passtype in c('pass', 'pass_and_rescue')) {
+            outfile=output.tables[paste0(mt, '_', passtype)]
+            if (file.exists(outfile))
+                stop(paste('output file', outfile, 'already exists, please delete it first'))
+            if (passtype == 'pass')
+                outmuts <- muts[pass == TRUE]
+            if (passtype == 'pass_and_rescue')
+                outmuts <- muts[pass == TRUE | rescue == TRUE]
+
+            cat('writing', outfile, '\n')
+            data.table::fwrite(outmuts[final.filter == FALSE], file=outfile)
+        }
     }
 }
+
+data.table::fwrite(all.muts[final.filter == FALSE], file=main.output.table)
