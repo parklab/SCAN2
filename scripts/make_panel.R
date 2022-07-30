@@ -88,6 +88,7 @@ make.panel <- function(df, dmap, bulks) {
     unique.bulks <- rowSums(df[,..bulk.idxs,drop=FALSE] > 0)
 
     # remove the entry with the maximum support
+print(head(df[,-..meta.idxs,drop=FALSE]))
     outs <- apply(df[,-..meta.idxs,drop=FALSE], 1, function(row) {
         r <- row[-which.max(row)]
         c(max(r), sum(r))
@@ -124,14 +125,17 @@ cat('Parallelizing with', future::nbrOfWorkers(), 'cores.\n')
 progressr::with_progress({
     handlers(handler_newline())
     p <- progressr::progressor(along=1:length(grs))
+    p(amount=0, class='sticky', scan2::perfcheck(print.header=TRUE))
     xs <- future.apply::future_lapply(1:length(grs), function(i) {
         gr <- grs[i,]
 
-        tb <- read.alts.for.samples(path=inf, region=gr, meta=meta)
-        p(class='sticky', amount=0, paste('read.alts.for.samples', i))
+        pc <- scan2::perfcheck(paste('read.alts.for.samples', i),
+            tb <- read.alts.for.samples(path=inf, region=gr, meta=meta))
+        p(class='sticky', amount=0, pc)
 
-        ret <- make.panel(tb, dmap, meta[amp=='bulk']$sample)
-        p(class='sticky', amount=0, paste('make.panel', i))
+        pc <- scan2::perfcheck(paste('make.panel', i),
+            ret <- make.panel(tb, dmap, meta[amp=='bulk']$sample))
+        p(class='sticky', amount=0, pc)
 
         p()
         ret
