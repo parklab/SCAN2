@@ -44,6 +44,7 @@ read.alts.for.samples <- function(path, region, meta) {
     open(tf)
     # header is not parsed, it's a string of column names separated by tabs
     header <- read.tabix.header(tf)
+    close(tf)
 
     cols <- strsplit(header, '\t')[[1]]
 
