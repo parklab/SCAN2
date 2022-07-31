@@ -133,7 +133,7 @@ rule shapeit_scatter:
         "(grep '^#' {input} | grep -v '^#CHROM' ; "
         " grep '^##source' {params.tmpout2} ; "
         " awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
-        "    | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" "
+        "    | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\1phasedgt/g\" "
         "    | grep '^[^#]\|^#CHROM' ) > {output}"
         # These last few greps are necessary for preserving the original VCF
         # header, which some tools are strict about. SHAPEIT2 does not provide
