@@ -1,19 +1,21 @@
 package:
     name: scan2
-    version: "2.0"
+    version: "1.0"
 
 build:
-    number: 2
+    number: 3
 
 requirements:
     run:
       - python=3.8
+      - r-base=4.1
       - snakemake
+      - java-jdk=8
       - mamba
       - drmaa
       - shapeit
       - eagle-phase
-      - gatk
+      - gatk=3.8
       - gatk4
       - samtools
       - pysam
