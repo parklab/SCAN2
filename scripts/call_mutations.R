@@ -43,7 +43,7 @@ with_progress({
         trainingcigars=cigardata, dptab=dptab,
         config.yaml=config.yaml,
         genome=genome.string,
-        verbose=FALSE, report.mem=FALSE, legacy=legacy)
+        verbose=FALSE, report.mem=TRUE, legacy=legacy)
 }, enable=TRUE)
 
 save(results, file=out.rda, compress=FALSE)
