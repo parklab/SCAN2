@@ -803,7 +803,7 @@ if __name__ == "__main__":
              'across all samples in the multi-sample modes. The GVCF strategy is '
              'currently experimental and we do not recommend using it.'
              'When --gatk-vcf VCF is used, the user must ensure that the chosen --gatk '
-             'strategy matches the strategy used to generate VCF.'
+             'strategy matches the strategy used to generate VCF.')
 
     config_parser.add_argument('--gatk-vcf', type=str, metavar='VCF',
         help='SCAN2 runs GATK twice internally: once with a high read mapping quality '
