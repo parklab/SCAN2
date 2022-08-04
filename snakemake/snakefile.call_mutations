@@ -23,6 +23,10 @@ wildcard_constraints:
     gatk_mmq="\d+",
     phaser="shapeit|eagle"
 
+if config['gatk_vcf'] is not None:
+    # Contains a single rule that overrides gatk_gather for mmq60
+    include: "snakefile.gatk_user_vcf"
+
 
 # Determine the analyses to run, depending on which options
 # were selected by the user.

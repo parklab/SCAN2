@@ -3,7 +3,7 @@ package:
     version: "1.0"
 
 build:
-    number: 4
+    number: 5
 
 requirements:
     run:
@@ -24,6 +24,7 @@ requirements:
       - bcftools
       - r-scan2
       - shyaml
+      - r-argparse
 
 source:
     git_url: https://github.com/parklab/SCAN2.git
