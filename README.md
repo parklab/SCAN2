@@ -43,16 +43,18 @@ package management tool and a Linux-flavored OS.
 
 
 ## Install miniconda
+**IMPORTANT** Ensure that your chosen install prefix has sufficient
+disk space: SCAN2 requires ~15G of disk space to analyze GRCh37 samples and an
+additional ~10G is required for each extra genome.
+
 ```
 $ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 $ bash Miniconda3-latest-Linux-x86_64.sh
 # Accept the license by typing "yes"
-# Choose an install prefix. Ensure that your chosen install prefix has sufficient
-# disk space: SCAN2 requires ~15G of disk space to analyze GRCh37 samples and an
-# additional ~10G is required for each extra genome.
 # Choose to run conda init (enter yes a second time during script)
-# Log-out and back in to source .bashrc and put conda on $PATH
 ```
+Log-out and back in to source .bashrc and put conda on $PATH
+
 
 ## Install SCAN2
 Create a conda environment for SCAN2 and install necessary packages
@@ -73,7 +75,7 @@ SCAN2 has been tested on the NCBI human reference build 37 and hg38.
 ## Human genome version GRCh37
 The SCAN2 demo requires GRCh37.
 
-## Reference genome files for SigProfilerMatrixGenerator
+### Reference genome files for SigProfilerMatrixGenerator
 SigProfilerMatrixGenerator is used to classify indels into the 83-class indel mutation
 signature format ID83. This classification requires a reference genome to determine
 the sequence context around each indel. The following command shows how to install a
