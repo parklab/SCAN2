@@ -93,8 +93,8 @@ scan2_file_defaults = {
     'permtool_muts': None,
     'permtool_bedtools_genome_file': None,
     'gatk_vcf': None,
-    #'eagle_refpanel': {},
-    #'eagle_genmap': None
+    'eagle_refpanel': {},
+    'eagle_genmap': None
 }
 
 scan2_defaults = { **scan2_param_defaults, **scan2_file_defaults }
@@ -286,8 +286,11 @@ class Analysis:
         if key == 'phaser':
             return { 'phaser': value.lower() }   # Just ensure lowercase
 
-        #if key in [ 'eagle_refpanel', 'eagle_genmap' ]:
-            #error("sorry, Eagle phasing is currently unsupported.")
+        if key in [ 'eagle_refpanel' ]:
+            # value = the path to the Eagle ref panel
+            # Other sanity checks related to the reference panel are handled
+            # in check_phaser().
+            return { 'eagle_refpanel' : eagle_refpanel_files(value) }
 
         if key == 'gatk_vcf':
             # check that there is an associated VCF index file with the expected name
@@ -328,18 +331,17 @@ class Analysis:
     def check_phaser(self):
         # Determine the phaser and check relevant files.
         if self.cfg['phaser'] == 'shapeit':
-            #readable_file(self.cfg['shapeit_refpanel'])
             check_shapeit(self.cfg['shapeit_refpanel'])
         elif self.cfg['phaser'] == 'eagle':
-            if self.cfg['eagle_panel'] is None:
-                print("ERROR: --eagle-panel must be specified when --phaser=eagle")
+            if self.cfg['eagle_refpanel'] is None:
+                print("ERROR: --eagle-refpanel must be specified when --phaser=eagle")
                 exit(1)
             if self.cfg['eagle_genmap'] is None:
                 print("ERROR: --eagle-genmap must be specified when --phaser=eagle")
                 exit(1)
-            args.eagle_panel = os.path.abspath(args.eagle_panel)
+            args.eagle_refpanel = os.path.abspath(args.eagle_refpanel)
             args.eagle_genmap = readable_file(args.eagle_genmap)
-            check_eagle(args.eagle_panel, chrs)
+            check_eagle(args.eagle_refpanel, [ 'chr' + str(chrom) for chrom in list(range(1, 23)) + [ 'X', 'Y' ])
         else:
             error("--phaser must be either 'shapeit' or 'eagle'\n")
 
@@ -461,17 +463,18 @@ def check_shapeit(shapeit_panel):
     readable_file(os.path.join(shapeit_panel, "genetic_map_chrX_nonPAR_combined_b37.txt"))
 
 
-def eagle_panel_files(path, chrs):
+def eagle_refpanel_files(path, chrs):
     files = {}
     for s in chrs:
-        f = glob.glob(os.path.join(path, 'ALL.{0}[\._]*.bcf'.format(s)))[0]
+        f = glob.glob(os.path.join(path, '{0}_*.genotypes.bcf'.format(s)))[0]
         files[s] = f
     return files
 
 
-def check_eagle(eagle_panel, chrs):
-    for f in eagle_panel_files(eagle_panel, chrs).values():
+def check_eagle(eagle_refpanel, chrs):
+    for f in eagle_refpanel_files(eagle_refpanel, chrs).values():
         readable_file(f)
+        readable_file(f + '.csi')
 
 
 def sample_from_bam(bampath):
@@ -918,6 +921,7 @@ if __name__ == "__main__":
         help='A table of alt alleles detected over a large number of single cells and bulks. Currently used only for indel filtering but should probably also be used for SNV filtering. Indel calling is NOT precise without a panel of normals.')
     #caller.add_argument('--mosaic-snvs', action='store_true',
         #help='Enable detection of mosaic SNVs.')
+    # XXX: Used to be optional, probably won't ever make optional again
     #caller.add_argument('--callable-regions', metavar='true/false/yes/no',
         ##type=lambda x: bool(distutils.util.strtobool(x)),
         #help='Determine the fraction of callable genome based on '
@@ -930,13 +934,13 @@ if __name__ == "__main__":
     phasing = config_parser.add_argument_group('Phasing options',
         'Choose SHAPEIT2 or Eagle for phasing')
     phasing.add_argument('--phaser', metavar='eagle|shapeit', type=str,
-        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. [IMPORTANT! Eagle is currently unsupported.]')
+        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. Eagle is currently untested for GRCh37, but may work.')
     phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
     phasing.add_argument('--parsimony-phasing', action='store_true',
         help='Choose the phase of each training hSNP i to minimize |VAF_(i-1) - VAF_i|.  This overrides population-based phasing and does not produce well-phased mutations.  Instead, it ensures that switching errors (caused by panel phasing) in regions with allelic imbalance do not inflate model variance or lead to "ping-pong" allele balance estimates.')
-    phasing.add_argument('--eagle-panel', metavar='DIR',
-        help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ALL.chr${chromosome}*.bcf. This parameter is required if phaser=eagle.')
+    phasing.add_argument('--eagle-refpanel', metavar='DIR',
+        help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ${chromosome}*.bcf. The user should take care to ensure that chromosome names contain the "chr" prefix to properly match the supplied reference genome. This parameter is required if phaser=eagle.')
     phasing.add_argument('--eagle-genmap', metavar='DIR',
         help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
     
