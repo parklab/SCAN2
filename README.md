@@ -26,8 +26,7 @@ sequencing, alignment, etc.) to be miscalled as somatic mutations. This
 is particularly true in single cells with very low (i.e., <100) somatic
 mutation burden.
 
-However, this restriction may be removed in the future after further
-testing.
+This restriction may be removed in the future after further testing.
 
 
 # License
@@ -40,7 +39,7 @@ SCAN2 is distributed as a conda package. Installation requires the conda
 package management tool and a Linux-flavored OS.
 
 **Operating systems tested**
-* GNU/Linux, kernel version 3.10.0, CentOS 7. Note that pre-compiled SHAPEIT2 binaries are only made available for Linux systems, although in principle other phasing algorithms can be used instead.
+* GNU/Linux, kernel version 3.10.0, CentOS 7.
 
 
 ## Install miniconda
@@ -48,54 +47,53 @@ package management tool and a Linux-flavored OS.
 $ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 $ bash Miniconda3-latest-Linux-x86_64.sh
 # Accept the license by typing "yes"
-# Choose an install prefix (the default is often fine)
+# Choose an install prefix. Ensure that your chosen install prefix has sufficient
+# disk space: SCAN2 requires ~15G of disk space to analyze GRCh37 samples and an
+# additional ~10G is required for each extra genome.
 # Choose to run conda init (enter yes a second time during script)
 # Log-out and back in to source .bashrc and put conda on $PATH
 ```
 
-## Install SCAN2 - IMPORTANT: update 3/14 for extremely slow installs
+## Install SCAN2
 Create a conda environment for SCAN2 and install necessary packages
 ```
 # Create a base environment with the mamba package manager. Mamba is
 # a drop-in replacement for the conda package manager, which cannot solve
 # the dependency constraint problem in a reasonable amount of time.
-conda create -n scan2 -c conda-forge mamba python=3.8
+conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew -c soil scan2
 
-# Activate the scan2 conda environment
+# Activate the newly created scan2 conda environment
 conda activate scan2
-# Install SCAN2
-mamba install -c conda-forge -c bioconda -c jluquette -c dranew -c soil  scan2 
-```
-
-## Install SigProfilerMatrixGenerator
-This involves using pip to install the
-base SigProfilerMatrixGenerator package, mamba to install the r-reticulate package
-into your conda environment and finally R to install an R wrapper.
-*IMPORTANT* you must have the scan2 conda environment activated (see above) before
-running these commands!
-```
-#### installation instructions for SigProfilerMatrixGenerator:
-pip install SigProfilerMatrixGenerator
-$ python
-from SigProfilerMatrixGenerator import install as genInstall
-genInstall.install('GRCh37', rsync=False, bash=True)
-quit()
-
-# installing the SigProfilerMatrixGenerator R wrapper
-
-$ R
-library(devtools)
-install_github("AlexandrovLab/SigProfilerMatrixGeneratorR")
-### DO NOT UPDATE ANY PACKAGES WHEN PROMPTED
 ```
 
 
 # Download external data dependencies
 SCAN2 has been tested on the NCBI human reference build 37 and hg38.
 
-## Human reference version GRCh37 with decoy
-To run the SCAN2 demo, you will need to follow these instructions for the GRCh37 genome version.
-Download the human reference genome.
+## Human genome version GRCh37
+The SCAN2 demo requires GRCh37.
+
+## Reference genome files for SigProfilerMatrixGenerator
+SigProfilerMatrixGenerator is used to classify indels into the 83-class indel mutation
+signature format ID83. This classification requires a reference genome to determine
+the sequence context around each indel. The following command shows how to install a
+SigProfilerMatrixGenerator reference genome for GRCh37; GRCh38 is also available. See
+https://github.com/AlexandrovLab/SigProfilerMatrixGenerator for details on other
+genome assemblies and custom assemblies.
+
+*REMEMBER* the scan2 conda environment must be activated (see above) when
+running these commands!
+```
+$ python
+from SigProfilerMatrixGenerator import install as genInstall
+genInstall.install('GRCh37', rsync=False, bash=True)
+quit()
+```
+
+
+### Human reference version GRCh37 with decoy
+Download the human reference genome if needed. The reference genome should match
+the genome used for read alignment.
 ```
 wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.gz
 wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_decoy.fasta.fai.gz
@@ -103,16 +101,18 @@ wget ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/b37/human_g1k_v37_d
 gunzip *.gz
 ```
 
-Download dbSNP **common variants**.
-dbSNP build 147 (common variants only) was used in the publication.
+### dbSNP **common variants**
+dbSNP build 147 (common variants only) was used in the publication. It is critical to use the database of **common variants**; the full dbSNP often intersects with somatic mutations and will cause reduced sensitivity. 
 Instructions for generating the required tribble index are provided at the bottom of this page.
 ```
 wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh37p13/VCF/common_all_20180423.vcf.gz
 gunzip common_all_20180423.vcf.gz
 # Create Tribble index (see bottom of this page)
 ```
+This VCF can be filtered to match build 147 (used in Luquette et al. 2022).
+Each line contains a dbSNPBuildID=XXX tag; simply filter for XXX <= 147.
 
-Download SHAPEIT's haplotype reference panel.
+### SHAPEIT's haplotype reference panel
 ```
 wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3.tgz
 wget https://mathgen.stats.ox.ac.uk/impute/1000GP_Phase3_chrX.tgz
@@ -127,48 +127,59 @@ mv genetic_map_chrX_* 1000GP_Phase3_chrX* 1000GP_Phase3
 ```
 
 ## Human reference version hg38
-To run the SCAN2 demo, you will need the GRCh37 genome.
+To run the SCAN2 demo, you will need the **GRCh37** genome, not GRCh38.
 
+NOTE: GRCh38 alignments use the 'chr' prefix for chromosome names (i.e., chr1,
+chr2, ..., rather than 1, 2, ...).
 
-Download the reference genome.
+### Internal R reference genome
+```
+conda install -c conda-forge -c bioconda bioconductor-bsgenome.hsapiens.ucsc.hg38
+```
+
+### SigProfilerMatrixGenerator reference genome
+```
+$ python
+from SigProfilerMatrixGenerator import install as genInstall
+genInstall.install('GRCh38', rsync=False, bash=True)
+quit()
+```
+
+### Human reference version GRCh38
+Download the human reference genome if needed. The reference genome should match
+the genome used for read alignment.
 ```
 wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta
 wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.fasta.fai
 wget https://storage.googleapis.com/genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dict
 ```
 
-Download dbSNP **common variants**.  Instructions for generating the required tribble index are provided at the bottom of this page.
+### dbSNP **common variants**
+Instructions for generating the required tribble index are provided at the bottom of this page.
 ```
 wget https://ftp.ncbi.nih.gov/snp/pre_build152/organisms/human_9606_b151_GRCh38p7/VCF/common_all_20180418.vcf.gz
 gunzip common_all_20180418.vcf.gz
+# IMPORTANT: add a 'chr' prefix to sites. The dbSNP VCF currently
+# does not contain ##contig=<ID=chrXXX... header lines, so we only need
+# to update sites. This may change in the future.
+sed  -e 's/\(^[^#]\)/chr\1/' common_all_20180418.vcf > common_all_20180418.chrprefix.vcf
 # Create Tribble index (see bottom of this page)
 ```
 
-Use the following instructions to generate a phasing panel for Eagle2.
-
-https://alkesgroup.broadinstitute.org/Eagle/#x1-320005.3.2
-
-The files described in the above instructions are no longer available. The modified script below currently works (March 2022).
+### Eagle2 phasing panel
+The user must create a reference panel manually for Eagle phasing. SCAN2 provides
+a script (`scan2_download_eagle_refpanel.sh`) to do this, which essentially
+implements the strategy recommended by Eagle2's authors (see
+https://alkesgroup.broadinstitute.org/Eagle/#x1-320005.3.2). The script is located
+in the same directory as the scan2 binary (`which scan2`), but is
+runnable by simply typing the script's name when the scan2 conda environment is
+activated.
 ```
 mkdir eagle_1000g_panel
 cd eagle_1000g_panel
 
-wget -O- ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/001/405/GCA_000001405.15_GRCh38/seqs_for_alignment_pipelines.ucsc_ids/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.gz | \  
-  gzip -d > GCA_000001405.15_GRCh38_no_alt_analysis_set.fna  
-samtools faidx GCA_000001405.15_GRCh38_no_alt_analysis_set.fna  
-
-for chr in {1..22} X Y; do  
-    echo "Downloading for chromosome $chr.."
-    echo "This can be EXTREMELY SLOW! Please be patient.."
-    wget -O ALL.chr${chr}_GRCh38.genotypes.20170504.vcf.gz http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/phase3_liftover_nygc_dir/phase3.chr${chr}.GRCh38.GT.crossmap.vcf.gz
-    wget -O ALL.chr${chr}_GRCh38.genotypes.20170504.vcf.gz.tbi http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/1000G_2504_high_coverage/working/phase3_liftover_nygc_dir/phase3.chr${chr}.GRCh38.GT.crossmap.vcf.gz.tbi
-
-  (bcftools view --no-version -h ALL.chr${chr}_GRCh38.genotypes.20170504.vcf.gz | \  
-    grep -v "^##contig=<ID=[GNh]" | sed 's/^##contig=<ID=MT/##contig=<ID=chrM/;s/^##contig=<ID=\([0-9XY]\)/##contig=<ID=chr\1/'; \  
-  bcftools view --no-version -H -c 2 ALL.chr${chr}_GRCh38.genotypes.20170504.vcf.gz ) | \  
-  bcftools norm --no-version -Ou -m -any | \  
-  bcftools norm --no-version -Ob -o ALL.chr${chr}_GRCh38.genotypes.20170504.bcf -d none -f GCA_000001405.15_GRCh38_no_alt_analysis_set.fna && \  
-  bcftools index -f ALL.chr${chr}_GRCh38.genotypes.20170504.bcf  
+for chr in {1..22} X; do  
+    scan2_download_eagle_refpanel.sh path/to/Homo_sapiens_assembly38.fasta $chr
 done
 ```
 
@@ -179,18 +190,22 @@ wget https://storage.googleapis.com/broad-alkesgroup-public/Eagle/downloads/tabl
 
 Finally, you must supply the following arguments to `scan2 config` to use Eagle instead of SHAPEIT:
 * `--phaser eagle`
-* `--eagle-panel /path/to/eagle_1000g_panel` - this should be the directory created by the commands above.
+* `--eagle-refpanel path/to/eagle_1000g_panel` - this should be the directory created by the commands above.
 * `--eagle-genmap /path/to/genetic_map_hg38_withX.txt.gz`
 
 
 
 # Running the SCAN2 demo
-Download the demo chr22 BAMs. Our PTA data is only available through
-protected access at dbGaP. However, any sequencing data (whether
-single cell or not) can be used to test the pipeline installation.
+Download the demo chr22 BAMs. These files are aligned to GRCh37, so one
+must downloaded the GRCh37 external data files as directed above to run
+the demo.
 
-We provide the following publically available data for MDA-amplified
-single cells (Dong et al *Nature Methods* 2017) for the demo:
+We provide two MDA-amplified (not PTA-amplified!) single cell BAMs and
+one matched bulk from Dong et al. (*Nature Methods* 2017) for the demo.
+These are chosen (rather than our PTA data) because they are publicly
+available on SRA while our PTA cells are only available only through
+protected access at dbGaP.
+
 ```
 wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
 wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
