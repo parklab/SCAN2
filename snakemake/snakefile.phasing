@@ -164,5 +164,6 @@ rule eagle_scatter:
             --vcfOutFormat v \
             --outPrefix {params.outprefix} ;
         awk '$10 ~ /^1\|0/ || $10 ~ /^0\|1/ || $1 ~ /^#/' {params.tmpout} \
-            | sed -e\"s/{config[bulk_sample]}/phasedgt/g\" > {output}
-        """
+        "    | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" > {output}"
+        # Unlike SHAPEIT, Eagle does preserve header info. We just need to
+        # change the sample name and only retain phased sites.
