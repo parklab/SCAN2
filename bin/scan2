@@ -341,7 +341,7 @@ class Analysis:
                 exit(1)
             args.eagle_refpanel = os.path.abspath(args.eagle_refpanel)
             args.eagle_genmap = readable_file(args.eagle_genmap)
-            check_eagle(args.eagle_refpanel, [ 'chr' + str(chrom) for chrom in list(range(1, 23)) + [ 'X', 'Y' ] ])
+            check_eagle(args.eagle_refpanel)
         else:
             error("--phaser must be either 'shapeit' or 'eagle'\n")
 
@@ -463,7 +463,8 @@ def check_shapeit(shapeit_panel):
     readable_file(os.path.join(shapeit_panel, "genetic_map_chrX_nonPAR_combined_b37.txt"))
 
 
-def eagle_refpanel_files(path, chrs):
+def eagle_refpanel_files(path):
+    chrs = [ 'chr' + str(chrom) for chrom in list(range(1,23)) + [ 'X', 'Y' ] ]
     files = {}
     for s in chrs:
         f = glob.glob(os.path.join(path, '{0}_*.genotypes.bcf'.format(s)))[0]
@@ -471,7 +472,7 @@ def eagle_refpanel_files(path, chrs):
     return files
 
 
-def check_eagle(eagle_refpanel, chrs):
+def check_eagle(eagle_refpanel):
     for f in eagle_refpanel_files(eagle_refpanel, chrs).values():
         readable_file(f)
         readable_file(f + '.csi')
