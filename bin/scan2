@@ -472,7 +472,7 @@ def check_eagle(eagle_refpanel, eagle_genmap):
     if not os.path.exists(eagle_genmap):
         error("Provided Eagle genmap file does not exist: " + eagle_genmap)
 
-    for f in eagle_refpanel_files(eagle_refpanel, chrs).values():
+    for f in eagle_refpanel_files(eagle_refpanel).values():
         readable_file(f)
         readable_file(f + '.csi')
 
