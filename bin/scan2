@@ -467,7 +467,9 @@ def eagle_refpanel_files(path):
     chrs = [ 'chr' + str(chrom) for chrom in list(range(1,23)) + [ 'X', 'Y' ] ]
     files = {}
     for s in chrs:
-        print(os.path.join(path, '{0}_*.genotypes.bcf'.format(s)))[0]
+        p = os.path.join(path, '{0}_*.genotypes.bcf'.format(s))
+        print(p)
+        print(glob.glob(p))
         f = glob.glob(os.path.join(path, '{0}_*.genotypes.bcf'.format(s)))[0]
         files[s] = f
     return files
