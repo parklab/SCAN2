@@ -464,6 +464,9 @@ def eagle_refpanel_files(eagle_refpanel):
 
 
 def check_eagle(eagle_refpanel, eagle_genmap):
+    """This function is called in scan2 validate, which is AFTER the config
+    database has been parsed. So eagle_refpanel is a dict() chr -> file path,
+    not the path to the top level of the Eagle refpanel dir."""
     if eagle_refpanel is None:
         error("no Eagle reference panel provided (--eagle-refpanel)")
 
@@ -472,7 +475,7 @@ def check_eagle(eagle_refpanel, eagle_genmap):
     if not os.path.exists(eagle_genmap):
         error("Provided Eagle genmap file does not exist: " + eagle_genmap)
 
-    for f in eagle_refpanel_files(eagle_refpanel).values():
+    for f in eagle_refpanel.values():
         readable_file(f)
         readable_file(f + '.csi')
 
