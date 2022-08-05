@@ -6,8 +6,8 @@ rule integrate_tables:
         mmq60idx="call_mutations/mmq60.tab.gz.tbi",
         mmq1="call_mutations/mmq1.tab.gz",
         mmq1idx="call_mutations/mmq1.tab.gz.tbi",
-        phasing="shapeit/phased_hets.vcf.gz",
-        phasingidx="shapeit/phased_hets.vcf.gz.tbi"
+        phasing=config['phaser'] + "/phased_hets.vcf.gz",
+        phasingidx=config['phaser'] + "/phased_hets.vcf.gz.tbi"
     output:
         tab=temp("call_mutations/integrated_table.tab"),
         tabgz="call_mutations/integrated_table.tab.gz",
