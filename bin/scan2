@@ -341,7 +341,7 @@ class Analysis:
                 exit(1)
             args.eagle_refpanel = os.path.abspath(args.eagle_refpanel)
             args.eagle_genmap = readable_file(args.eagle_genmap)
-            check_eagle(args.eagle_refpanel, [ 'chr' + str(chrom) for chrom in list(range(1, 23)) + [ 'X', 'Y' ])
+            check_eagle(args.eagle_refpanel, [ 'chr' + str(chrom) for chrom in list(range(1, 23)) + [ 'X', 'Y' ] ])
         else:
             error("--phaser must be either 'shapeit' or 'eagle'\n")
 
