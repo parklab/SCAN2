@@ -466,10 +466,6 @@ def eagle_refpanel_files(eagle_refpanel):
 def check_eagle(eagle_refpanel, eagle_genmap):
     if eagle_refpanel is None:
         error("no Eagle reference panel provided (--eagle-refpanel)")
-    if not os.path.exists(eagle_refpanel):
-        error("Provided Eagle panel path does not exist: " + eagle_refpanel)
-    if not os.path.isdir(eagle_refpanel):
-        error("Provided Eagle panel path is not a directory; " + eagle_refpanel)
 
     if eagle_genmap is None:
         error("no Eagle genmap provided (--eagle-genmap)")
