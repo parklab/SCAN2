@@ -89,7 +89,6 @@ make.panel <- function(df, dmap, bulks) {
     unique.bulks <- rowSums(df[,..bulk.idxs,drop=FALSE] > 0)
 
     # remove the entry with the maximum support
-print(head(df[,-..meta.idxs,drop=FALSE]))
     outs <- apply(df[,-..meta.idxs,drop=FALSE], 1, function(row) {
         r <- row[-which.max(row)]
         c(max(r), sum(r))
