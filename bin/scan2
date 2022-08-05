@@ -333,15 +333,7 @@ class Analysis:
         if self.cfg['phaser'] == 'shapeit':
             check_shapeit(self.cfg['shapeit_refpanel'])
         elif self.cfg['phaser'] == 'eagle':
-            if self.cfg['eagle_refpanel'] is None:
-                print("ERROR: --eagle-refpanel must be specified when --phaser=eagle")
-                exit(1)
-            if self.cfg['eagle_genmap'] is None:
-                print("ERROR: --eagle-genmap must be specified when --phaser=eagle")
-                exit(1)
-            self.cfg['eagle_refpanel'] = os.path.abspath(self.cfg['eagle_refpanel'])
-            self.cfg['eagle_genmap'] = readable_file(self.cfg['eagle_genmap'])
-            check_eagle(self.cfg['eagle_refpanel'])
+            check_eagle(self.cfg['eagle_refpanel'], self.cfg['eagle_genmap'])
         else:
             error("--phaser must be either 'shapeit' or 'eagle'\n")
 
@@ -463,17 +455,27 @@ def check_shapeit(shapeit_panel):
     readable_file(os.path.join(shapeit_panel, "genetic_map_chrX_nonPAR_combined_b37.txt"))
 
 
-def eagle_refpanel_files(path):
+def eagle_refpanel_files(eagle_refpanel):
     chrs = [ 'chr' + str(chrom) for chrom in list(range(1,23)) + [ 'X' ] ]
     files = {}
     for s in chrs:
-        p = os.path.join(path, '{0}_*.genotypes.bcf'.format(s))
-        f = glob.glob(p)[0]
-        files[s] = f
+        files[s] = os.path.join(eagle_refpanel, '{0}_GRCh38.genotypes.bcf'.format(s))
     return files
 
 
-def check_eagle(eagle_refpanel):
+def check_eagle(eagle_refpanel, eagle_genmap):
+    if eagle_refpanel is None:
+        error("no Eagle reference panel provided (--eagle-refpanel)")
+    if not os.path.exists(eagle_refpanel):
+        error("Provided Eagle panel path does not exist: " + eagle_refpanel)
+    if not os.path.isdir(eagle_refpanel):
+        error("Provided Eagle panel path is not a directory; " + eagle_refpanel)
+
+    if eagle_genmap is None:
+        error("no Eagle genmap provided (--eagle-genmap)")
+    if not os.path.exists(eagle_genmap):
+        error("Provided Eagle genmap file does not exist: " + eagle_genmap)
+
     for f in eagle_refpanel_files(eagle_refpanel, chrs).values():
         readable_file(f)
         readable_file(f + '.csi')
