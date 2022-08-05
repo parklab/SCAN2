@@ -464,13 +464,11 @@ def check_shapeit(shapeit_panel):
 
 
 def eagle_refpanel_files(path):
-    chrs = [ 'chr' + str(chrom) for chrom in list(range(1,23)) + [ 'X', 'Y' ] ]
+    chrs = [ 'chr' + str(chrom) for chrom in list(range(1,23)) + [ 'X' ] ]
     files = {}
     for s in chrs:
         p = os.path.join(path, '{0}_*.genotypes.bcf'.format(s))
-        print(p)
-        print(glob.glob(p))
-        f = glob.glob(os.path.join(path, '{0}_*.genotypes.bcf'.format(s)))[0]
+        f = glob.glob(p)[0]
         files[s] = f
     return files
 
