@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 2 ]; then
-    echo "usage: $0 path_to_reference chromosome"
+    echo "usage: $0 path_to_reference.fasta chromosome"
     echo "Do NOT include the 'chr' prefix in chromosome"
     echo "This script is intended for downloading hg38 phasing panel files ONLY."
     exit 1
