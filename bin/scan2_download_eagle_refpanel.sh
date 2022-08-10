@@ -7,6 +7,8 @@ if [ $# -ne 2 ]; then
     exit 1
 fi
 
+set -e -o pipefail
+
 chr=$2
 hg38_ref_path=$1
 
