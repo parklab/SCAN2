@@ -1,5 +1,7 @@
 mkdir -p $PREFIX/bin
 cp bin/scan2 $PREFIX/bin
+cp bin/digest_calls.R $PREFIX/bin
+cp bin/scan2_download_eagle_refpanel.sh $PREFIX/bin
 mkdir -p $PREFIX/lib/scan2
 cp scripts/*.{R,sh,py} $PREFIX/lib/scan2/
 cp snakemake/Snakefile $PREFIX/lib/scan2/
