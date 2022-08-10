@@ -11,6 +11,8 @@ rule pregenotype:
         cigardata=temp("call_mutations/{sample}/cigardata.tab"),
         cigardatagz="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
+    log:
+        "call_mutations/{sample}/call_mutations.log"
     threads: 1
     params:
         sc_sample="{sample}",
@@ -25,7 +27,7 @@ rule pregenotype:
         {config[scripts]}/pregenotyping.R \
             {params.sc_sample} {params.bulk_sample} {input.inttab} \
             {input.sccigars} {input.bulkcigars} {params.genome} \
-            {output.cigardata}
+            {output.cigardata} >& {log}
         """
 
 
@@ -43,6 +45,8 @@ rule genotype:
         dptab="depth_profile/{sample}_depth_table.rda"
     output:
         "call_mutations/{sample}/scan2_object.rda"
+    log:
+        "call_mutations/{sample}/call_mutations.log"
     params:
         sc_sample="{sample}",
         # bit of a hack here: assumes the script is run from the root of the
@@ -61,5 +65,5 @@ rule genotype:
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
            {input.cigardata} {input.dptab} \
-           {output} {threads}
+           {output} {threads} >& {log}
         """
