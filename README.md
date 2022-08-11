@@ -219,10 +219,6 @@ wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
 ## Run SCAN2
-### Build a cross-sample filter
-
-### Call mutations
-### Rescue mutations by signature
 Replace instances of /path/to/... with the paths
 downloaded above. This demo runs in ~15 minutes on a 20 core
 machine by restricting analysis to a 2 MB segment of chr22.
