@@ -198,7 +198,8 @@ Finally, you must supply the following arguments to `scan2 config` to use Eagle 
 
 
 # Running the SCAN2 demo
-Download the demo chr22 BAMs. These files are aligned to GRCh37, so one
+## Download the demo chr22 BAMs
+These files are aligned to GRCh37, so one
 must downloaded the GRCh37 external data files as directed above to run
 the demo.
 
@@ -211,14 +212,20 @@ protected access at dbGaP.
 ```
 wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam
 wget http://compbio.med.harvard.edu/scan-snv/hunamp.chr22.bam.bai
+wget http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam
+wget http://compbio.med.harvard.edu/scan-snv/il-11.chr22.bam.bai
 wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam
 wget http://compbio.med.harvard.edu/scan-snv/il-12.chr22.bam.bai
 ```
 
-Run SCAN2. Replace instances of /path/to/... with the paths
-downloaded above. This demo runs in less than 5 minutes on an 8 core
-machine by restricting analysis to a 500 KB segment of chr22 and by
-using an impractically coarse grid for covariance function fitting.
+## Run SCAN2
+### Build a cross-sample filter
+
+### Call mutations
+### Rescue mutations by signature
+Replace instances of /path/to/... with the paths
+downloaded above. This demo runs in ~15 minutes on a 20 core
+machine by restricting analysis to a 2 MB segment of chr22.
 ```
 # Creates a directory for the analysis
 scan2 -d demo init
@@ -231,13 +238,9 @@ scan2 config \
     --ref /path/to/human_g1k_v37_decoy.fasta \
     --dbsnp /path/to/dbsnp_138_b37.vcf \
     --shapeit-refpanel  /path/to/1000GP_Phase3 \
-    --abmodel-chunks=1 \
-    --abmodel-samples-per-chunk=100 \
-    --abmodel-steps=1 \
-    --callable-regions True \
-    --score-all-sites \
-    --regions 22:30000001-30500000 \
+    --regions 22:30000000-30999999,22:31000000-31999999 \
     --bulk-bam /path/to/hunamp.chr22.bam \
+    --sc-bam /path/to/il-11.chr22.bam 
     --sc-bam /path/to/il-12.chr22.bam 
 
 # Attempts to validate the chosen parameters and input files. Not
@@ -252,7 +255,7 @@ scan2 run --joblimit <N cores>
 See `scan2 -h` for more details on configuration options and runtime arguments.
 
 After SCAN2 completes, single sample results are stored in 
-Rdata format `demo/both/[single_cell_sample_name]/somatic_genotypes.rda`.
+Rdata format `demo/call_mutations/[single_cell_sample_name]/scan2_object.rda`.
 
 Run R and load the RData file. IMPORTANT! Use the R installation in the SCAN2 conda
 environment for the SCAN2 R library.
@@ -266,84 +269,86 @@ library(scan2)
 #
 #    df
 
-# 'h25' is the name of the single cell sample
-load('demo/both/h25/somatic_genotypes.rda')
+# The two single cell samples are 'h24' (il-11) and 'h25' (il-12)
+load('demo/call_mutations/h25/scan2_object.rda')
 ```
 
 We now provide an S4 class called 'SCAN2' that handles both the
 genotyping logic and allows convenient user interaction. Each
-single cell in a SCAN2 run will have a 'gt' object saved in the
-corresponding somatic_genotypes.rda file.
+single cell in a SCAN2 run will have a 'results' object saved in the
+corresponding scan2_object.rda file.
 
 
-The S4 class below provides a summary of several features of the data.
+The S4 class provides a summary of several features of the data.
 ```
-gt
+R> results
 # SCAN2 
+#   Region:
+GRanges object with 22 ranges and 0 metadata columns:
+       seqnames      ranges strand
+          <Rle>   <IRanges>  <Rle>
+   [1]        1 1-249250621      *
+   [2]        2 1-243199373      *
+   [3]        3 1-198022430      *
+   [4]        4 1-191154276      *
+   [5]        5 1-180915260      *
+   ...      ...         ...    ...
+  [18]       18  1-78077248      *
+  [19]       19  1-59128983      *
+  [20]       20  1-63025520      *
+  [21]       21  1-48129895      *
+  [22]       22  1-51304566      *
+  -------
+  seqinfo: 22 sequences from GRCh37.p13 genome
+#   Genome: hs37d5 
 #   Single cell ID: h25 
 #   Bulk ID: hunamp 
-#   GATK: 429 raw sites
-#   GATK with low mapping quality: 429 raw sites
-#   AB model training hSNPs: 92 phased sites (hap1=57, hap2=35) 
+#   GATK: 2517 raw sites
+#   AB model training hSNPs: 753 phasing: 0|1=411, 1|0=342
 #       VAF correlation between neighboring hSNPs:
-#           <100 bp 0.993 <1000 bp 0.842 <10 kbp 0.587 <100 kbp 0.572 
-#         49 resampled hSNPs
+#           <10 bp 1 <100 bp 0.983 <1000 bp 0.897 <10 kbp 0.806 <100 kbp 0.203 
+#         36 resampled hSNPs
+#         7 resampled hIndels
+#   AB model parameters:
+#       average (over chromosomes): a=-2.374, b=669.314, c=1.125, d=10193.908
 #   Allele balance:
-#       mean (0 is neutral): 0.212 
-#       uncertainty (Q25, median, Q75): 0.289 0.801 0.895 
-#       mean at training hSNPs: -0.028 
-#       correlation with VAF at training hSNPs 0.815 
+#       mean (0 is neutral): -0.073 
+#       uncertainty (Q25, median, Q75): 0.372 0.558 1.162 
+#       mean at training hSNPs: 0.058 
 #   Mutation models: computed
-#   CIGAR data: 429 sites
-#   Static filters: 0 retained 429 removed 0 NA
+#   CIGAR data: single cell: 2517 sites, bulk: 2517 sites
+#   Static filters: 
+#          snv:       12 retained     1873 removed        0 NA
+#        indel:        7 retained      625 removed        0 NA
+#   FDR prior data: 
+#          snv:       25 candidates      657 germline hets        4 max burden
+#        indel:       13 candidates      108 germline hets        0 max burden
+#   Depth profile: 
+#          snv: genome <:   min. bulk DP 1.3%,   min. sc DP 8.6%,   either 9.4%
+#        indel: genome <:   min. bulk DP 1.3%,   min. sc DP 15.4%,   either 15.9%
+#   Somatic mutation calls: mode=new, target.fdr=0.010
+#          snv:        0 called       11 resampled training calls
+#        indel:        0 called        1 resampled training calls
+#       ALL indel calls have been suppressed (insufficient number of single cells in cross-sample filter
+#   Somatic mutation burden: 
+#          snv:     NA somatic,   NA% sens,   NA callable Gbp,   NA muts/haploid Gbp,   NA muts per genome
+#        indel:     NA somatic,   NA% sens,   NA callable Gbp,   NA muts/haploid Gbp,   NA muts per genome
+#       indel mutation burden estimates ARE NOT VALID (cross-sample panel insufficiency)!
+#   Mutation rescue by signature: (not computed)
 ```
 
- Now it is possible to extract the genotyped sites called using the
-static filters (such
- as minimum depths, exclusion of dbSNP sites, etc.) and the two
- single cell artifact models. lysis.fdr and mda.fdr <= 0.01 correspond
- to a target false discovery rate (FDR) of 1%. Note that SCAN2 does
- **NOT** provide formal FDR control.
+This SCAN2 object contains only VAF-based somatic mutation calls. For
+signature-based rescue, see `scan2 rescue`. Further, this SCAN2 object
+will not contain indel calls because no cross sample filter was provided
+(see `scan2 config --help`, `--cross-sample-panel`).
 
-
- There should be no called somatic SNVs in this demo dataset.
+There should be no called somatic SNVs in this demo dataset.
 ```
-snvs <- df(gt)
-snvs[snvs$static.filter & snvs$lysis.fdr <= 0.01 & snvs$mda.fdr <= 0.01,]
- [1] chr               pos               dbsnp             refnt            
- [5] altnt             mq                mqrs              h25              
- [9] scref             scalt             hunamp            bref             
-[13] balt              dp                af                bulk.dp          
-[17] bulk.af           training.site     scref             scalt            
-[21] bref              balt              ab                gp.mu            
-[25] gp.sd             abc.pv            lysis.pv          lysis.beta       
-[29] mda.pv            mda.beta          M.cigars          ID.cigars        
-[33] HS.cigars         other.cigars      dp.cigars         M.cigars.bulk    
-[37] ID.cigars.bulk    HS.cigars.bulk    other.cigars.bulk dp.cigars.bulk   
-[41] id.score.y        id.score.x        hs.score.y        hs.score.x       
-[45] id.score          hs.score          static.filter     nt               
-[49] na                lysis.fdr         mda.fdr          
-<0 rows> (or 0-length row.names)
+R> snvs <- results@gatk[pass == TRUE & muttype == 'snv']
+R> snvs
+Empty data.table (0 rows and 73 cols): chr,pos,dbsnp,refnt,altnt,mq...
 ```
 
-**NOTE**: VCF output is forthcoming.
-
-## Coming soon
-The new R class in the SCAN2 library provides several plotting utilities
-to better explore and understand the quality of single cell experiments.
-We are currently developing a step by step vignette to walk users through
-this process.
-
-In addition, the new pipeline and R class have been redesigned to allow
-fast recalculation of genotyping scores and filters. This allows users to
-explore the effects of changing calling parameters (such as target FDR
-thresholds and static thresholds); some of these used to require completely
-rerunning the pipeline, which is often impractical.
-
-
-### WARNING!
-* The conda environment (named scan2 in these instructions) must always
-  be `conda activate`d before running SCAN2.
 
 # Parallelization
 In a practical setting, parallelization will be required. SCAN2 leverages
@@ -359,12 +364,13 @@ Snakemake to offer parallelization via any of the following:
   interface with the DRMAA wrapper.**
     * E.g., in the SCAN2 publication, a SLURM cluster was accessed via
       the slurm-drmaa 1.1.1 package (https://github.com/natefoo/slurm-drmaa). This
-      package was maintained by the cluster system admins.
+      package was maintained by local cluster system admins.
       An example command line for running SCAN2 with DRMAA follows. Note the `--mem`
       argument, which uses Snakemake's `{resources.mem}` placeholder to allow each
-      individual job in the SCAN2 pipeline to specify the amount of memory needed.
+      individual job in the SCAN2 pipeline to specify the amount of memory needed and
+      the `{threads}` placeholder.
         ```
-        scan2 run --joblimit 100 --drmaa ' -p YOUR_QUEUE_NAME -A YOUR_ACCOUNT -t 10:00 --mem={resources.mem}'
+        scan2 run --joblimit 100 --drmaa ' -p YOUR_QUEUE_NAME -A YOUR_ACCOUNT -t 10:00 -c {threads} --mem={resources.mem}'
         ```
     * If your scheduler is not DRMAA-compatible (or if the appropriate
       DRMAA interface is unavailable), Snakemake's `--cluster` option
@@ -374,8 +380,7 @@ Snakemake to offer parallelization via any of the following:
 See Snakemake's documentation for more details on cluster and cloud execution: https://snakemake.readthedocs.io/en/stable/.
 
 
-# Using a custom dbSNP version
-## Generating a Tribble index for dbSNP
+# Generating a Tribble index for dbSNP
 dbSNP VCFs must be indexed by Tribble (*not* tabix) for GATK. The dbSNP
 found in the GATK's resource bundle is already indexed. If you wish to use
 a different dbSNP version (as in the above section on downloading external
