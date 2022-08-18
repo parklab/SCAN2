@@ -59,12 +59,10 @@ Log-out and back in to source .bashrc and put conda on $PATH
 ## Install SCAN2
 Create a conda environment for SCAN2 and install necessary packages
 ```
-# Create a base environment with the mamba package manager. Mamba is
-# a drop-in replacement for the conda package manager, which cannot solve
-# the dependency constraint problem in a reasonable amount of time.
 conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew -c soil scan2
 
-# Activate the newly created scan2 conda environment
+# Once the environment is created, it must be activated every time
+# you wish to use SCAN2.
 conda activate scan2
 ```
 
@@ -257,16 +255,9 @@ Run R and load the RData file. IMPORTANT! Use the R installation in the SCAN2 co
 environment for the SCAN2 R library.
 ```
 $ R   
-library(scan2)
-#
-# Attaching package: 'scan2'
-#
-# The following object is masked from 'package:stats':
-#
-#    df
-
+R> library(scan2)
 # The two single cell samples are 'h24' (il-11) and 'h25' (il-12)
-load('demo/call_mutations/h25/scan2_object.rda')
+R> load('demo/call_mutations/h25/scan2_object.rda')
 ```
 
 We now provide an S4 class called 'SCAN2' that handles both the
@@ -334,7 +325,7 @@ GRanges object with 22 ranges and 0 metadata columns:
 ```
 
 This SCAN2 object contains only VAF-based somatic mutation calls. For
-signature-based rescue, see `scan2 rescue`. Further, this SCAN2 object
+signature-based rescue, see `scan2 rescue -h`. Further, this SCAN2 object
 will not contain indel calls because no cross sample filter was provided
 (see `scan2 config --help`, `--cross-sample-panel`).
 
