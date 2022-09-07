@@ -7,6 +7,14 @@ mutation with any read support in matched bulk samples.
 **IMPORTANT**: SCAN2 should only be applied to diploid chromosomes (i.e., human
 autosomes 1-22 and the X chromosome in female samples).
 
+{% note %}
+
+**Note:** The instructions below guide the user through a minimal demo of the
+SCAN2 tool with the primary goal of checking the installation. For a more
+detailed walkthrough including cross-sample panel building and mutation
+signature-based rescue, please [see the wiki](../../wiki).
+
+{% endnote %}
 
 ## Clonal vs. non-clonal somatic mutation detection
 SCAN2 currently will not call any mutation candidate with **any** supporting
