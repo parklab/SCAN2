@@ -8,6 +8,7 @@ mutation with any read support in matched bulk samples.
 autosomes 1-22 and the X chromosome in female samples).
 
 > **Note**
+>
 > The instructions below guide the user through a minimal demo of the
 > SCAN2 tool with the primary goal of checking the installation. For a more
 > detailed walkthrough including cross-sample panel building and mutation
