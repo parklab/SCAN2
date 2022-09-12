@@ -4,8 +4,9 @@ Genotyper for **somatic** SNV and indel discovery in PTA-amplified single cells.
 SCAN2 should not be used for genotyping germline mutations, as it excludes any
 mutation with any read support in matched bulk samples.
 
-**IMPORTANT**: SCAN2 should only be applied to diploid chromosomes (i.e., human
-autosomes 1-22 and the X chromosome in female samples).
+**IMPORTANT**: SCAN2 should only be applied to diploid autosomes (i.e., human
+autosomes 1-22). Sex chromosomes are currently not supported, but in principle
+SCAN2 is applicable to female X chromosomes.
 
 > **Note**
 >
