@@ -18,6 +18,7 @@ if ('snakemake' %in% ls()) {
             snakemake@params['muttype'],
             snakemake@params['passtype'],
             snakemake@params['n_permutations'],
+            snakemake@params['generation_param'],
             snakemake@output['rda'],
             snakemake@threads
         ))
@@ -29,10 +30,11 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) < 9) {
+if (length(args) < 10) {
     cat('mutations.csv may contain mutations from multiple single cells so long as a `sample` column is provided. It must also include columns: chr, pos, refnt, altnt, pass, rescue.\n')
     cat("N.B.: genome_string must be a supported SCAN2 genome.\n")
-    stop("usage: make_permutations.R mutations.csv sc_sample callable_regions.bed genome_string bedtools_genomefile.txt {snv|indel} {pass|rescue} n_permutations out.rda [n.cores]")
+    cat("generation_param - for SNVs, the number of random sites to generate per iteration; for indels, a base multiplier that is linearly related to the number of random sites generated. Ideally, each iteration should generate >1 permutation of the input; for reasonable performance, 10s or 100s of permutations should be generated per iteration. However, using very large values of this parameter can cause excessive memory usage.\n")
+    stop("usage: make_permutations.R mutations.csv sc_sample callable_regions.bed genome_string bedtools_genomefile.txt {snv|indel} {pass|rescue} n_permutations out.rda generation_param [n.cores]")
 }
 
 muts.path <- args[1]
@@ -43,11 +45,12 @@ genomefile.path <- args[5]
 muttype <- args[6]
 passtype <- args[7]
 n.permutations <- as.integer(args[8])
-out.rda <- args[9]
+generation.param <- as.numeric(args[9])
+out.rda <- args[10]
 
 n.cores <- 1
-if (length(args) == 10)
-    n.cores <- as.integer(args[10])
+if (length(args) == 11)
+    n.cores <- as.integer(args[11])
 
 if (muttype != 'snv' & muttype != 'indel')
     stop("muttype must be either 'snv' or 'indel' (case-sensitive)")
@@ -76,7 +79,13 @@ progressr::with_progress({
         sc.sample=sc.sample,
         callable.bed=callable.path, genome=genome.string,
         genome.file=genomefile.path, muttype=muttype,
-        n.permutations=n.permutations, quiet=TRUE)
+        n.permutations=n.permutations, quiet=TRUE,
+        # CAUTION!! This hack assumes that make.permuted.mutations
+        # always considers SNVs and indels separately, meaning that
+        # one of these two generation.param settings will be
+        # ignored. The two generation.params ARE NOT interpreted
+        # the same way and are not interchangeable.
+        snv.N=generation.param, indel.K=generation.param)
 }, enable=TRUE)
 
 save(permdata, file=out.rda, compress=FALSE)

@@ -73,6 +73,8 @@ scan2_param_defaults = {
     'permtool_config_map': {},
     'permtool_matrix_map': {},
     'permtool_n_permutations': 10000,
+    'permtool_snv_generation_param': 100000,
+    'permtool_indel_generation_param': 1/50,
     'permtool_callable_bed_n_cores': 20,
     'permtool_make_permutations_n_cores': 20,
     'permtool_combine_permutations_n_cores': 20
@@ -1010,6 +1012,10 @@ if __name__ == "__main__":
              'this parameter. SCAN2_DIR must point to the top level of a SCAN2 '
              'directory created by the call_mutations pipeline. At least one '
              '--permtool-sample is required for `scan2 permtool`.')
+    permtool.add_argument('--permtool-snv-generation-param', default=100000, type=int, metavar='N',
+        help='Number of random SNVs to generate per iteration. Enough random sites must be generated so that the mutation spectrum of the random sites contains at least one copy of the input spectrum. Ideally, an iteration should contain 10-100 copies. Increase this parameter if directed by permtool or if your mutations contain a large number of rare types (particularly CpGs).')
+    permtool.add_argument('--permtool-indel-generation-param', default=1/50, type=float, metavar='FLOAT',
+        help='Similar to --permtool-snv-generation-param but acts as a multiplier for a hard-coded base number of random indels to generate per iteration.')
     permtool.add_argument('--permtool-bedtools-genome-file', type=readable_file, metavar='PATH',
         help='Genome file formatted for the -g option of bedtools intersect.')
 

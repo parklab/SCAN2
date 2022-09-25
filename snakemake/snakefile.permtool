@@ -50,7 +50,8 @@ rule make_permutations:
         sample="{sample}",
         genome=config['genome'],
         muttype="{muttype}",
-        passtype="{passtype}"
+        passtype="{passtype}",
+        generation_param=lambda wildcards: config['permtool_' + wildcards.muttype + '_generation_param']
     threads: config['permtool_make_permutations_n_cores']
     resources:
         mem=lambda wildcards, input, threads: 4000*threads
@@ -65,6 +66,7 @@ rule make_permutations:
             {params.muttype} \
             {params.passtype} \
             {config[permtool_n_permutations]} \
+            {params.generation_param} \
             {output.rda} \
             {threads} >& {log}
         """
