@@ -79,7 +79,8 @@ progressr::with_progress({
         sc.sample=sc.sample,
         callable.bed=callable.path, genome=genome.string,
         genome.file=genomefile.path, muttype=muttype,
-        n.permutations=n.permutations, quiet=TRUE,
+        n.permutations=n.permutations, n.chunks=ceiling(n.permutations/100),
+        quiet=TRUE,
         # CAUTION!! This hack assumes that make.permuted.mutations
         # always considers SNVs and indels separately, meaning that
         # one of these two generation.param settings will be
