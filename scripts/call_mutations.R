@@ -27,6 +27,7 @@ y <- yaml::read_yaml(config.yaml)
 bulk.sample <- y$bulk_sample
 genome.string <- y$genome
 legacy <- y$mimic_legacy
+target.fdr <- y$target_fdr
 
 library(scan2)
 library(future)
@@ -42,6 +43,7 @@ with_progress({
         sccigars=sccigars, bulkcigars=bulkcigars,
         trainingcigars=cigardata, dptab=dptab,
         config.yaml=config.yaml,
+        target.fdr=target.fdr,
         genome=genome.string,
         verbose=FALSE, report.mem=TRUE, legacy=legacy)
 }, enable=TRUE)
