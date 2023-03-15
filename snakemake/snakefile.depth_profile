@@ -62,7 +62,7 @@ rule callable_region_scatter:
         scbam=config['bam_map'].values()
     output:
         tmp=temp("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt"),
-        txt="depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt"
+        txt=temp("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt")
     params:
         bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
         regionflag=lambda wildcards:
