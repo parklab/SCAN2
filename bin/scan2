@@ -15,6 +15,7 @@ import uuid
 import pysam       # just for reading BAM headers to find samples
 import snakemake
 import distutils.util # for strtobool
+import csv
 from sys import exit
 
 
@@ -34,12 +35,12 @@ scan2_param_defaults = {
     'snv_min_sc_dp': 6,
     'snv_min_bulk_dp': 11, 
     'snv_max_bulk_alt': 0, 
-    'snv_max_bulk_mosaic_vaf': 0.3,
+    'snv_max_bulk_af': 0,
     'indel_min_sc_alt': 2,
     'indel_min_sc_dp': 10,
     'indel_min_bulk_dp': 11, 
     'indel_max_bulk_alt': 0, 
-    'indel_max_bulk_mosaic_vaf': 0.3,
+    'indel_max_bulk_af': 0,
     'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': True,
@@ -317,18 +318,65 @@ class Analysis:
         [ readable_file(r) for r in self.cfg['scan2_objects'].values() ]
 
 
-    def check_bams(self):
-        if self.cfg['bulk_bam'] is None:
+    def check_bams(self, error_on_missing=True):
+        if error_on_missing and self.cfg['bulk_bam'] is None:
             error('no bulk BAM was specified (--bulk-bam)')
 
-        if len(self.cfg['sc_bams']) == 0:
+        if error_on_missing and len(self.cfg['sc_bams']) == 0:
             error('no single cell BAMs were specified (--sc-bam)')
 
-        [ readable_file(b) for b in self.cfg['sc_bams'].values() ]
-        if len(self.cfg['bams']) > 0:  # miscellaneous BAMs aren't required
-            [ readable_file(b) for b in self.cfg['bams'].values() ]
-        readable_file(self.cfg['bulk_bam'])
+        all_bams = []
+        if self.cfg['bulk_bam'] is not None:
+            print('adding bulk')
+            all_bams += [ self.cfg['bulk_bam'] ]   # not a list like others
+        if len(self.cfg['sc_bams']) > 0:
+            print('adding SC')
+            all_bams += list(self.cfg['sc_bams'].values())
+        if self.cfg['bams'] is not None:
+            print('adding bam')
+            all_bams += list(self.cfg['bams'].values())
 
+        [ readable_file(b) for b in all_bams ]
+        # sometimes indexes convert .bam -> .bai rather than appending .bam -> .bam.bai
+        #[ readable_file(b + '.bai') for b in all_bams ]
+
+
+    def check_bams_makepanel(self):
+        """
+        Differs from above in that makepanel comes with a metadata file
+        identifying single cell and bulk bams. Make sure everything in
+        the metadata file is present in the list of BAMs.
+        """
+        donors = []
+        samples = []
+        amps = []
+        with open(self.cfg['makepanel_metadata'], 'r') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                donors.append(row['donor'])
+                samples.append(row['sample'])
+                amps.append(row['amp'].lower())
+
+        if len(set(donors)) == 1:
+            warning("only a single donor was provided in --makepanel-metadata; indel results will be INVALID.")
+            
+        if amps.count('bulk') == 0:
+            error("no BAMs were annotated as 'bulk' in --makepanel-metadata. At least one bulk BAM is required for panel building.")
+
+        if amps.count('bulk') == len(amps):
+            error("All BAMs were annotated as 'bulk' in --makepanel-metadata. At least one single cell BAM is required for panel building.")
+            
+        # Make sure all sample IDs in the makepanel file exist in BAM map
+        bam_samples = []
+        if self.cfg['bulk_bam'] is not None:
+            bam_samples += [ self.cfg['bulk_bam'] ]   # not a list like others
+        if self.cfg['sc_bams'] is not None:
+            bam_samples += list(self.cfg['sc_bams'].keys())
+        if self.cfg['bams'] is not None:
+            bam_samples += list(self.cfg['bams'].keys())
+        if not all([ s in bam_samples for s in samples ]):
+            error('some samples listed in --makepanel-metadata have no associated BAM file (specified by --bam, --sc-bam, or --bulk-bam). Please ensure that every BAM in the metadata table is present. Note that samples IDs are automatically determined from BAM files by the SM: tag in the first read group (@RG record).')
+        
 
     def check_phaser(self):
         # Determine the phaser and check relevant files.
@@ -352,18 +400,22 @@ class Analysis:
             print("Checking dbSNP VCF..")
             check_dbsnp(self.cfg['dbsnp'])
     
-            # Additional checks: indexes, at least one bulk and one single cell
-            print("Checking BAMs..")
-            self.check_bams()
 
             if self.cfg['analysis'] == 'call_mutations':
+                # Additional checks: indexes, at least one bulk and one single cell
+                print("Checking BAMs..")
+                self.check_bams()
+
                 # Additional checks: very specific reference panel layout
                 print("Checking phasing reference panel..")
                 self.check_phaser()
 
             if self.cfg['analysis'] == 'makepanel':
+                print("Checking BAMs..")
+                self.check_bams(error_on_missing=False)
                 print("Checking panel metadata..")
                 readable_file(self.cfg['makepanel_metadata'])
+                self.check_bams_makepanel()
 
         if self.cfg['analysis'] == 'rescue':
             print("Checking SCAN2 objects..")
@@ -395,6 +447,11 @@ class Analysis:
 
 def error(str):
     print("ERROR: " + str)
+    exit(1)
+
+
+def warning(str):
+    print("WARNING: " + str)
     exit(1)
 
 
@@ -800,16 +857,19 @@ if __name__ == "__main__":
         help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
     config_parser.add_argument('--gatk', default='gatk3_joint',
-        choices=[ 'gatk3_joint', 'gatk4_joint', 'gatk4_gvcf' ],
+        choices=[ 'gatk3_joint', 'gatk4_joint', 'gatk4_gvcf', 'sentieon_joint' ],
         help='GATK version and strategy for generating candidate somatic '
              'mutations and cross-sample support. Valid values are "gatk3_joint", '
-             '"gatk4_joint" and "gatk4_gvcf". Joint calling means that all BAMs '
+             '"gatk4_joint", "gatk4_gvcf" and "sentieon_joint". Joint calling means that all BAMs '
              'are provided directly to HaplotypeCaller, whereas each BAM (sample) is '
              'initially analyzed separately in the GVCF strategy and combined '
              'later. The GVCF method can be lossy since all BAM data is not stored '
              'in the initial analysis; however, it does not require rerunning GATK '
              'across all samples in the multi-sample modes. The GVCF strategy is '
-             'currently experimental and we do not recommend using it.'
+             'currently experimental and we do not recommend using it. When using'
+             'sentieon_joint, the user must ensure the `sentieon` binary is in $PATH'
+             'and that the environment variable SENTIEON_LICENSE points to a running'
+             'sentieon license server.'
              'When --gatk-vcf VCF is used, the user must ensure that the chosen --gatk '
              'strategy matches the strategy used to generate VCF.')
 
@@ -906,8 +966,8 @@ if __name__ == "__main__":
         help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
     caller.add_argument('--snv-max-bulk-alt', type=int,  metavar='INT',
         help='Reject somatic SNVs supported by more than INT reads in bulk.')
-    #caller.add_argument('--snv-max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
-        #help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+    caller.add_argument('--snv-max-bulk-af', type=float,  metavar='FLOAT',
+        help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3.')
     caller.add_argument('--indel-min-sc-alt', type=int, metavar='INT',
         help='Reject somatic indels with fewer than INT reads carrying the mutation in single cells.')
     caller.add_argument('--indel-min-sc-dp', type=int, metavar='INT',
@@ -916,8 +976,8 @@ if __name__ == "__main__":
         help='Reject somatic indels covered by fewer than INT reads in bulk.')
     caller.add_argument('--indel-max-bulk-alt', type=int,  metavar='INT',
         help='Reject somatic indels supported by more than INT reads in bulk.')
-    #caller.add_argument('--indel-max-bulk-mosaic-vaf', type=float,  metavar='FLOAT',
-        #help='Reject mosaic indels with VAF > FLOAT in bulk. E.g., --max-bulk-mosaic-vaf=0.3.')
+    caller.add_argument('--indel-max-bulk-af', type=float,  metavar='FLOAT',
+        help='Reject mosaic indels with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3.')
     caller.add_argument('--min-base-quality-score', type=int,
         help="Passed to GATK HaplotypeCaller's --min-base-quality-score. "
              "Currently only used in GATK4 GVCF.")
