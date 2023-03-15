@@ -42,7 +42,8 @@ rule gatk_scatter:
     input:
         bam=expand("{bam}", bam=config['bam_map'].values()),
     output:
-        vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"),
+        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf.idx")
     params:
         bamlist=expand("-I {bam}", bam=config['bam_map'].values()),
         regionflag=lambda wildcards:
