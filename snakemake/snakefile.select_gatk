@@ -16,5 +16,9 @@ elif config['gatk'] == 'gatk4_joint':
 elif config['gatk'] == 'gatk4_gvcf':
     include: "snakefile.gatk4_gvcf"
     print("Using GATK version 4 with GVCF calling (EXPERIMENTAL)!")
+elif config['gatk'] == 'sentieon_joint':
+    include: "snakefile.gatk3_joint"
+    include: "snakefile.sentieon_joint"
+    print("Using Sentieon for HaplotypeCaller and GATK3 for other tools. Be sure to export SENTIEON_LICENSE.\n")
 else:
     raise RuntimeError("unrecognized GATK version and strategy: " + config['gatk'])
