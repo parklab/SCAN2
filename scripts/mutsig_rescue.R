@@ -66,9 +66,7 @@ summary <- scan2::mutsig.rescue(setNames(in.rdas, out.rdas), add.muts=add.muts,
 data.table::fwrite(summary$muts, file=out.txt, sep='\t')
 
 if (!is.null(homogeneity.file)) {
-    tests <- do.call(rbind, lapply(1:length(summary$sig.homogeneity.tests), function(i)
-        data.frame(sample=names(summary$sig.homogeneity.tests)[i], summary$sig.homogeneity.tests[[i]])))
-    data.table::fwrite(tests, file=homogeneity.file, sep='\t')
+    data.table::fwrite(summary$sig.homogeneity.tests, file=homogeneity.file, sep='\t')
 }
 
 if ('snakemake' %in% ls()) {
