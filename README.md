@@ -88,9 +88,9 @@ SigProfilerMatrixGenerator reference genome for GRCh37; GRCh38 is also available
 https://github.com/AlexandrovLab/SigProfilerMatrixGenerator for details on other
 genome assemblies and custom assemblies.
 
-*N.B.:* this installation step is required even if indels are not analyzed.
+**N.B.** this installation step is required even if indels are not analyzed.
 
-*REMEMBER* the scan2 conda environment must be activated (see above) when
+**REMEMBER** the scan2 conda environment must be activated (see above) when
 running these commands!
 ```
 $ python
