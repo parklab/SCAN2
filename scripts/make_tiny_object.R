@@ -1,5 +1,6 @@
 #!/usr/bin/env Rscript
 
+args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 2)
     stop("usage: script.R in.rda out.rda")
 
