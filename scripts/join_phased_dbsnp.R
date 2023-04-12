@@ -11,7 +11,7 @@ if ('snakemake' %in% ls()) {
     commandArgs <- function(...) {
         ret <- unlist(c(
             snakemake@input['bulk_called_vcf'],
-            snakemake@input['dbsnp_vcf'],
+            snakemake@input['phased_hsnps_vcf'],
             snakemake@params['genome'],
             snakemake@output['out_vcf'],
             snakemake@output['out_vcf_gz'],
@@ -25,11 +25,11 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 if (!any(length(args) == 5:6)) {
-    stop("usage: join_phased_dbsnp.R bulk_called.vcf.gz phased_dbsnp.vcf.gz genome_string out.vcf out.vcf.gz [n.cores]")
+    stop("usage: join_phased_hsnps.R bulk_called.vcf.gz phased_hsnps.vcf.gz genome_string out.vcf out.vcf.gz [n.cores]")
 }
 
 bulk.called.vcf <- args[1]
-dbsnp.vcf <- args[2]
+hsnps.vcf <- args[2]
 genome <- args[3]
 out.vcf <- args[4]
 out.vcf.gz <- args[5]
@@ -49,7 +49,7 @@ suppressMessages(library(Rsamtools))
 plan(multicore, workers=n.cores)
 
 # Currently the chunking used here isn't configurable by user.
-results <- join.phased.dbsnp(bulk.called.vcf=bulk.called.vcf, dbsnp.vcf=dbsnp.vcf, genome=genome)
+results <- join.phased.hsnps(bulk.called.vcf=bulk.called.vcf, hsnps.vcf=hsnps.vcf, genome=genome)
 
 header <- system(paste0("tabix -H ", bulk.called.vcf), intern=TRUE)
 # The final line of the header is the #CHROM...
