@@ -1,5 +1,37 @@
 # vim: syntax=python
 
+rule tabix_bulk_vcf:
+    input:
+        vcf="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf"
+    output:
+        vcfgz="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
+        idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi"
+    resources:
+        mem=4000
+    shell:
+        "bgzip -c {input.vcf} > {output.vcfgz} && tabix -p vcf {output.vcfgz}"
+
+
+rule phasing_phased_hsnps:
+    input:
+        bulk_called_vcf="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
+        bulk_called_vcf_idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi",
+        phased_hsnps_vcf=config['phased_hsnps']
+    output:
+        out_vcf=temp("phased_hsnps/phased_hets.vcf"),
+        out_vcf_gz="phased_hsnps/phased_hets.vcf.gz",
+        out_vcf_gz_tbi="phased_hsnps/phased_hets.vcf.gz.tbi"
+    log:
+        "phased_hsnps/phased_hets.log"
+    params:
+        genome=config['genome']
+    threads: int(config['phased_hsnps_n_cores'])
+    resources:
+        mem=lambda wildcards, input, threads: 4000 + threads*2000
+    script:
+        config['scripts'] + "/join_phased_hsnps.R"
+
+
 rule phasing_gather:
     input:
         expand("{phaser}/{chr_prefix}{chr}/phased_hets.vcf",
@@ -31,7 +63,8 @@ rule shapeit_prepare:
     input:
         "gatk/hc_raw.mmq60.vcf"
     output:
-        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
+        vcf=temp("shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])),
+        vcfidx=temp("shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf.idx".format(chr_prefix=config['chr_prefix']))
     params:
         chr="{chr}",
         bulk_sample=config['bulk_sample']
@@ -48,7 +81,7 @@ rule shapeit_prepare:
         "    --exclude-non-variants"
         "    --sample-name {params.bulk_sample}"
         "    -L {params.chr}"
-        "    -O {output}"
+        "    -O {output.vcf}"
 
 
 
@@ -84,11 +117,11 @@ rule shapeit_scatter:
     input:
         "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
     output:
-        "shapeit/{chr_prefix}{{chr}}/phased_hets.vcf".format(chr_prefix=config['chr_prefix'])
+        temp("shapeit/{chr_prefix}{{chr}}/phased_hets.vcf".format(chr_prefix=config['chr_prefix']))
     params:
         excludefile="shapeit/{chr_prefix}{{chr}}/shapeit_check.snp.strand.exclude".format(chr_prefix=config['chr_prefix']),
         tmpout="shapeit/{chr_prefix}{{chr}}/{chr_prefix}{{chr}}.phased".format(chr_prefix=config['chr_prefix']),
-        tmpout2="shapeit/{chr_prefix}{{chr}}/phased.vcf".format(chr_prefix=config['chr_prefix']),
+        tmpout2=temp("shapeit/{chr_prefix}{{chr}}/phased.vcf".format(chr_prefix=config['chr_prefix'])),
         checklog="shapeit/{chr_prefix}{{chr}}/shapeit_check.log".format(chr_prefix=config['chr_prefix']),
         phaselog="shapeit/{chr_prefix}{{chr}}/shapeit_phase.log".format(chr_prefix=config['chr_prefix']),
         convertlog="shapeit/{chr_prefix}{{chr}}/shapeit_convert.log".format(chr_prefix=config['chr_prefix']),
