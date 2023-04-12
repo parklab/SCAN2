@@ -1,0 +1,54 @@
+# vim: syntax=python
+
+# Sentieon is uses GATK3 for all non-HaplotypeCaller GATK tools
+# (e.g., DepthOfCoverage, CatVariants, GatherVCFs, etc.).
+ruleorder: sentieon_gatk_scatter > gatk_scatter
+
+rule sentieon_gatk_scatter:
+    input:
+        bam=expand("{bam}", bam=config['bam_map'].values()),
+    output:
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"),
+        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf.idx")
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.log"
+    params:
+        bamlist=expand("-i {bam}", bam=config['bam_map'].values()),
+        regionflag=lambda wildcards:
+            "--interval " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        mmq="{gatk_mmq}"
+    resources:
+        # can probably go lower here. senteion is an order of magnitude more memory efficient than GATK
+        # GATK default=10000 (=10GB)
+        # XXX: critical future optimization: scale with length of bam_map
+        # attempt starts at 1, so the base value of 3000MB is used for attempt 1
+        # N.B. scaling 4^x: the vast majority (95%+) of jobs use very, very little memory.
+        # However, when a big memory job comes along (usually a handful per panel), its
+        # memory usage explodes. E.g., in a test panel of 12 PTA single cells and 4 bulks,
+        # 90% of chunks used <625MB, 99% of chunks used <963MB, but the top 5 jobs used
+        #                1      2      3      4      5
+        #        MB: 64000   3436   2386   1781   1681
+        # So, RAM usage must grow very fast to have any chance of handling these in a
+        # reasonable amount of time.
+        #
+        # IMPORTANTLY: this implies that we expect to always fail (and restart) at least
+        # a few HaplotypeCaller jobs. Since each GATK chunk acts as a checkpoint (i.e.,
+        # once a chunk completes, other chunk failures won't ever undo the completed chunk),
+        # chunks for panel building should always be very fine (5000-10000 chunks is
+        # reasonable)! This would be true even if the chunks could not be parallelized!
+        mem=lambda wildcards, attempt: 7000*4**(attempt-1)
+    threads: 1
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+    shell:
+        """
+        sentieon driver -t {threads} \
+            -r {config[ref]} \
+            {params.regionflag} \
+            {params.bamlist} \
+            --algo Haplotyper \
+            -d {config[dbsnp]} \
+            --min_map_qual {params.mmq} \
+            --trim_soft_clip \
+            {output.vcf} >& {log}
+        """
