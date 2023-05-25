@@ -99,7 +99,7 @@ scan2_file_defaults = {
     'gatk_vcf': None,
     'eagle_refpanel': {},
     'eagle_genmap': None,
-    'phased_hsnps': None
+    'phased_hsnps': ''
 }
 
 scan2_defaults = { **scan2_param_defaults, **scan2_file_defaults }
@@ -737,13 +737,24 @@ def parse_snakemake_job_report(process):
         if line == '':
             continue
 
-        if line == 'Job counts:' or line == 'count\tjobs':
+        #if line == 'Job counts:' or line == 'count\tjobs':
+        # Now prints something like this:
+        # Job stats:
+        # job                      count    min threads    max threads
+        # ---------------------  -------  -------------  -------------
+        # abmodel_gather              11              1              1
+        # abmodel_scatter            242              1              1
+        if line.startswith('---------'):
             indata = True
             continue
 
         if indata:
             try:
-                count, rulename = line.split('\t')
+                # below converts multiple consecutive whitespace characters into
+                # one space, then splits on space
+                rulename, count, minthr, maxthr = \
+                    ' '.join(line.split()).split(' ')
+                #count, rulename = line.split('\t')
                 jobdict[rulename] = int(count)
             except ValueError:
                 # Thrown on the last line, which does not have a rule name
