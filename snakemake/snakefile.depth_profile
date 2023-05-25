@@ -23,7 +23,7 @@ rule depth_profile_region_summarize_per_sample:
         # many real world runs. the max. memory used was 1555 MB per thread; did
         # not scale with number of samples in each batch, as expected. give 1800 MB,
         # a little extra headroom.
-        mem=lambda wildcards, input, threads: 1800 * threads
+        mem_mb=lambda wildcards, input, threads: 1800 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """
@@ -44,10 +44,10 @@ rule callable_region_gather:
         "depth_profile/benchmark_joint_depth_matrix.txt"
     threads: 4
     resources:
-        mem=1000
+        mem_mb=1000
     shell:
         """
-        (grep '^#' {input[0]} ; cat {input} | grep -v '^#') \
+        (grep -m1 '^#' {input[0]} ; cat {input} | grep -v '^#') \
             | bgzip --threads {threads} -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
@@ -71,7 +71,7 @@ rule callable_region_scatter:
         "depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage_chunk{gatk_chunk}.txt"
     threads: 1
     resources:
-        mem=6000
+        mem_mb=6000
     shell:
         """
         gatk DepthOfCoverage \

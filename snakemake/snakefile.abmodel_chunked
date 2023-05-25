@@ -19,7 +19,7 @@ rule abmodel_fit:
     output:
         "ab_model/{sample}/fits.rda"
     resources:
-        mem=1000
+        mem_mb=1000
     script:
         "scripts/abmodel_fit_script.R"
 
@@ -37,7 +37,7 @@ rule abmodel_gather_by_chrom:
         fit="ab_model/{sample}/%s{chr}/fit_step{abmodel_step}.rda" % config['chr_prefix'],
         range="ab_model/{sample}/%s{chr}/param_ranges_step{abmodel_step}.rda" % config['chr_prefix']
     resources:
-        mem=1000
+        mem_mb=1000
     script:
         "scripts/abmodel_gather_by_chrom_script.R"
 
@@ -71,6 +71,6 @@ rule abmodel_scatter:
     benchmark:
         "ab_model/{sample}/%s{chr}/benchmark_step{abmodel_step}.{abmodel_chunk}.tsv" % config['chr_prefix']
     resources:
-        mem=1000
+        mem_mb=1000
     script:
         "scripts/abmodel_scatter_script.R"

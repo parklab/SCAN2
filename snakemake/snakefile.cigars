@@ -12,7 +12,7 @@ rule cigar_scatter:
     params:
         chrom="{chr}"
     resources:
-        mem=250
+        mem_mb=250
     shell:
         """
         {config[scripts]}/count_cigars.py {input.bam} {input.sites} {output.tab} --chrom {params.chrom}
@@ -32,7 +32,7 @@ rule cigar_gather:
     benchmark:
         "call_mutations/{sample}/benchmark_cigar_gather.txt"
     resources:
-        mem=500
+        mem_mb=500
     shell:
         """
         (head -1 {input[0]} ; cat {input} | grep -v '^#') | bgzip -c > {output.tab}

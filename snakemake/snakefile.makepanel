@@ -8,8 +8,10 @@ rule vcf_to_tab:
     output:
         tabgz="panel/hc_raw.mmq60.tab.gz",
         tabidx="panel/hc_raw.mmq60.tab.gz.tbi",
+    log:
+        "panel/vcf_to_tab.log"
     resources:
-        mem=1000
+        mem_mb=1000
     benchmark:
         "gatk/benchmark_vcf_to_tab.txt"
     shell:
@@ -17,7 +19,6 @@ rule vcf_to_tab:
         {config[scripts]}/totab.panel.sh {input} /dev/stdout | bgzip -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
-
 
 rule process_tab:
     input:
@@ -28,13 +29,15 @@ rule process_tab:
         tab=temp("panel/panel.tab"),
         tabgz="panel/panel.tab.gz",
         tabix="panel/panel.tab.gz.tbi"
+    log:
+        "panel/make_panel.log"
     params:
         genome=config['genome']
     benchmark:
         "panel/benchmark_make_panel.txt"
     threads: config['makepanel_n_cores']
     resources:
-        mem=1500*config['makepanel_n_cores']
+        mem_mb=1500*config['makepanel_n_cores']
     shell:
         """
         {config[scripts]}/make_panel.R \

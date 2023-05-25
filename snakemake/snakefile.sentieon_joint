@@ -18,10 +18,7 @@ rule sentieon_gatk_scatter:
             "--interval " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
         mmq="{gatk_mmq}"
     resources:
-        # can probably go lower here. senteion is an order of magnitude more memory efficient than GATK
-        # GATK default=10000 (=10GB)
-        # XXX: critical future optimization: scale with length of bam_map
-        # attempt starts at 1, so the base value of 3000MB is used for attempt 1
+        # OLD NOTES FROM FIRST ATTEMPTS --------------------------------------------------
         # N.B. scaling 4^x: the vast majority (95%+) of jobs use very, very little memory.
         # However, when a big memory job comes along (usually a handful per panel), its
         # memory usage explodes. E.g., in a test panel of 12 PTA single cells and 4 bulks,
@@ -30,13 +27,34 @@ rule sentieon_gatk_scatter:
         #        MB: 64000   3436   2386   1781   1681
         # So, RAM usage must grow very fast to have any chance of handling these in a
         # reasonable amount of time.
+        # --------------------------------------------------------------------------------
         #
         # IMPORTANTLY: this implies that we expect to always fail (and restart) at least
         # a few HaplotypeCaller jobs. Since each GATK chunk acts as a checkpoint (i.e.,
         # once a chunk completes, other chunk failures won't ever undo the completed chunk),
         # chunks for panel building should always be very fine (5000-10000 chunks is
-        # reasonable)! This would be true even if the chunks could not be parallelized!
-        mem=lambda wildcards, attempt: 7000*4**(attempt-1)
+        # reasonable)! This is true even if SCAN2 is run on a single core machine where
+        # the chunks cannot be parallelized!
+        # 
+        # After building panels for 16, 127 and 260 ~30x WGS BAMs, found that mem
+        # usage scales such that 500 MB + (31 MB * #bams) is sufficient for 99% of chunked
+        # GATK jobs. However, the maximum chunk required far more RAM: 10G for tiny
+        # 16 BAM panels and scaling at about 4x the rate of 31MB/BAM. We use an intercept
+        # of 1000 MB to increase success probability for smaller panels with non-30x
+        # average depth, which is probably a common scenario among users. These numbers are
+        # after removing the very small window in chr2 that requires high memory.
+        #
+        # For convenience, we try the 99% criteria by default. If that fails, an
+        # attempt will be made using the maximum parameters. Finally a 200G attempt will be
+        # made. If none of these work, the chunk may have some very unusual characteristics
+        # and need to be manually removed by the user.
+        #
+        # x = # BAMs (assumed to be mean 30x coverage)
+        # attempt 1: 1000 + 31x      MB
+        #         2: 10000 + 31*4*x  MB
+        #         3: 200000          MB  (=200GB)
+        # N.B. attempt starts at 1
+        mem_mb=lambda wildcards, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(config['bam_map'].values()))
     threads: 1
     benchmark:
         "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"

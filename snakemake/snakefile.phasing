@@ -7,7 +7,7 @@ rule tabix_bulk_vcf:
         vcfgz="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
         idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi"
     resources:
-        mem=4000
+        mem_mb=4000
     shell:
         "bgzip -c {input.vcf} > {output.vcfgz} && tabix -p vcf {output.vcfgz}"
 
@@ -27,7 +27,7 @@ rule phasing_phased_hsnps:
         genome=config['genome']
     threads: int(config['phased_hsnps_n_cores'])
     resources:
-        mem=lambda wildcards, input, threads: 4000 + threads*2000
+        mem_mb=lambda wildcards, input, threads: 4000 + threads*2000
     script:
         config['scripts'] + "/join_phased_hsnps.R"
 
@@ -48,7 +48,7 @@ rule phasing_gather:
             chr_prefix=config['chr_prefix'],
             chr=config['chrs']))
     resources:
-        mem=4000
+        mem_mb=4000
     shell:
         "gatk GatherVcfs"
         "    --java-options '-Xmx3G -Xms3G'"
@@ -69,7 +69,7 @@ rule shapeit_prepare:
         chr="{chr}",
         bulk_sample=config['bulk_sample']
     resources:
-        mem=4000
+        mem_mb=4000
     shell:
         "gatk SelectVariants"
         "    --java-options '-Xmx3G -Xms3G'"
@@ -94,7 +94,7 @@ rule eagle_prepare:
     params:
         chr="{chr}"
     resources:
-        mem=4000
+        mem_mb=4000
     shell:
         "gatk SelectVariants"
         "    --java-options '-Xmx3G -Xms3G'"
@@ -134,7 +134,7 @@ rule shapeit_scatter:
     benchmark:
         "shapeit/{chr_prefix}{{chr}}/benchmark.tsv".format(chr_prefix=config['chr_prefix'])
     resources:
-        mem=4000
+        mem_mb=4000
     shell:
         # Note the "|| true" after shapeit -check: this is because shapeit
         # -check returns non-0 when it finds any number of problematic SNPs.
@@ -188,7 +188,7 @@ rule eagle_scatter:
     benchmark:
         "eagle/{chr}/benchmark.tsv"
     resources:
-        mem=8000
+        mem_mb=8000
     shell:
         """
         eagle --vcfTarget {params.zippedinput} \

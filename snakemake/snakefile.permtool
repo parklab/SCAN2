@@ -24,7 +24,7 @@ rule combine_permutations:
         genome=config['genome']
     threads: config['permtool_combine_permutations_n_cores']
     resources:
-        mem=lambda wildcards, input, threads: 6000*threads
+        mem_mb=lambda wildcards, input, threads: 6000*threads
     shell:
         """
         {config[scripts]}/combine_permutations.R \
@@ -54,7 +54,7 @@ rule make_permutations:
         generation_param=lambda wildcards: config['permtool_' + wildcards.muttype + '_generation_param']
     threads: config['permtool_make_permutations_n_cores']
     resources:
-        mem=lambda wildcards, input, threads: 4000*threads
+        mem_mb=lambda wildcards, input, threads: 4000*threads
     shell:
         """
         {config[scripts]}/make_permutations.R \
@@ -89,7 +89,7 @@ rule make_callable_bed:
         min_bulk_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + '_min_bulk_dp'],
     threads: config['permtool_callable_bed_n_cores']
     resources:
-        mem=lambda wildcards, input, threads: 1500*threads
+        mem_mb=lambda wildcards, input, threads: 1500*threads
     shell:
         """
         {config[scripts]}/make_callable_regions_bed.R \

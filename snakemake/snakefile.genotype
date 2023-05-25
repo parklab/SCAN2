@@ -12,14 +12,14 @@ rule pregenotype:
         cigardatagz="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
     log:
-        "call_mutations/{sample}/call_mutations.log"
+        "call_mutations/{sample}/pregenotype.log"
     threads: 1
     params:
         sc_sample="{sample}",
         bulk_sample=config['bulk_sample'],
         genome=config['genome']
     resources:
-        mem=8000
+        mem_mb=8000
     benchmark:
         "call_mutations/{sample}/benchmark_pregenotyping.txt"
     shell:
@@ -55,7 +55,7 @@ rule genotype:
         config_yaml='scan.yaml'
     threads: config['genotype_n_cores']
     resources:
-        mem=1500*config['genotype_n_cores']
+        mem_mb=1500*config['genotype_n_cores']
     benchmark:
         "call_mutations/{sample}/benchmark_genotype.txt"
     shell:
