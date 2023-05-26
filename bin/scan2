@@ -789,18 +789,14 @@ def do_progress(args):
         capture_output=True)
     dstatus = parse_snakemake_job_report(pstatus)
     dtotal = parse_snakemake_job_report(ptotal)
-    if args.verbose:
-        print(a.show())
-        print('')
-        for k, v in dtotal.items():
-            # __total is the total count, all is Snakemake's top-leel dummy rule
-            if k != 'all':
-                n_complete = v - dstatus.get(k, 0)
-                k = 'Total progress' if k == '__total' else k
-                print('%-40s %s' % (k, progress_bar(n_complete, v)))
-    else:
-        print('Total progress: %s' % \
-            progress_bar(dtotal['__total'] - dstatus['__total'], dtotal['__total']))
+    print(a.show())
+    print('')
+    for k, v in dtotal.items():
+        # __total is the total count, all is Snakemake's top-level dummy rule
+        if k != 'all':
+            n_complete = v - dstatus.get(k, 0)
+            k = 'Total progress' if k == '__total' else k
+            print('%-40s %s' % (k, progress_bar(n_complete, v)))
 
 
 
@@ -1149,8 +1145,6 @@ if __name__ == "__main__":
     progress_parser = subparsers.add_parser('progress',
         help='Prints statistics regarding the progress of a SCAN2 run.')
     progress_parser.set_defaults(executor=do_progress)
-    progress_parser.add_argument('-v', '--verbose', action='store_true', default=False,
-        help='Show progress for individual rules.')
 
 
     ##########################################################################
