@@ -14,6 +14,8 @@ if config['analysis'] == 'call_mutations':
     rule call_mutations:
         input:
             expand("call_mutations/{sample}/scan2_object.rda",
+                sample=config['sc_bams'].keys()),
+            expand("sensitivity/{sample}/scan2_object.rda",
                 sample=config['sc_bams'].keys())
 
 if config['analysis'] == 'makepanel':

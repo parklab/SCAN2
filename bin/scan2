@@ -57,6 +57,7 @@ scan2_param_defaults = {
     'digest_depth_n_cores': 20,
     'genotype_n_cores': 20,
     'integrate_table_n_cores': 20,
+    'sensitivity_n_cores': 20,
     'makepanel_n_cores': 20,
     'phased_hsnps_n_cores': 20,
     'rescue_n_cores': 12,
@@ -917,6 +918,9 @@ if __name__ == "__main__":
     config_parser.add_argument('--digest-depth-n-cores', default=20, type=int, metavar='N',
         help="Number of cores used to tabulate single cell and bulk sequencing "
              "depth.")
+    config_parser.add_argument('--sensitivity-n-cores', default=20, type=int, metavar='N',
+        help='Number of cores used to collect depth and compute AB model estimates '
+             'genome-wide for sensitivity estimation.')
     config_parser.add_argument('--permtool-callable-bed-n-cores', default=20, type=int, metavar='N',
         help="Number of cores to use when creating the BED of callable regions.")
     config_parser.add_argument('--permtool-make-permutations-n-cores', default=20, type=int, metavar='N',

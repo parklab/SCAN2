@@ -1,0 +1,52 @@
+# vim: syntax=python
+
+rule sensitivity_abmodel_covariates:
+    input:
+        scan2_object="call_mutations/{sample}/scan2_object.rda",
+        integrated_table="call_mutations/integrated_table.tab.gz"
+    output:
+        txt="sensitivity/{sample}/abmodel_covariates.txt"
+    log:
+        "sensitivity/{sample}/abmodel_covariates.log"
+    benchmark:
+        "sensitivity/{sample}/benchmark_abmodel_covariates.txt"
+    threads: config['sensitivity_n_cores']
+    resources:
+        mem_mb=lambda wildcards, input, threads: 2500*config['sensitivity_n_cores']
+    script:
+        config['scripts'] + '/spatial_sens_abmodel.R'
+
+
+rule sensitivity_depth_covariates:
+    input:
+        scan2_object="call_mutations/{sample}/scan2_object.rda",
+        joint_depth_matrix="depth_profile/joint_depth_matrix.tab.gz"
+    output:
+        txt="sensitivity/{sample}/depth_covariates.txt"
+    log:
+        "sensitivity/{sample}/depth_covariates.log"
+    benchmark:
+        "sensitivity/{sample}/benchmark_depth_covariates.txt"
+    threads: config['sensitivity_n_cores']
+    resources:
+        mem_mb=lambda wildcards, input, threads: 3000*config['sensitivity_n_cores']
+    script:
+        config['scripts'] + '/spatial_sens_depth.R'
+
+
+rule sensitivity_integrate:
+    input:
+        scan2_object="call_mutations/{sample}/scan2_object.rda",
+        spatial_depth="sensitivity/{sample}/depth_covariates.txt",
+        spatial_abmodel="sensitivity/{sample}/abmodel_covariates.txt"
+    output:
+        rda="sensitivity/{sample}/scan2_object.rda"
+    log:
+        "sensitivity/{sample}/integrate.log"
+    benchmark:
+        "sensitivity/{sample}/benchmark_integrate.txt"
+    resources:
+        mem_mb=12000
+    threads: 1
+    script:
+        config['scripts'] + '/spatial_sens_integrate.R'
