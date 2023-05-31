@@ -103,6 +103,14 @@ elif [ "x$analysis" == "xcall_mutations" ]; then
         echo "call_mutations pregenotyping $sc $(tail -n +2 $sd/call_mutations/$sc/benchmark_pregenotyping.txt | tr '\t' ' ')" >> $out
         echo "call_mutations genotyping $sc $(tail -n +2 $sd/call_mutations/$sc/benchmark_genotype.txt | tr '\t' ' ')" >> $out
     done
+
+
+    echo "Spatial sensitivity"
+    for sc in $scs; do
+        echo "spatial_sensitivity abmodel_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_abmodel_covariates.txt | tr '\t' ' ')" >> $out
+        echo "spatial_sensitivity depth_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_depth_covariates.txt | tr '\t' ' ')" >> $out
+        echo "spatial_sensitivity integrate_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_integrate.txt | tr '\t' ' ')" >> $out
+    done
 else
     echo "ERROR: unsupported analysis type in $sd/scan.yaml ($analysis). Only analysis=call_mutations and analysis=makepanel are supported"
     exit 1
