@@ -48,7 +48,7 @@ abmodel.covs <- fread(spatial.abmodel.path)
 abmodel.covs$chr = as.character(abmodel.covs$chr)
 
 cat("Integrating..\n")
-results@spatial.sensitivity <- integrate.spatial.sensitivity.covariates(object=results,
+results <- integrate.spatial.sensitivity.covariates(object=results,
     abmodel.covs=abmodel.covs, depth.covs=depth.covs)
 
 cat("Writing results to", out.rda, "\n")
