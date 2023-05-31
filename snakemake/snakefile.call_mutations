@@ -36,14 +36,8 @@ def determine_pipeline_output(wildcards):
     d = dict()
 
     # Somatic indels and somatic SNVs
-    d['indel_somatic_genotypes'] = expand("call_mutations/{sample}/scan2_object.rda",
+    d['scan2_objects'] = expand("call_mutations/{sample}/scan2_object.rda",
         sample=config['sc_bams'].keys())
-
-    # Mosaic SNVs
-    if config['analyze_mosaic_snvs']:
-        print("adding mosaic SNVs to schedule")
-        d['mosaic_genotypes'] = expand("mosaic_snv/{sample}/somatic_genotypes.rda",
-            sample=config['sc_bams'].keys())
 
     return d
 
@@ -75,3 +69,21 @@ rule gatkvcf_to_tab:
         "   -O {output.vcf} ; "
         "{config[scripts]}/totab.sh {output.vcf} /dev/stdout | bgzip -c > {output.tab} ; "
         "tabix -p vcf -S 1 {output.tab}"
+
+
+rule call_mutations_benchmarks:
+    input:
+        # big hack: just listing the last benchmark file in the current pipeline. will definitely break later
+        expand("sensitivity/{sample}/benchmark_integrate.txt",
+            sample=config['sc_bams'].keys())
+    output:
+        txt="call_mutations_collected_benchmarks.txt"
+    log:
+        "call_mutations_collected_benchmarks.log"
+    threads: 1
+    resources:
+        mem_mb=100
+    shell:
+        """
+        {config[scripts]}/collect_benchmarks.sh . {output.txt}
+        """

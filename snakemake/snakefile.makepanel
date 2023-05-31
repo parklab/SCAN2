@@ -43,3 +43,20 @@ rule process_tab:
         {config[scripts]}/make_panel.R \
             {input.tab} {input.meta} {output.tab} {params.genome} {threads}
         """
+
+
+rule makepanel_benchmarks:
+    input:
+        # big hack: just listing the last benchmark file in the current pipeline. will definitely break later
+        "panel/benchmark_make_panel.txt"
+    output:
+        txt="makepanel_collected_benchmarks.txt"
+    log:
+        "makepanel_collected_benchmarks.log"
+    threads: 1
+    resources:
+        mem_mb=100
+    shell:
+        """
+        {config[scripts]}/collect_benchmarks.sh . {output.txt}
+        """

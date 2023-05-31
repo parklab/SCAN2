@@ -16,13 +16,15 @@ if config['analysis'] == 'call_mutations':
             expand("call_mutations/{sample}/scan2_object.rda",
                 sample=config['sc_bams'].keys()),
             expand("sensitivity/{sample}/scan2_object.rda",
-                sample=config['sc_bams'].keys())
+                sample=config['sc_bams'].keys()),
+            "call_mutations_collected_benchmarks.txt"
 
 if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"
     rule makepanel:
         input:
-            "panel/panel.tab.gz"
+            "panel/panel.tab.gz",
+            "makepanel_collected_benchmarks.txt"
 
 if config['analysis'] == 'rescue':
     include: "snakefile.rescue"
