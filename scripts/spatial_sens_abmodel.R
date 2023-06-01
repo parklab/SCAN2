@@ -56,7 +56,7 @@ with_progress({
     handlers(handler_newline())
     abmodel <- compute.spatial.sensitivity.abmodel(single.cell.id=single.cell.id,
         ab.fits=ab.fits, integrated.table.path=integrated.table.path,
-        genome.string=genome.string)
+        sens.tilewidth=1e3, genome.string=genome.string)
         # small test
         #genome.string=genome.string, grs.for.parallelization=genome.string.to.tiling(genome.string, tilewidth=10e6)[239], quiet=FALSE)
         #grs.for.parallelization=genome.string.to.tiling(genome.string, tilewidth=1e3)[1001:1005])

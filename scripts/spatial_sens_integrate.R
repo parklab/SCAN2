@@ -49,7 +49,7 @@ abmodel.covs$chr = as.character(abmodel.covs$chr)
 
 cat("Integrating..\n")
 results <- integrate.spatial.sensitivity.covariates(object=results,
-    abmodel.covs=abmodel.covs, depth.covs=depth.covs)
+    abmodel.covs=abmodel.covs, depth.covs=depth.covs, sens.tilewidth=1e3)
 
 cat("Writing results to", out.rda, "\n")
 save(results, file=out.rda, compress=FALSE)
