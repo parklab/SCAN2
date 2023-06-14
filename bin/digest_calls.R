@@ -7,6 +7,10 @@ parser$add_argument('output', type='character',
     help='Output table containing ALL input mutations with a column for each filter and a column named `final.filter` that indicates whether the mutation should be retained for further analysis. SNVs and indels, pass and mutsig rescue mutations are in this table.')
 parser$add_argument('--metadata', metavar='FILE', default=NULL,
     help='CSV file mapping single cell sample IDs (as in the sample column of --muts files) to individual IDs (i.e., brain donors). If this file is not specified, then each cell will be treated as though it comes from a different donor. This affects the recurrence filter, which removes any mutation occurring in more than one individual. If a mutation occurs in multiple cells from the same individual, such as a lineage marker, then one of them is retained but this can only be determined if sample->subject metadata is given.')
+parser$add_argument('--individual-column', metavar='STRING', default='donor',
+    help='Name of the column in --metadata that contains the individual ID.')
+parser$add_argument('--sample-column', metavar='STRING', default='sample',
+    help='Name of the column in --metadata that contains the sample ID.')
 parser$add_argument('--muts', action='append', metavar='FILE', required=TRUE,
     help='CSV file of somatic mutations with at least the following columns: sample, chr, pos, refnt, altnt, muttype, mutsig, pass, rescue. This argument can be specified multiple times to combine tables from multiple runs. Must be specified at least once.')
 parser$add_argument("--cluster-filter-bp", metavar='INT', type='integer', default=50,
@@ -33,8 +37,8 @@ muts <- do.call(rbind, lapply(args$muts, function(mutfile)
 # Default (no metadata): each cell is treated as coming from a unique subject
 sample.to.subject.map <- setNames(unique(muts$sample), unique(muts$sample))
 if (!is.null(args$metadata)) {
-    meta <- fread(args$metadata)
-    sample.to.subject.map <- setNames(meta$subject, meta$sample)
+    meta <- fread(args$metadata)#[sample %in% sample.to.subject.map]
+    sample.to.subject.map <- setNames(meta[[args$individual_column]], meta[[args$sample_column]])
     cat("got metadata sample to subject map:\n")
     print(sample.to.subject.map)
 }
