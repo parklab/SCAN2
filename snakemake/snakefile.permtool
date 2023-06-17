@@ -24,7 +24,7 @@ rule combine_permutations:
         genome=config['genome']
     threads: config['permtool_combine_permutations_n_cores']
     resources:
-        mem_mb=lambda wildcards, input, threads: 6000*threads
+        mem_mb=lambda wildcards, input, threads: 7500*threads
     shell:
         """
         {config[scripts]}/combine_permutations.R \
