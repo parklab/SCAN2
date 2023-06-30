@@ -11,13 +11,13 @@ wildcard_constraints:
 
 if config['analysis'] == 'call_mutations':
     include: "snakefile.call_mutations"
+
     rule call_mutations:
         input:
-            expand("call_mutations/{sample}/scan2_object.rda",
-                sample=config['sc_bams'].keys()),
-            expand("sensitivity/{sample}/scan2_object.rda",
-                sample=config['sc_bams'].keys()),
-            "call_mutations_collected_benchmarks.txt"
+            "call_mutations_collected_benchmarks.txt",
+            objects=lambda wildcards: expand("{final_step}/{sample}/scan2_object.rda",
+                final_step='sensitivity' if config['compute_sensitivity'] else 'call_mutations',
+                sample=config['sc_bams'].keys())
 
 if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"

@@ -29,22 +29,11 @@ if config['gatk_vcf'] is not None:
     include: "snakefile.gatk_user_vcf"
 
 
-# Determine the analyses to run, depending on which options
-# were selected by the user.
-def determine_pipeline_output(wildcards):
-    prf = ''
-    d = dict()
-
-    # Somatic indels and somatic SNVs
-    d['scan2_objects'] = expand("call_mutations/{sample}/scan2_object.rda",
-        sample=config['sc_bams'].keys())
-
-    return d
-
-
+# Probably no longer necessary
 rule all:
     input:
-        unpack(determine_pipeline_output)
+        scan2_objects=expand("call_mutations/{sample}/scan2_object.rda",
+            sample=config['sc_bams'].keys())
 
 
 rule gatkvcf_to_tab:
@@ -73,9 +62,13 @@ rule gatkvcf_to_tab:
 
 rule call_mutations_benchmarks:
     input:
-        # big hack: just listing the last benchmark file in the current pipeline. will definitely break later
-        expand("sensitivity/{sample}/benchmark_integrate.txt",
-            sample=config['sc_bams'].keys())
+        # big hack: just listing the last benchmark file in the pipeline. will definitely break later
+        expand("{final_step}/{sample}/benchmark_{filename}.txt",
+            final_step='sensitivity' if config['compute_sensitivity'] else 'call_mutations',
+            sample=config['sc_bams'].keys(),
+            # The final benchmark file is called benchmark_genotype.txt for call_mutations,
+            # benchmark_integrate.txt for sensitivity.
+            filename='integrate' if config['compute_sensitivity'] else 'genotype')
     output:
         txt="call_mutations_collected_benchmarks.txt"
     log:
