@@ -1,18 +1,17 @@
 package:
     name: scan2
-    version: "1.0"
+    version: "1.1"
 
 build:
-    number: 7
+    number: 1
 
 requirements:
     run:
-      - python=3.8
-      - r-base=4.1
+      - python
+      - drmaa
+      - r-base
       - snakemake
       - java-jdk=8
-      - mamba
-      - drmaa
       - shapeit
       - eagle-phase
       - gatk=3.8
@@ -22,7 +21,7 @@ requirements:
       - bedtools
       - htslib
       - bcftools
-      - r-scan2
+      - r-scan2>=1.1
       - shyaml
       - r-argparse
 
