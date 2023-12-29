@@ -38,8 +38,8 @@ genome <- args[4]
 chrom <- args[5]
 out.rda <- args[6]
 n.tiles <- as.integer(args[7])
+library(future)
 if (length(args) == 8) {
-    library(future)
     plan(multicore)
     n.cores <- as.integer(args[8])
 } else {
