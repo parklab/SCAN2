@@ -73,14 +73,7 @@ conda create -n scan2 -c conda-forge -c bioconda -c jluquette -c dranew -c soil 
 conda activate scan2
 ```
 
-
-# Download external data dependencies
-SCAN2 has been tested on the NCBI human reference build 37 and hg38.
-
-## Human genome version GRCh37
-The SCAN2 demo requires GRCh37.
-
-### Reference genome files for SigProfilerMatrixGenerator
+## Install reference genome files for SigProfilerMatrixGenerator
 SigProfilerMatrixGenerator is used to classify indels into the 83-class indel mutation
 signature format ID83. This classification requires a reference genome to determine
 the sequence context around each indel. The following command shows how to install a
@@ -99,6 +92,12 @@ genInstall.install('GRCh37', rsync=False, bash=True)
 quit()
 ```
 
+
+# Download external data dependencies
+SCAN2 has been tested on the NCBI human reference build 37 and hg38.
+
+## Human genome version GRCh37
+The SCAN2 demo requires GRCh37.
 
 ### Human reference version GRCh37 with decoy
 Download the human reference genome if needed. The reference genome should match
