@@ -37,4 +37,4 @@ results@spatial.sensitivity$models <- lapply(results@spatial.sensitivity$models,
     s
 })
 
-save(results, file=out.rda)
+save(results, file=out.rda, compress=FALSE)
