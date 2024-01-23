@@ -28,13 +28,15 @@ rule gatk_genotypegvcfs:
         gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
     output:
         vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+    params:
+        memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     benchmark:
         "gatk/genotypegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     resources:
         mem_mb=8000
     shell:
         "gatk GenotypeGVCFs"
-        "   --java-options '-Xmx4G -Xms4G'"
+        "   --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
         "   --dbsnp {config[dbsnp]}"
         "   -R {config[ref]}"
         "   -V {input}"
@@ -50,16 +52,18 @@ rule gatk_combinegvcfs:
                        gatk_chunk=range(1, config['gatk_chunks']+1))
     output:
         "gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
-    resources:
-        mem_mb=8000
     benchmark:
         "gatk/combinegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     params:
         infiles=lambda wildcards, input:
-            ' '.join([ "--variant " + f for f in input ])
+            ' '.join([ "--variant " + f for f in input ]),
+        memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
+    threads: 1
+    resources:
+        mem_mb=8000
     shell:
         "gatk CombineGVCFs"
-        "   --java-options '-Xmx8G -Xmx8G'"
+        "   --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
         "   -R {config[ref]}"
         "   {params.infiles}"
         "   -O {output}"
@@ -73,14 +77,20 @@ rule gatk_scatter:
     params:
         regionflag=lambda wildcards:
             "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
-        mmq="{gatk_mmq}"
+        mmq="{gatk_mmq}",
+        # allocate half of the memory to stack, half to heap
+        # it seems some JVMs allocate this memory immediately, whether used by
+        # the program or not. so we subtract 1000MB (500 from stack and heap
+        # each) from the total to ensure that the job isn't immediately killed
+        # by the cluster scheduler.
+        memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
         mem_mb=4000
     benchmark:
         "gatk/{sample}/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     shell:
         "gatk HaplotypeCaller"
-        "    --java-options '-Xmx3500M -Xms3500M'"
+        "    --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
         "    --dont-use-soft-clipped-bases"
         "    --dbsnp {config[dbsnp]}"
         "    --minimum-mapping-quality {params.mmq}"
