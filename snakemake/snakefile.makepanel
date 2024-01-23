@@ -55,7 +55,7 @@ rule makepanel_benchmarks:
         "makepanel_collected_benchmarks.log"
     threads: 1
     resources:
-        mem_mb=100
+        mem_mb=1000
     shell:
         """
         {config[scripts]}/collect_benchmarks.sh . {output.txt}
