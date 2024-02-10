@@ -22,9 +22,11 @@ if ('snakemake' %in% ls()) {
             snakemake@params['snv_min_bulk_dp'],
             snakemake@params['snv_max_bulk_alt'],
             snakemake@params['snv_max_bulk_af'],
+            snakemake@params['snv_max_bulk_binom_prob'],
             snakemake@params['indel_min_bulk_dp'],
             snakemake@params['indel_max_bulk_alt'],
             snakemake@params['indel_max_bulk_af'],
+            snakemake@params['indel_max_bulk_binom_prob'],
             snakemake@params['genome'],
             snakemake@params['legacy'],
             snakemake@output['tab'],
@@ -39,8 +41,8 @@ if ('snakemake' %in% ls()) {
 }
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) < 17) {
-    stop("usage: integrate_tables.R mmq60.tab.gz mmq1.tab.gz phased_hets.vcf.gz cross_sample_panel.tab.gz config.yaml bulk_sample_id snv_min_bulk_dp snv_max_bulk_alt snv_max_bulk_af indel_min_bulk_dp indel_max_bulk_alt indel_max_bulk_af genome_string legacy out.tab out.tab.gz out_resampling_details.rda [n.cores]")
+if (length(args) < 19) {
+    stop("usage: integrate_tables.R mmq60.tab.gz mmq1.tab.gz phased_hets.vcf.gz cross_sample_panel.tab.gz config.yaml bulk_sample_id snv_min_bulk_dp snv_max_bulk_alt snv_max_bulk_af snv_max_bulk_binom_prob indel_min_bulk_dp indel_max_bulk_alt indel_max_bulk_af indel_max_bulk_binom_prob genome_string legacy out.tab out.tab.gz out_resampling_details.rda [n.cores]")
 }
 
 mmq60 <- args[1]
@@ -52,18 +54,20 @@ bulk.sample <- args[6]
 snv.min.bulk.dp <- as.integer(args[7])
 snv.max.bulk.alt <- as.integer(args[8])
 snv.max.bulk.af <- as.numeric(args[9])
-indel.min.bulk.dp <- as.integer(args[10])
-indel.max.bulk.alt <- as.integer(args[11])
-indel.max.bulk.af <- as.numeric(args[12])
-genome <- args[13]
-legacy <- as.logical(args[14])
-out.tab <- args[15]
-out.tab.gz <- args[16]
-out.rda <- args[17]
+snv.max.bulk.binom.prob <- as.numeric(args[10])
+indel.min.bulk.dp <- as.integer(args[11])
+indel.max.bulk.alt <- as.integer(args[12])
+indel.max.bulk.af <- as.numeric(args[13])
+indel.max.bulk.binom.prob <- as.numeric(args[14])
+genome <- args[15]
+legacy <- as.logical(args[16])
+out.tab <- args[17]
+out.tab.gz <- args[18]
+out.rda <- args[19]
 
 n.cores <- 1
-if (length(args) == 18)
-    n.cores <- as.integer(args[18])
+if (length(args) == 19)
+    n.cores <- as.integer(args[20])
 
 for (f in c(out.tab, out.tab.gz, paste0(out.tab.gz, '.tbi'), out.rda)) {
     if (file.exists(f))
@@ -88,8 +92,10 @@ results <- make.integrated.table(mmq60, mmq1, phasing, panel=panel,
     indel.min.bulk.dp=indel.min.bulk.dp,
     snv.max.bulk.alt=snv.max.bulk.alt,
     snv.max.bulk.af=snv.max.bulk.af,
+    snv.max.bulk.binom.prob=snv.max.bulk.binom.prob,
     indel.max.bulk.alt=indel.max.bulk.alt,
     indel.max.bulk.af=indel.max.bulk.af,
+    indel.max.bulk.binom.prob=indel.max.bulk.binom.prob,
     genome=genome,
     legacy=legacy)
 

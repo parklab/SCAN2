@@ -36,11 +36,13 @@ scan2_param_defaults = {
     'snv_min_bulk_dp': 11, 
     'snv_max_bulk_alt': 0, 
     'snv_max_bulk_af': 0,
+    'snv_max_bulk_binom_prob': 0,
     'indel_min_sc_alt': 2,
     'indel_min_sc_dp': 10,
     'indel_min_bulk_dp': 11, 
     'indel_max_bulk_alt': 0, 
     'indel_max_bulk_af': 0,
+    'indel_max_bulk_binom_prob': 0,
     'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': True,
@@ -995,9 +997,11 @@ if __name__ == "__main__":
     caller.add_argument('--snv-min-bulk-dp', type=int,  metavar='INT',
         help='Reject somatic SNVs covered by fewer than INT reads in bulk.')
     caller.add_argument('--snv-max-bulk-alt', type=int,  metavar='INT',
-        help='Reject somatic SNVs supported by more than INT reads in bulk.')
+        help='Reject somatic SNVs supported by more than INT reads in bulk. IMPORTANT: increasing beyond the default (0) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.')
     caller.add_argument('--snv-max-bulk-af', type=float,  metavar='FLOAT',
-        help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3.')
+        help='Reject mosaic SNVs with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3. IMPORTANT: increasing beyond the default (0) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.')
+    caller.add_argument('--snv-max-bulk-binom-prob', type=float,  metavar='FLOAT',
+        help='Use a one-sided binomial test on bulk data to derive a probability that a candidate site has VAF=50% in bulk. The alternative hypothesis is that VAF < 50% (e.g., a potential mosaic). Reject mosaic SNVs with probability >= FLOAT in bulk. Napkin math assuming 2M het germline SNPs per individual and a uniform distribution of probabilities (which holds if the null is true) gives (prob cutoff) = (# of errors committed)/2M. E.g., to commit 1 error (i.e., misclassification of a germline het variant as a somatic mosaic), prob cutoff = 1/2M, or --max-bulk-af=0.0000005. IMPORTANT: increasing beyond the default (0) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.')
     caller.add_argument('--indel-min-sc-alt', type=int, metavar='INT',
         help='Reject somatic indels with fewer than INT reads carrying the mutation in single cells.')
     caller.add_argument('--indel-min-sc-dp', type=int, metavar='INT',
@@ -1005,9 +1009,11 @@ if __name__ == "__main__":
     caller.add_argument('--indel-min-bulk-dp', type=int,  metavar='INT',
         help='Reject somatic indels covered by fewer than INT reads in bulk.')
     caller.add_argument('--indel-max-bulk-alt', type=int,  metavar='INT',
-        help='Reject somatic indels supported by more than INT reads in bulk.')
+        help='Reject somatic indels supported by more than INT reads in bulk. IMPORTANT: increasing beyond the default (0) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.')
     caller.add_argument('--indel-max-bulk-af', type=float,  metavar='FLOAT',
-        help='Reject mosaic indels with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3.')
+        help='Reject mosaic indels with VAF > FLOAT in bulk. E.g., --max-bulk-af=0.3. IMPORTANT: increasing beyond the default (0) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.')
+    caller.add_argument('--indel-max-bulk-binom-prob', type=float,  metavar='FLOAT',
+        help='See note for --snv-max-bulk-binom-prob.  Note that there are typically ~10-fold fewer germline indel variants than SNPs.  So, following the napkin math for SNVs to target 1 misclassification error, --max-bulk-af=0.000005.')
     caller.add_argument('--min-base-quality-score', type=int,
         help="Passed to GATK HaplotypeCaller's --min-base-quality-score. "
              "Currently only used in GATK4 GVCF.")

@@ -20,9 +20,11 @@ rule integrate_tables:
         snv_min_bulk_dp=config['snv_min_bulk_dp'],
         snv_max_bulk_alt=config['snv_max_bulk_alt'],
         snv_max_bulk_af=config['snv_max_bulk_af'],
+        snv_max_bulk_binom_prob=config['snv_max_bulk_binom_prob'],
         indel_min_bulk_dp=config['indel_min_bulk_dp'],
         indel_max_bulk_alt=config['indel_max_bulk_alt'],
         indel_max_bulk_af=config['indel_max_bulk_af'],
+        indel_max_bulk_binom_prob=config['indel_max_bulk_binom_prob'],
         genome=config['genome'],
         legacy=config['mimic_legacy'],
         config_yaml='scan.yaml',    # quite the hack. would really prefer not to do this
