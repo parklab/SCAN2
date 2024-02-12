@@ -37,12 +37,18 @@ scan2_param_defaults = {
     'snv_max_bulk_alt': 0, 
     'snv_max_bulk_af': 1.0,            # 1 means diabled
     'snv_max_bulk_binom_prob': 1.0,    # 1 means disabled
+    'snv_exclude_dbsnp': True,
+    'snv_cigar_id_score_quantile_cutoff': 0.05,
+    'snv_cigar_hs_score_quantile_cutoff': 0.05,
     'indel_min_sc_alt': 2,
     'indel_min_sc_dp': 10,
     'indel_min_bulk_dp': 11, 
     'indel_max_bulk_alt': 0, 
     'indel_max_bulk_af': 1.0,          # 1 means diabled
     'indel_max_bulk_binom_prob': 1.0,  # 1 means disabled
+    'indel_cigar_id_score_quantile_cutoff': 0.05,
+    'indel_cigar_hs_score_quantile_cutoff': 0.05,
+    'indel_exclude_dbsnp': True,
     'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': True,
