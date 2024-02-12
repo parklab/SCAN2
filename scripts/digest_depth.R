@@ -10,10 +10,9 @@ if ('snakemake' %in% ls()) {
 
     commandArgs <- function(...) {
         ret <- unlist(c(
-            snakemake@input['tab'],
             snakemake@params['sc_sample'],
-            snakemake@params['bulk_sample'],
-            snakemake@params['genome'],
+            snakemake@input['config_yaml'],
+            snakemake@input['tab'],
             snakemake@output['rda'],
             snakemake@threads
         ))
@@ -25,19 +24,18 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) < 5) {
-    stop("usage: digest_depth.R joint_depth_matrix.tab.gz sc.sample bulk.sample genome out.rda [n.cores]")
+if (length(args) < 4) {
+    stop("usage: digest_depth.R single.cell.id config.yaml joint_depth_matrix.tab.gz out.rda [n.cores]")
 }
 
-path <- args[1]
-sc.sample <- args[2]
-bulk.sample <- args[3]
-genome <- args[4]
-out.rda <- args[5]
+sc.sample <- args[1]
+config.path <- args[2]
+matrix.path <- args[3]
+out.rda <- args[4]
 
 n.cores <- 1
-if (length(args) == 6)
-    n.cores <- as.integer(args[6])
+if (length(args) == 5)
+    n.cores <- as.integer(args[5])
 
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
@@ -47,11 +45,12 @@ suppressMessages(library(future))
 suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
+object <- make.scan(config.path=config.yaml, single.cell=sc.sample)
+
 progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
     progressr::handlers(progressr::handler_newline())
-    results <- digest.depth.profile(path=path, sc.sample=sc.sample, bulk.sample=bulk.sample,
-        genome=genome)
+    results <- digest.depth.profile(object=object, matrix.path=matrix.path)
 }, enable=TRUE)
 
 dptab <- results$dptab

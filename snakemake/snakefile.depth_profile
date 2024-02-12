@@ -4,14 +4,13 @@
 # GATK chunk is large (>10MB or so).
 rule depth_profile_region_summarize_per_sample:
     input:
+        config_yaml='scan.yaml',
         tab="depth_profile/joint_depth_matrix.tab.gz",
         tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
         rda="depth_profile/{sample}_depth_table.rda"
     params:
-        sc_sample="{sample}",
-        bulk_sample=config['bulk_sample'],
-        genome=config['genome']
+        sc_sample="{sample}"
     benchmark:
         "depth_profile/benchmark_{sample}_region_summarize.txt"
     resources:
@@ -27,8 +26,8 @@ rule depth_profile_region_summarize_per_sample:
     threads: config['digest_depth_n_cores']
     shell:
         """
-        {config[scripts]}/digest_depth.R {input.tab} \
-            {params.sc_sample} {params.bulk_sample} {params.genome} \
+        {config[scripts]}/digest_depth.R \
+            {params.sc_sample} {input.config_yaml} {input.tab} \
             {output.rda} {threads}
         """
 

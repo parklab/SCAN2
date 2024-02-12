@@ -74,31 +74,23 @@ rule make_permutations:
 
 rule make_callable_bed:
     input:
-        lambda wildcards: config['permtool_matrix_map'][wildcards.sample]
+        config='scan.yaml',
+        tab=lambda wildcards: config['permtool_matrix_map'][wildcards.sample]
     output:
-        "callable_regions/{sample}_{muttype}.bed"
+        bed="callable_regions/{sample}_{muttype}.bed"
     log:
         "callable_regions/{sample}_{muttype}.log"
     benchmark:
         "callable_regions/benchmark_{sample}_{muttype}.txt"
     params:
-        sample="{sample}",
-        genome=config['genome'],
-        bulk_sample=lambda wildcards: yaml_by_sample[wildcards.sample]['bulk_sample'],
-        min_sc_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + '_min_sc_dp'],
-        min_bulk_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + '_min_bulk_dp'],
+        sc_sample="{sample}",
+        muttype="{muttype}"
     threads: config['permtool_callable_bed_n_cores']
     resources:
         mem_mb=lambda wildcards, input, threads: 1500*threads
     shell:
         """
         {config[scripts]}/make_callable_regions_bed.R \
-            {input} \
-            {params.sample} \
-            {params.bulk_sample} \
-            {params.genome} \
-            {params.min_sc_dp} \
-            {params.min_bulk_dp} \
-            {output} \
-            {threads} >& {log}
+            {params.sc_sample} {params.muttype} {input.config} {input.tab} \
+            {output.bed} {threads} >& {log}
         """

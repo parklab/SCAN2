@@ -14,6 +14,7 @@ rule tabix_bulk_vcf:
 
 rule phasing_phased_hsnps:
     input:
+        config='scan.yaml',
         bulk_called_vcf="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
         bulk_called_vcf_idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi",
         phased_hsnps_vcf=config['phased_hsnps']

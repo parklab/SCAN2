@@ -33,6 +33,7 @@ rule pregenotype:
 
 rule genotype:
     input:
+        config='scan.yaml',
         inttab="call_mutations/integrated_table.tab.gz",
         inttabidx="call_mutations/integrated_table.tab.gz.tbi",
         fits="ab_model/{sample}/fits.rda",
@@ -49,10 +50,6 @@ rule genotype:
         "call_mutations/{sample}/call_mutations.log"
     params:
         sc_sample="{sample}",
-        # bit of a hack here: assumes the script is run from the root of the
-        # working directory (i.e., the same as is assumed for input/output
-        # file names).
-        config_yaml='scan.yaml'
     threads: config['genotype_n_cores']
     resources:
         mem_mb=1500*config['genotype_n_cores']

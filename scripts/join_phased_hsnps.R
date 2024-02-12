@@ -10,9 +10,9 @@ if ('snakemake' %in% ls()) {
 
     commandArgs <- function(...) {
         ret <- unlist(c(
+            snakemake@input['config'],
             snakemake@input['bulk_called_vcf'],
             snakemake@input['phased_hsnps_vcf'],
-            snakemake@params['genome'],
             snakemake@output['out_vcf'],
             snakemake@output['out_vcf_gz'],
             snakemake@threads
@@ -25,12 +25,12 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 if (!any(length(args) == 5:6)) {
-    stop("usage: join_phased_hsnps.R bulk_called.vcf.gz phased_hsnps.vcf.gz genome_string out.vcf out.vcf.gz [n.cores]")
+    stop("usage: join_phased_hsnps.R config.yaml bulk_called.vcf.gz phased_hsnps.vcf.gz out.vcf out.vcf.gz [n.cores]")
 }
 
-bulk.called.vcf <- args[1]
-hsnps.vcf <- args[2]
-genome <- args[3]
+config.path <- args[1]
+bulk.called.vcf <- args[2]
+hsnps.vcf <- args[3]
 out.vcf <- args[4]
 out.vcf.gz <- args[5]
 
@@ -47,6 +47,8 @@ suppressMessages(library(scan2))
 suppressMessages(library(future))
 suppressMessages(library(Rsamtools))
 plan(multicore, workers=n.cores)
+
+dummy.object <- make.scan(config.path=config.path)
 
 # Currently the chunking used here isn't configurable by user.
 results <- join.phased.hsnps(bulk.called.vcf=bulk.called.vcf, hsnps.vcf=hsnps.vcf, genome=genome)

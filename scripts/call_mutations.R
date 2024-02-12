@@ -22,29 +22,22 @@ if (length(args) == 10)
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
 
-y <- scan2::read.config(config.yaml)
-bulk.sample <- y$bulk_sample
-genome.string <- y$genome
-legacy <- y$mimic_legacy
-target.fdr <- y$target_fdr
 
 library(scan2)
 library(future)
 library(progressr)
 plan(multicore, workers=n.cores)
 
+results <- make.scan(config.path=config.yaml, single.cell=sc.sample)
+
 with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
     handlers(handler_newline())
-    results <- run.pipeline(
-        sc.sample=sc.sample, bulk.sample=bulk.sample,
+    results <- run.pipeline(results,
         int.tab=int.tab, abfits=abmodel.fits,
         sccigars=sccigars, bulkcigars=bulkcigars,
         trainingcigars=cigardata, dptab=dptab,
-        config.yaml=config.yaml,
-        target.fdr=target.fdr,
-        genome=genome.string,
-        verbose=FALSE, report.mem=TRUE, legacy=legacy)
+        verbose=FALSE, report.mem=TRUE)
 }, enable=TRUE)
 
 save(results, file=out.rda, compress=FALSE)
