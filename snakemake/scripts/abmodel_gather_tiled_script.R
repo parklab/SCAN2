@@ -41,7 +41,6 @@ if (file.exists(out.details))
 if (snakemake@params$use_fit) {
     fits <- get(load(in.rdas[1]))
     details <- NULL
-
 } else {
     # Each load() produces a list with one element named after the chromosome fit
     details <- do.call(c, lapply(in.rdas, function(f) get(load(f))))
