@@ -58,8 +58,6 @@ with_progress({
     depth <- compute.spatial.sensitivity.depth(single.cell.id=single.cell.id, bulk.id=bulk.id,
         static.filter.params=static.filter.params, joint.dptab.path=joint.dp.path,
         sens.tilewidth=1e3, genome.string=genome.string)
-        # small test
-        #grs.for.parallelization=genome.string.to.tiling(genome.string, tilewidth=1e3)[1001:1005])
 }, enable=TRUE)
 
 cat("Writing results to", out.txt, "\n")
