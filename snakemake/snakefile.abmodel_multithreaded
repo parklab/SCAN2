@@ -25,14 +25,13 @@ rule abmodel_gather:
 
 rule abmodel_scatter:
     input:
+        config="scan.yaml",
         inttab="call_mutations/integrated_table.tab.gz",
         inttabidx="call_mutations/integrated_table.tab.gz.tbi"
     output:
         rda="ab_model/{sample}/fit_{chr}.rda"
     params:
-        bulk_sample="{sample}",
         sc_sample="{sample}",
-        genome=config['genome'],
         chrom="{chr}",
         n_tiles=config['abmodel_hsnp_n_tiles']
     log:

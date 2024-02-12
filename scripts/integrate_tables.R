@@ -75,15 +75,14 @@ for (f in c(out.tab, out.tab.gz, paste0(out.tab.gz, '.tbi'), out.rda)) {
 }
 
 suppressMessages(library(scan2))
-suppressMessages(library(yaml))
 suppressMessages(library(future))
 plan(multicore, workers=n.cores)
 
 if (is.na(panel))
     panel <- NULL
 
-y <- yaml::read_yaml(config.yaml)
-sc.samples <- names(read_yaml(config.yaml)$sc_bams)
+y <- scan2::read.config(config.yaml)
+sc.samples <- names(y$sc_bams)
 
 # Currently the chunking used here isn't configurable by user.
 results <- make.integrated.table(mmq60, mmq1, phasing, panel=panel,

@@ -11,9 +11,8 @@ if ('snakemake' %in% ls()) {
     commandArgs <- function(...) {
         ret <- unlist(c(
             snakemake@input['inttab'],
-            snakemake@params['bulk_sample'],
+            snakemake@input['config'],
             snakemake@params['sc_sample'],
-            snakemake@params['genome'],
             snakemake@params['chrom'],
             snakemake@output['rda'],
             snakemake@params['n_tiles'],
@@ -26,22 +25,21 @@ if ('snakemake' %in% ls()) {
 }
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) < 7) {
+if (length(args) < 6) {
     cat('if n.cores is unspecified, default is 1\n')
-    stop("usage: abmodel_scatter_chrom_tiled_script.R integrated_table.tab.bgz bulk_sample_id sc_sample_id genome chromosome out.rda n.tiles [n.cores]")
+    stop("usage: abmodel_scatter_chrom_tiled_script.R integrated_table.tab.bgz config.yaml sc_sample_id chromosome out.rda n.tiles [n.cores]")
 }
 
 int.tab.bgz <- args[1]
-bulk.sample <- args[2]
+config.yaml <- args[2]
 sc.sample <- args[3]
-genome <- args[4]
-chrom <- args[5]
-out.rda <- args[6]
-n.tiles <- as.integer(args[7])
+chrom <- args[4]
+out.rda <- args[5]
+n.tiles <- as.integer(args[6])
 library(future)
-if (length(args) == 8) {
+if (length(args) == 7) {
     plan(multicore)
-    n.cores <- as.integer(args[8])
+    n.cores <- as.integer(args[7])
 } else {
     plan(sequential)
     n.cores <- 1
@@ -57,7 +55,7 @@ suppressMessages(library(future))
 cat(future::availableCores(), "cores detected by library(future),", n.cores, "requested by user", "\n")
 plan(multicore, workers=n.cores)
 
-s <- make.scan(bulk=bulk.sample, genome=genome, single.cell=sc.sample)
+s <- make.scan(config.path=config.yaml, single.cell=sc.sample)
 
 f <- compute.ab.fits(s, path=int.tab.bgz, chroms=chrom, n.tiles=n.tiles)
 

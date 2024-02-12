@@ -22,8 +22,7 @@ if (length(args) == 10)
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
 
-library(yaml)
-y <- yaml::read_yaml(config.yaml)
+y <- scan2::read.config(config.yaml)
 bulk.sample <- y$bulk_sample
 genome.string <- y$genome
 legacy <- y$mimic_legacy

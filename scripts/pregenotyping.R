@@ -1,18 +1,17 @@
 #!/usr/bin/env Rscript
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) != 7) {
+if (length(args) != 6) {
     cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically. If '.gz' is included, it will be automatically removed.\n")
-    stop("usage: pregenotyping.R sc_sample_id bulk_sample_id integrated_table.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz genome out_cigardata.tab.gz")
+    stop("usage: pregenotyping.R sc_sample_id integrated_table.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz out_cigardata.tab.gz")
 }
 
 sc.id=args[1]
-bulk.id=args[2]
+config.yaml=args[2]
 int.tab=args[3]
 sccigars=args[4]
 bulkcigars=args[5]
-genome=args[6]
-out.cigars=sub('.gz$', '', args[7])
+out.cigars=sub('.gz$', '', args[6])
 
 for (outfile in c(paste0(out.cigars, c('', '.gz', '.tbi')))) {
     if (file.exists(outfile))
@@ -22,11 +21,9 @@ for (outfile in c(paste0(out.cigars, c('', '.gz', '.tbi')))) {
 suppressMessages(library(scan2))
 suppressMessages(library(Rsamtools))
 
-print(bulk.id)
 print(sc.id)
-print(genome)
 
-s <- make.scan(sc.id, bulk.id, genome)
+s <- make.scan(config.path=config.yaml, single.cell=sc.id)
 s <- read.integrated.table(s, int.tab, quiet=TRUE)
 s <- add.cigar.data(s, sccigars, bulkcigars, quiet=TRUE)
 null.sites <- cigar.get.null.sites(s, legacy=TRUE, quiet=TRUE)

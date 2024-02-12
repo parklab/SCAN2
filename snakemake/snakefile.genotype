@@ -2,11 +2,12 @@
 
 rule pregenotype:
     input:
+        config='scan.yaml',
         inttab="call_mutations/integrated_table.tab.gz",
         inttabidx="call_mutations/integrated_table.tab.gz.tbi",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         sccigarsidx="call_mutations/{sample}/cigars.tab.gz.tbi",
-        bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
+        bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample']
     output:
         cigardata=temp("call_mutations/{sample}/cigardata.tab"),
         cigardatagz="call_mutations/{sample}/cigardata.tab.gz",
@@ -15,9 +16,7 @@ rule pregenotype:
         "call_mutations/{sample}/pregenotype.log"
     threads: 1
     params:
-        sc_sample="{sample}",
-        bulk_sample=config['bulk_sample'],
-        genome=config['genome']
+        sc_sample="{sample}"
     resources:
         mem_mb=8000
     benchmark:
@@ -25,8 +24,9 @@ rule pregenotype:
     shell:
         """
         {config[scripts]}/pregenotyping.R \
-            {params.sc_sample} {params.bulk_sample} {input.inttab} \
-            {input.sccigars} {input.bulkcigars} {params.genome} \
+            {input.config} \
+            {params.sc_sample} {input.inttab} \
+            {input.sccigars} {input.bulkcigars} \
             {output.cigardata} >& {log}
         """
 
