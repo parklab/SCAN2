@@ -129,7 +129,9 @@ rule shapeit_scatter:
         gmap="genetic_map_chr{chr}",
         hap="1000GP_Phase3_chr{chr}",
         leg="1000GP_Phase3_chr{chr}",
+        # the genetic map is named genetic_map_chrX_nonPAR_combined_b37.txt
         gmap_extra_x=lambda wildcards: '_nonPAR' if wildcards.chr == 'X' else '',
+        # the hap file is named 1000GP_Phase3_chrX_NONPAR.hap.gz
         extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
         xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
     benchmark:
