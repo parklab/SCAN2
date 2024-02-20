@@ -33,7 +33,7 @@ rule pregenotype:
 
 rule genotype:
     input:
-        config='scan.yaml',
+        config_yaml='scan.yaml',
         inttab="call_mutations/integrated_table.tab.gz",
         inttabidx="call_mutations/integrated_table.tab.gz.tbi",
         fits="ab_model/{sample}/fits.rda",
@@ -58,7 +58,7 @@ rule genotype:
     shell:
         """
         {config[scripts]}/call_mutations.R \
-           {params.sc_sample} {params.config_yaml} \
+           {params.sc_sample} {input.config_yaml} \
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
            {input.cigardata} {input.dptab} \
