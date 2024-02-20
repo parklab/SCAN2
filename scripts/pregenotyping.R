@@ -3,11 +3,11 @@
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) != 6) {
     cat("NOTE: do not specify the final .gz suffix for output files here; it will be created automatically. If '.gz' is included, it will be automatically removed.\n")
-    stop("usage: pregenotyping.R sc_sample_id integrated_table.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz out_cigardata.tab.gz")
+    stop("usage: pregenotyping.R config.yaml sc_sample_id integrated_table.tab.gz sc_cigars.tab.gz bulk_cigars.tab.gz out_cigardata.tab.gz")
 }
 
-sc.id=args[1]
-config.yaml=args[2]
+config.yaml=args[1]
+sc.id=args[2]
 int.tab=args[3]
 sccigars=args[4]
 bulkcigars=args[5]
