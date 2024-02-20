@@ -29,7 +29,7 @@ if (length(args) < 4) {
 }
 
 sc.sample <- args[1]
-config.path <- args[2]
+config.yaml <- args[2]
 matrix.path <- args[3]
 out.rda <- args[4]
 
