@@ -8,11 +8,7 @@ include: "snakefile.phasing"
 include: "snakefile.cigars"
 include: "snakefile.integrated_table"
 include: "snakefile.sensitivity"
-
-if config['abmodel_chunk_strategy']:
-    include: "snakefile.abmodel_chunked"
-else:
-    include: "snakefile.abmodel_multithreaded"
+include: "snakefile.abmodel_multithreaded"
 
 # Use the new SCAN2 R object
 include: "snakefile.genotype"
@@ -36,28 +32,74 @@ rule all:
             sample=config['sc_bams'].keys())
 
 
-rule gatkvcf_to_tab:
+rule make_bulk_sample_file:
     input:
-        "gatk/hc_raw.mmq{gatk_mmq}.vcf"
     output:
-        vcf="call_mutations/hc.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.vcf",
+        bulk_sample_file=temp("call_mutations/bulk_sample_file.txt")
+    localrule: True
+    run:
+        with open(output.bulk_sample_file, 'w') as f:
+            f.write(config['bulk_sample'] + "\n")
+
+
+rule select_analyzable_sites:
+    input:
+        bcf="gatk/hc_raw.mmq{gatk_mmq}.bcf",
+        bulk_sample_file="call_mutations/bulk_sample_file.txt"
+    output:
+        bcf="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf",
+        bcfidx="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf.csi",
+    log:
+        "call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.log",
+    benchmark:
+        "call_mutations/benchmark_select_analyzable_sites_mmq{gatk_mmq}.txt"
+    resources:
+        # Max RSS=9MB for a small test
+        mem_mb=100
+    shell:
+        # The second bcftools view is needed to remove ALT="." sites. It seems that when
+        # --trim-alt-alleles is used, the ALT field isn't updated before filtering.
+        """
+        bcftools view \
+            --trim-alt-alleles \
+            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1 & GT[@{input.bulk_sample_file}] != "mis"' \
+            -Ou \
+            {input.bcf} \
+        | bcftools view \
+            --include 'ALT != "."' \
+            -Ob -o {output.bcf}
+        bcftools index {output.bcf} -o {output.bcfidx}
+        """
+
+
+rule tablefy_sites:
+    input:
+        bcf="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf",
+        bcfidx="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf.csi",
+    output:
         tab="call_mutations/mmq{gatk_mmq}.tab.gz",
         idx="call_mutations/mmq{gatk_mmq}.tab.gz.tbi"
+    log:
+        "call_mutations/mmq{gatk_mmq}.log"
     benchmark:
-        "call_mutations/benchmark_gatkvcf_to_tab_mmq{gatk_mmq}.txt"
+        "call_mutations/benchmark_tablefy_sites_mmq{gatk_mmq}.txt"
     resources:
-        mem_mb=4000
+        # Max RSS=1.4 for a small test
+        mem_mb=100
     shell:
-        "gatk SelectVariants"
-        "   --java-options '-Xmx3G -Xms3G'"
-        "   -R {config[ref]}"
-        "   -V {input}"
-        "   --restrict-alleles-to BIALLELIC"
-        "   --exclude-non-variants"
-        "   -select 'vc.getGenotype(\"{config[bulk_sample]}\").isCalled()'"
-        "   -O {output.vcf} ; "
-        "{config[scripts]}/totab.sh {output.vcf} /dev/stdout | bgzip -c > {output.tab} ; "
-        "tabix -p vcf -S 1 {output.tab}"
+        # note the "|| true" fragment: bcftools query, when prevented from writing all
+        # of its output as occurs with head -1, returns a non-0 exit code.  so we have
+        # to short circuit it.
+        """
+        ((bcftools query \
+            -f '#chr\\tpos\\tdbsnp\\trefnt\\taltnt[\\t%SAMPLE\\tref\\talt]\\n' \
+            {input.bcf} || true) | head -1 ; \
+         bcftools query \
+            -f '%CHROM\\t%POS\\t%ID\\t%REF\\t%ALT[\\t%GT\\t%AD{{0}}\\t%AD{{1}}]\\n' \
+            {input.bcf}) \
+        | bgzip -c > {output.tab} 
+        tabix -p vcf -S 1 {output.tab}
+        """
 
 
 rule call_mutations_benchmarks:
