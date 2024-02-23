@@ -1,7 +1,5 @@
 # vim: syntax=python
 
-# The memory limit here can be insufficient if the size of each
-# GATK chunk is large (>10MB or so).
 rule depth_profile_region_summarize_per_sample:
     input:
         config_yaml='scan.yaml',
@@ -32,42 +30,61 @@ rule depth_profile_region_summarize_per_sample:
         """
 
 
-rule callable_region_gather:
+rule depth_profile_make_arg_file:
     input:
-        expand("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt",
-            gatk_chunk=range(1, config['gatk_chunks']+1))
+        files=expand("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt",
+            analysis_region=config['analysis_regions'])
+    output:
+        argfile="depth_profile/region_arg_file.txt"
+    localrule: True
+    run:
+        with open(output.argfile, 'w') as f:
+            for infile in input.files:
+                f.write(str(infile) + "\n")
+
+
+rule depth_profile_gather:
+    input:
+        # There may be 1000s of regions (and thus files) in larger projects.  There
+        # is a limit to how long a command line can be, so read the file names from
+        # a file rather than pasting them into a command.
+        argfile="depth_profile/region_arg_file.txt"
     output:
         tabgz="depth_profile/joint_depth_matrix.tab.gz",
         tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
+    log:
+        "depth_profile/joint_depth_matrix.log"
     benchmark:
         "depth_profile/benchmark_joint_depth_matrix.txt"
     threads: 4
     resources:
         mem_mb=1000
     shell:
+        # Use the header from the first file; they should all be identical
         """
-        (grep -m1 '^#' {input[0]} ; cat {input} | grep -v '^#') \
-            | bgzip --threads {threads} -c > {output.tabgz}
+        (grep -m1 '^#' $(head -1 {input.argfile}) ; \
+         cat {input.argfile} | while read line; do \
+            tail -n +2 $line ; \
+         done) \
+        | bgzip --threads {threads} -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
 
 
-# Needs to match parallelization of GATK scattering, else the
-# callable regions will not match the actual genotyped area.
-# Also needs to match GATK filtering (mapping quality, additional
+# Needs to match GATK read filters (e.g., mapping quality, additional
 # default HaplotypeCaller read filters) to be meaningful.
-rule callable_region_scatter:
+rule depth_profile_scatter:
     input:
-        scbam=config['bam_map'].values()
+        argfile="gatk/arg_file_bams.list"
     output:
-        tmp=temp("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.tmp.txt"),
-        txt=temp("depth_profile/gatk_depthofcoverage/chunk{gatk_chunk}.txt")
-    params:
-        bams=" ".join([ "-I " + bam for bam in config['bam_map'].values() ]),
-        regionflag=lambda wildcards:
-            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        tmp=temp("depth_profile/gatk_depthofcoverage/region_{analysis_region}.tmp.txt"),
+        txt=temp("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt")
+    log:
+        "depth_profile/gatk_depthofcoverage/region_{analysis_region}.log"
     benchmark:
-        "depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage_chunk{gatk_chunk}.txt"
+        "depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage.region_{analysis_region}.txt"
+    params:
+        regionflag="-L {analysis_region}"
     threads: 1
     resources:
         mem_mb=6000
@@ -75,8 +92,8 @@ rule callable_region_scatter:
         """
         gatk DepthOfCoverage \
             --java-options '-Xmx5G -Xms5G' \
+            --arguments_file {input.argfile} \
             -R {config[ref]} \
-            {params.bams} \
             {params.regionflag} \
             --minimum-mapping-quality 60 \
             --read-filter NotSecondaryAlignmentReadFilter \
