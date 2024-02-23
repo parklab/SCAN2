@@ -26,6 +26,7 @@ from sys import exit
 scan2_param_defaults = {
     'analysis': 'call_mutations',
     'genome': 'hs37d5',
+    'sex': None,
     'is_started': False,
     'gatk': 'gatk3_joint',
     'parsimony_phasing': False,
@@ -52,11 +53,7 @@ scan2_param_defaults = {
     'min_base_quality_score': 20,
     'analyze_snvs': True,
     'analyze_indels': True,
-    'analyze_mosaic_snvs': False,
-    'callable_regions': True,
     'abmodel_use_fit': {},
-    'abmodel_chunk_strategy': False,
-    'abmodel_chunks': 10,
     'abmodel_samples_per_step': 20000,
     'abmodel_hsnp_tile_size': 100,
     'abmodel_hsnp_n_tiles': 250,
@@ -73,14 +70,12 @@ scan2_param_defaults = {
     'resample_M': 20,
     'mimic_legacy': False,
     'bulk_sample': None,
-    'gatk_chunks': None,
-    'gatk_regions': [],
+    'analysis_regions': [],
     'chrs': [],
     'phaser': 'shapeit',
     'shapeit_refpanel': None,  # a directory, so readable_file fails
     'cross_sample_panel': None, # must be readable IF specified, but pipeline should run without it too
     'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',  # also a directory
-    'chr_prefix': '',          # be nice to remove this; requires snakefile changes
     'bam_map': {},             # maps sample name -> bam path
     'permtool_config_map': {},
     'permtool_matrix_map': {},
@@ -225,10 +220,10 @@ class Analysis:
         # 1. make the default value for chrs/gatk
         # regions when the user specifies the reference FASTA. But only
         # do this is the user did not also specify their own gatk regions
-        # via --regions or --region-file in this call AND gatk_regions was
+        # via --regions or --region-file in this call AND analysis_regions was
         # not set in a previous configure().
         if 'ref' in new_cfg and \
-            'gatk_regions' not in new_cfg and self.cfg['gatk_regions'] == []:
+            'analysis_regions' not in new_cfg and self.cfg['analysis_regions'] == []:
             autosomes = get_autosomes_from_ref(new_cfg['ref'])
             new_cfg = { **new_cfg, **Analysis.handle_regions(autosomes) } # dict merge
 
@@ -312,15 +307,18 @@ class Analysis:
             readable_file(value + '.idx')
             return { 'gatk_vcf': readable_file(value) }
 
+        # just ensure lower case
+        if key == 'sex':
+            return { 'sex': value.lower() }
+
         # default: use the key=value pair as specified on command line
         return { key: value }
 
 
     @staticmethod
     def handle_regions(regions):
-        """Extra handling for GATK genotyping intervals (regions)."""
-        return { 'gatk_chunks': len(regions),
-                 'gatk_regions': regions,
+        """Extra handling for GATK genotyping intervals (analysis_regions)."""
+        return { 'analysis_regions': regions,
                  'chrs': chrs_from_regions(regions) }
 
 
@@ -402,6 +400,11 @@ class Analysis:
             error("--phaser must be either 'shapeit', 'eagle' or 'phased_hsnps'\n")
 
 
+    def check_sex(self):
+        if self.cfg['sex'] != 'male' and self.cfg['sex'] != 'female':
+            error("--sex must be either 'male' or 'female'\n")
+
+
     def validate(self):
         """
         Check that all necessary files exist and ensure the list of
@@ -417,6 +420,9 @@ class Analysis:
 
             if self.cfg['analysis'] == 'call_mutations':
                 # Additional checks: indexes, at least one bulk and one single cell
+                print("Ensuring sex assigned at birth is specified..")
+                self.check_sex()
+
                 print("Checking BAMs..")
                 self.check_bams()
 
@@ -887,17 +893,18 @@ if __name__ == "__main__":
         help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
     config_parser.add_argument('--gatk', default='gatk3_joint',
-        choices=[ 'gatk3_joint', 'gatk4_joint', 'gatk4_gvcf', 'sentieon_joint' ],
+        choices=[ 'gatk3_joint', 'gatk4_joint', 'gatk4_gvcf', 'sentieon_joint', 'sentieon_gvcf' ],
         help='GATK version and strategy for generating candidate somatic '
-             'mutations and cross-sample support. Valid values are "gatk3_joint", '
-             '"gatk4_joint", "gatk4_gvcf" and "sentieon_joint". Joint calling means that all BAMs '
-             'are provided directly to HaplotypeCaller, whereas each BAM (sample) is '
-             'initially analyzed separately in the GVCF strategy and combined '
-             'later. The GVCF method can be lossy since all BAM data is not stored '
+             'mutations and cross-sample support. '
+             'In SCAN2, "joint" calling refers to the case when BAMs from all samples '
+             'are provided directly to HaplotypeCaller.  In the GVCF strategy, '
+             'each BAM (sample) is initially analyzed separately and combined '
+             'later in a step called "joint calling" by the GATK team. The GVCF '
+             'method can be lossy since all BAM data is not stored '
              'in the initial analysis; however, it does not require rerunning GATK '
-             'across all samples in the multi-sample modes. The GVCF strategy is '
+             'across all samples in the multi-sample mode. The GVCF strategy is '
              'currently experimental and we do not recommend using it. When using'
-             'sentieon_joint, the user must ensure the `sentieon` binary is in $PATH'
+             'sentieon modes, the user must ensure the `sentieon` binary is in $PATH'
              'and that the environment variable SENTIEON_LICENSE points to a running'
              'sentieon license server.'
              'When --gatk-vcf VCF is used, the user must ensure that the chosen --gatk '
@@ -945,6 +952,21 @@ if __name__ == "__main__":
 
     # required arguments
     req = config_parser.add_argument_group("External data")
+    req.add_argument('--sex', type=str, choices=[ 'male', 'female'],
+        help='The sex assigned at birth for this individual.  Only affects '
+             'results if sex chromosomes (X or Y for human data) are '
+             'analyzed.  In particular, when sex=male, the non-PAR regions '
+             'of the sex chromosomes are hemizygous and thus allele balance '
+             'need not be modelled (there is only one allele, so AB=1 is '
+             'always true).  The allele balance model would automatically '
+             'reduce to this case (with the exception of statistical '
+             'phasing errors and regions of low SNP density) if not for a small technical detail: phasers '
+             'can output genotypes in the form "1|1" in hemizygous '
+             'regions, which is regarded by the allele balance model as a '
+             'non-informative site.  Thus, rather than reducing to AB=1, '
+             'SCAN2 will discard nearly every germline variant in '
+             'hemizygous regions and thus have no training sites at which '
+             'to build the AB=1 model.')
     req.add_argument('--ref', type=readable_file, metavar='PATH',
         help='Path to reference genome FASTA file.  As required by GATK, '
              'two additional files must be present: an index (.fai) and a '
@@ -984,10 +1006,10 @@ if __name__ == "__main__":
     
     
     
-    gatk = config_parser.add_argument_group('Genotyping intervals',
-        'These parameters allow the user to specify which portions of the genome should be genotyped.  By default, all autosomal regions will be analyzed.  Regions MUST be specified in the same order as the reference genome and should not overlap!!  The maximum target region is chrs 1-22 and X, due to the SHAPEIT reference panel.  Non-pseudoautosomal regions (PARs) on chrX may also be analyzed, but male samples may fail due to lack of hSNPs.  Initial GATK calling will be performed on each region in parallel if possible, which can greatly decrease runtime.')
+    gatk = config_parser.add_argument_group('Analysis intervals',
+        'These parameters allow the user to specify which portions of the genome should be analyzed and how to parallelize jobs.  The default is to analyze the first 22 contigs in the user-supplied reference genome (and parallelize at the chromosome level); THIS IS NOT RECOMMENDED BECAUSE THE PARALLELIZATION IS NOT GRANULAR ENOUGH.  Regions MUST be specified in the same order as the reference genome and must not overlap!  The user is responsible for ensuring that only diploid, phaseable autosomes and known haploid sex chromosomes are among the list of regions.  We do not recommend analysis of pseudoautosomal regions (PARs), but the user is allowed to specify them.')
     gatk.add_argument('--regions', metavar="STRING",
-        help='A comma separated list of regions in GATK format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.')
+        help='A comma separated list of regions in the format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.')
     gatk.add_argument('--regions-file', metavar='PATH',
         help='A BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.')
     
@@ -1026,22 +1048,12 @@ if __name__ == "__main__":
 
     caller.add_argument('--cross-sample-panel', type=readable_file, metavar='PATH',
         help='A table of alt alleles detected over a large number of single cells and bulks. Currently used only for indel filtering but should probably also be used for SNV filtering. Indel calling is NOT precise without a panel of normals.')
-    #caller.add_argument('--mosaic-snvs', action='store_true',
-        #help='Enable detection of mosaic SNVs.')
-    # XXX: Used to be optional, probably won't ever make optional again
-    #caller.add_argument('--callable-regions', metavar='true/false/yes/no',
-        ##type=lambda x: bool(distutils.util.strtobool(x)),
-        #help='Determine the fraction of callable genome based on '
-             #'read depth in single cells and matched bulk. This callable '
-             #'genome fraction is necessary for estimating the genome-wide '
-             #'mutation burden. This flag is enabled by default; to disable, '
-             #'callable region calculation, use --calable-regions false.')
     
     
     phasing = config_parser.add_argument_group('Phasing options',
         'Choose SHAPEIT2 or Eagle for phasing')
     phasing.add_argument('--phaser', metavar='eagle|shapeit|phased_hsnps', type=str,
-        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. Eagle is currently untested for GRCh37, but may work. To skip population-based phasing, --phaser=phased_hsnps allows a phased VCF (using 0|1 and 1|0 phased genotypes) to be supplied via --phased-hsnps. The VCF must be bgzipped and tabix indexed and contain only heterozygous SNPs. This option can be useful when external information provides better phasing; e.g.: crossbred mouse strains, human samples with mother-father-sibling trio to infer phase or samples for which long-read data can provide read-backed phasing via physical linkage across most of the genome.')
+        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. Eagle is currently untested for GRCh37, but may work. To skip population-based phasing, --phaser=phased_hsnps allows a phased VCF (using 0|1 and 1|0 phased genotypes) to be supplied via --phased-hsnps. The VCF must be bgzipped and tabix indexed and contain only germline heterozygous SNPs and short indels unless hemizygous sex chromosomes are to be analyzed (e.g., chrX of a male human). In the latter case, hemizygous germline variants should be included and the genotype strings must be reported as "1|1".  This phased_hsnps approach can be useful when external information provides better phasing; e.g.: crossbred mouse strains, human samples with mother-father-sibling trio to infer phase or samples for which long-read data can provide read-backed phasing via physical linkage across most of the genome.')
     phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
     phasing.add_argument('--parsimony-phasing', action='store_true',
@@ -1066,11 +1078,6 @@ if __name__ == "__main__":
         help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
     abmodel.add_argument('--abmodel-use-fit', nargs=2, action='append', metavar=('SAMPLE_ID', 'FITS.RDA'),
         help='Do not fit the AB model for sample SAMPLE_ID; instead, use the fits provided in FITS.RDA. This option may be specified multiple times.')
-    abmodel.add_argument('--abmodel-chunk-strategy', action='store_true', default=False,
-        help='Legacy strategy for fitting AB model parameters.  In the chunked strategy, the job of sampling --abmodel-samples-per-chunk per refinement step is split into --abmodel-chunks single threaded jobs.  This was useful before multithreading support was added to AB parameter fitting and, especially, before reduced tile sampling was found to be effective.  It is unlikely that users will ever want to opt in to this strategy.')
-    abmodel.add_argument('--abmodel-chunks', type=int, metavar='INT',
-        help='Parallelize AB model fitting by splitting each AB model sampling step into INT jobs per chromosome. Only used by --abmodel-chunk-strategy, which is no longer the preferred way of parallelizing AB model fitting.')
-    
     
     
     spikein = config_parser.add_argument_group("hSNP spike-ins",
