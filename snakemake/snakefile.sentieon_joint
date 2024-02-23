@@ -1,21 +1,18 @@
 # vim: syntax=python
 
-# Sentieon is uses GATK3 for all non-HaplotypeCaller GATK tools
-# (e.g., DepthOfCoverage, CatVariants, GatherVCFs, etc.).
-ruleorder: sentieon_gatk_scatter > gatk_scatter
-
-rule sentieon_gatk_scatter:
+rule gatk_scatter:
     input:
         bam=expand("{bam}", bam=config['bam_map'].values()),
     output:
-        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"),
-        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf.idx")
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf"),
+        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf.idx")
     log:
-        "gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.log"
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
         bamlist=expand("-i {bam}", bam=config['bam_map'].values()),
-        regionflag=lambda wildcards:
-            "--interval " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        regionflag="--interval {analysis_region}",
         mmq="{gatk_mmq}"
     resources:
         # OLD NOTES FROM FIRST ATTEMPTS --------------------------------------------------
@@ -56,8 +53,6 @@ rule sentieon_gatk_scatter:
         # N.B. attempt starts at 1
         mem_mb=lambda wildcards, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(config['bam_map'].values()))
     threads: 1
-    benchmark:
-        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     shell:
         """
         sentieon driver -t {threads} \
