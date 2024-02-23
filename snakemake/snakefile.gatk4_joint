@@ -1,40 +1,17 @@
 # vim: syntax=python
 
-rule gatk_gather:
-    input:
-        vcf=lambda wildcards:
-                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                       gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=range(1, config['gatk_chunks']+1))
-    output:
-        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
-    params:
-        lambda wildcards:
-            ' '.join(expand("-I gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                            gatk_mmq=wildcards.gatk_mmq,
-                            gatk_chunk=range(1, config['gatk_chunks']+1)))
-    resources:
-        mem_mb=4000
-    benchmark:
-        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
-    shell:
-        "gatk GatherVcfs"
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    {params}"
-        "    -R {config[ref]}"
-        "    -O {output.vcf}"
-
-
 rule gatk_scatter:
     input:
-        bam=expand("{bam}", bam=config['bam_map'].values()),
+        argfile="gatk/arg_file_bams.list"
     output:
-        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"),
-        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf.idx")
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf"),
+        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf.idx")
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
-        bamlist=expand("-I {bam}", bam=config['bam_map'].values()),
-        regionflag=lambda wildcards:
-            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        regionflag="-L {analysis_region}",
         mmq="{gatk_mmq}",
         # allocate half of the memory to stack, half to heap
         # it seems some JVMs allocate this memory immediately, whether used by
@@ -43,17 +20,17 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=10000
-    benchmark:
-        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+        mem_mb=5000
     shell:
-        "gatk HaplotypeCaller"
-        "    --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
-        "    --dont-use-soft-clipped-bases"
-        "    --dbsnp {config[dbsnp]}"
-        "    --minimum-mapping-quality {params.mmq}"
-        "    --emit-ref-confidence NONE"
-        "    {params.regionflag}"
-        "    -R {config[ref]}"
-        "    {params.bamlist}"
-        "    -O {output.vcf}"
+        """
+        gatk HaplotypeCaller \
+            --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
+            --arguments_file {input.argfile} \
+            --dont-use-soft-clipped-bases \
+            --dbsnp {config[dbsnp]} \
+            --minimum-mapping-quality {params.mmq} \
+            --emit-ref-confidence NONE \
+            {params.regionflag} \
+            -R {config[ref]} \
+            -O {output.vcf} >& {log}
+        """
