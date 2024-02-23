@@ -51,7 +51,7 @@ plan(multicore, workers=n.cores)
 dummy.object <- make.scan(config.path=config.path)
 
 # Currently the chunking used here isn't configurable by user.
-results <- join.phased.hsnps(bulk.called.vcf=bulk.called.vcf, hsnps.vcf=hsnps.vcf, genome=genome)
+results <- join.phased.hsnps(dummy.object=dummy.object, bulk.called.vcf=bulk.called.vcf, hsnps.vcf=hsnps.vcf)
 
 header <- system(paste0("tabix -H ", bulk.called.vcf), intern=TRUE)
 # The final line of the header is the #CHROM...
