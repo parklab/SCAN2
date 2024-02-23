@@ -1,0 +1,54 @@
+# vim: syntax=python
+
+# When many analysis regions are supplied, putting them all onto the command
+# line may exceed the max command line length.  So print them into a file for
+# tools that accept a file list.
+rule make_vcf_arg_file:
+    input:
+        vcfs=lambda wildcards:
+                expand("gatk/hc_raw.mmq{{gatk_mmq}}.region_{analysis_region}.vcf",
+                       analysis_region=config['analysis_regions'])
+    output:
+        listfile="gatk/concat_mmq{gatk_mmq}_args.list"
+    resources:
+        mem_mb=100
+    localrule: True
+    run:
+        with open(output.listfile, 'w') as f:
+            for vcf in input.vcfs:
+                f.write(str(vcf) + '\n')
+
+
+# For GATK tools: 
+rule make_bam_arg_file:
+    input:
+        bams=config['bam_map'].values()
+    output:
+        listfile="gatk/arg_file_bams.list"
+    resources:
+        mem_mb=100
+    localrule: True
+    run:
+        with open(output.listfile, 'w') as f:
+            for bam in input.bams:
+                f.write("-I " + str(bam) + '\n')
+        
+
+rule gatk_gather:
+    input:
+        listfile="gatk/concat_mmq{gatk_mmq}_args.list"
+    output:
+        bcf="gatk/hc_raw.mmq{gatk_mmq}.bcf",
+        bcfidx="gatk/hc_raw.mmq{gatk_mmq}.bcf.csi"
+    resources:
+        mem_mb=200
+    benchmark:
+        "gatk/concat_benchmark.mmq{gatk_mmq}.tsv"
+    shell:
+        """
+        bcftools concat \
+            --file-list {input.listfile} \
+            -Ob -o {output.bcf} && \
+        bcftools index {output.bcf} --output {output.bcfidx}
+        """
+            

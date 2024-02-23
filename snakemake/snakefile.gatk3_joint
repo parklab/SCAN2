@@ -1,53 +1,17 @@
 # vim: syntax=python
 
-# Have to make the argument file without overflowing the command
-# line buffer.
-rule make_arg_file:
-    input:
-    output:
-        "gatk/gather_mmq{gatk_mmq}_args.list"
-    resources:
-        mem_mb=200
-    shell:
-        """
-        for i in `seq 1 {config[gatk_chunks]}`; do
-            echo "-V gatk/hc_raw.mmq{wildcards.gatk_mmq}_chunk$i.vcf" >> {output}
-        done
-        """
-
-
-rule gatk_gather:
-    input:
-        vcf=lambda wildcards:
-                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                       gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=range(1, config['gatk_chunks']+1)),
-        argfile="gatk/gather_mmq{gatk_mmq}_args.list"
-    output:
-        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
-    resources:
-        mem_mb=4000
-    benchmark:
-        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
-    shell:
-        "gatk3 org.broadinstitute.gatk.tools.CatVariants"
-        "    -Xmx3G -Xms3G"
-        "    --arg_file {input.argfile}"
-        "    -R {config[ref]}"
-        "    -out {output.vcf}"
-        "    -assumeSorted"
-
-
 rule gatk_scatter:
     input:
-        bam=expand("{bam}", bam=config['bam_map'].values()),
+        argfile="gatk/arg_file_bams.list"
     output:
-        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"),
-        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf.idx")
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf"),
+        vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf.idx")
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
-        bamlist=expand("-I {bam}", bam=config['bam_map'].values()),
-        regionflag=lambda wildcards:
-            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        regionflag="-L {analysis_region}",
         mmq="{gatk_mmq}",
         # allocate half of the memory to stack, half to heap
         # it seems some JVMs allocate this memory immediately, whether used by
@@ -56,17 +20,18 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=10000
-    benchmark:
-        "gatk/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+        mem_mb=5000
     shell:
-        "gatk3 -Xmx{params.memreq} -Xms{params.memreq}"
-        "    -T HaplotypeCaller"
-        "    -R {config[ref]}"
-        "    --dontUseSoftClippedBases -l INFO"
-        "    --dbsnp {config[dbsnp]}"
-        "    -rf BadCigar "
-        "    -mmq {params.mmq}"
-        "    {params.bamlist}"
-        "    {params.regionflag}"
-        "    -o {output.vcf}"
+        """
+        gatk3 \
+            -Xmx{params.memreq} -Xms{params.memreq} \
+            -T HaplotypeCaller \
+            -args {input.argfile} \
+            -R {config[ref]} \
+            --dontUseSoftClippedBases -l INFO \
+            --dbsnp {config[dbsnp]} \
+            -rf BadCigar  \
+            -mmq {params.mmq} \
+            {params.regionflag} \
+            -o {output.vcf} >& {log}
+        """
