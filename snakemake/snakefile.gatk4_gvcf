@@ -1,82 +1,83 @@
 # vim: syntax=python
 
-rule gatk_gather:
-    input:
-        vcfs=lambda wildcards:
-                expand("gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf",
-                       gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=range(1, config['gatk_chunks']+1))
-    output:
-        vcf="gatk/hc_raw.mmq{gatk_mmq}.vcf"
-    params:
-        lambda wildcards, input:
-            ' '.join([ "-I " + f for f in input ])
-    resources:
-        mem_mb=4000
-    benchmark:
-        "gatk/gather_benchmark.mmq{gatk_mmq}.tsv"
-    shell:
-        "gatk GatherVcfs "
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    {params} "
-        "    -R {config[ref]}"
-        "    -O {output.vcf}"
-
-
 rule gatk_genotypegvcfs:
     input:
-        gvcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz"
     output:
-        vcf="gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.vcf"
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf")
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/genotypegvcfs_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
-    benchmark:
-        "gatk/genotypegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
     resources:
-        mem_mb=8000
+        # This likely needs to scale with number of input BAMs.
+        mem_mb=4000
     shell:
-        "gatk GenotypeGVCFs"
-        "   --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
-        "   --dbsnp {config[dbsnp]}"
-        "   -R {config[ref]}"
-        "   -V {input}"
-        "   -O {output}"
+        """
+        gatk GenotypeGVCFs \
+           --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
+           --dbsnp {config[dbsnp]} \
+           -R {config[ref]} \
+           -V {input} \
+           -O {output} >& {log}
+        """
+
+
+# Different from the direct joint calling GATK arg files: in this case,
+# join across samples in one region.
+rule make_gvcf_arg_file_per_region:
+    input:
+        gvcfs=expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf.gz",
+                     sample=config['bam_map'].keys())
+    output:
+        listfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
+    resources:
+        mem_mb=100
+    localrule: True
+    run:
+        with open(output.listfile, 'w') as f:
+            for gvcf in input.gvcfs:
+                f.write("--variant " + str(gvcf) + '\n')
 
 
 rule gatk_combinegvcfs:
     input:
-        gvcfs=lambda wildcards:
-                expand("gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{{gatk_chunk}}.gvcf.gz",
-                       sample=config['bam_map'].keys(),
-                       gatk_mmq=wildcards.gatk_mmq,
-                       gatk_chunk=range(1, config['gatk_chunks']+1))
+        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
     output:
-        "gatk/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz"
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
     benchmark:
-        "gatk/combinegvcfs_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+        "gatk/combinegvcfs_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
-        infiles=lambda wildcards, input:
-            ' '.join([ "--variant " + f for f in input ]),
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     threads: 1
     resources:
-        mem_mb=8000
+        # This likely needs to scale with number of input BAMs.
+        mem_mb=5000
     shell:
-        "gatk CombineGVCFs"
-        "   --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
-        "   -R {config[ref]}"
-        "   {params.infiles}"
-        "   -O {output}"
+        """
+        gatk CombineGVCFs \
+           --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
+           --arguments_file {input.argfile} \
+           -R {config[ref]} \
+           -O {output} >& {log}
+        """
 
 
 rule gatk_scatter:
     input:
         bam=lambda wildcards: config['bam_map'][wildcards.sample]
     output:
-        gvcf="gatk/{sample}/hc_raw.mmq{gatk_mmq}_chunk{gatk_chunk}.gvcf.gz"
+        gvcf=temp("gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz")
+    log:
+        "gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/{sample}/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
-        regionflag=lambda wildcards:
-            "-L " + config['gatk_regions'][int(wildcards.gatk_chunk) - 1],
+        regionflag="-L {analysis_region}",
         mmq="{gatk_mmq}",
         # allocate half of the memory to stack, half to heap
         # it seems some JVMs allocate this memory immediately, whether used by
@@ -85,18 +86,18 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=4000
-    benchmark:
-        "gatk/{sample}/scatter_benchmark.mmq{gatk_mmq}_chunk{gatk_chunk}.tsv"
+        mem_mb=3000
     shell:
-        "gatk HaplotypeCaller"
-        "    --java-options '-Xmx{params.memreq} -Xms{params.memreq}'"
-        "    --dont-use-soft-clipped-bases"
-        "    --dbsnp {config[dbsnp]}"
-        "    --minimum-mapping-quality {params.mmq}"
-        "    --emit-ref-confidence BP_RESOLUTION"
-        "    --min-base-quality-score {config[min_base_quality_score]}"
-        "    {params.regionflag}"
-        "    -R {config[ref]}"
-        "    -I {input}"
-        "    -O {output}"
+        """
+        gatk HaplotypeCaller \
+            --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
+            --dont-use-soft-clipped-bases \
+            --dbsnp {config[dbsnp]} \
+            --minimum-mapping-quality {params.mmq} \
+           --emit-ref-confidence BP_RESOLUTION \
+            --min-base-quality-score {config[min_base_quality_score]} \
+            {params.regionflag} \
+            -R {config[ref]} \
+            -I {input.bam} \
+            -O {output.gvcf} >& {log}
+        """
