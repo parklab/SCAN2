@@ -1,9 +1,13 @@
 # Different GATK versions and calling methods are available. The
-# version used in the publication is 'gatk3_joint'. Other versions
-# are experimental.
-# N.B. various utility functions rely on GATK3. All of these except
-# CombineVariants, used to join phased genotypes in snakefile.phasing,
-# port easily to GATK4 equivalents.
+# versions used in publications so far are:
+#
+# Luquette et al. Nat Genet (2022): --gatk=gatk3_joint
+# Ganz et al. Cell (2024):          --gatk=sentieon_joint
+# 
+# Other versions are experimental.
+
+include: "snakefile.gatk_shared"   # shared utilities
+
 if config['gatk'] == 'gatk3_joint':
     include: "snakefile.gatk3_joint"
     print("Using GATK version 3 with joint calling")
@@ -17,8 +21,10 @@ elif config['gatk'] == 'gatk4_gvcf':
     include: "snakefile.gatk4_gvcf"
     print("Using GATK version 4 with GVCF calling (EXPERIMENTAL)!")
 elif config['gatk'] == 'sentieon_joint':
-    include: "snakefile.gatk3_joint"
     include: "snakefile.sentieon_joint"
-    print("Using Sentieon for HaplotypeCaller and GATK3 for other tools. Be sure to export SENTIEON_LICENSE.\n")
+    print("Using Sentieon for HaplotypeCaller in joint mode. Be sure to export SENTIEON_LICENSE.\n")
+elif config['gatk'] == 'sentieon_gvcf':
+    include: "snakefile.sentieon_gvcf"
+    print("Using Sentieon for HaplotypeCaller in GVCF mode. Be sure to export SENTIEON_LICENSE.\n")
 else:
     raise RuntimeError("unrecognized GATK version and strategy: " + config['gatk'])

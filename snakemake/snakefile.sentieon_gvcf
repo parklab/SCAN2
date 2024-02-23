@@ -1,0 +1,77 @@
+# vim: syntax=python
+
+rule make_gvcf_arg_file_per_region:
+    input:
+        gvcfs=lambda wildcards:
+                expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf",
+                       sample=config['bam_map'].keys())
+    output:
+        listfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
+    resources:
+        mem_mb=100
+    localrule: True
+    run:
+        with open(output.listfile, 'w') as f:
+            for gvcf in input.gvcfs:
+                f.write(str(gvcf) + '\n')
+
+
+# Sentieon does not have GATK4's separate CombineGVCFs step 
+rule gatk_genotypegvcfs:
+    input:
+        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
+    output:
+        vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf")
+    log:
+        "gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/genotypegvcfs_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
+    resources:
+        # Max RSS from small, ~1.5MB regions is ~25MB for 5 samples.  No idea
+        # how it will scale with more samples and/or larger regions.
+        mem_mb=500
+    threads: 1
+    shell:
+        # Sentieon supports reading the input list of GVCFs from stdin (the
+        # final "-" argument on the last line of this call).
+        """
+        cat {input.argfile} \
+        | sentieon driver -t {threads} \
+            -r {config[ref]} \
+            --algo GVCFtyper \
+            {output.vcf} \
+            - >& {log}
+        """
+
+
+rule gatk_scatter:
+    input:
+        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+    output:
+        vcf=temp("gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf"),
+        vcfidx=temp("gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.idx")
+    log:
+        "gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.log"
+    benchmark:
+        "gatk/{sample}/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
+    params:
+        regionflag="--interval {analysis_region}",
+        mmq="{gatk_mmq}"
+    resources:
+        # Max RSS from small, ~1.5MB regions is <100MB
+        mem_mb=500
+        #mem_mb=lambda wildcards, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(config['bam_map'].values()))
+    threads: 1
+    shell:
+        """
+        sentieon driver -t {threads} \
+            -r {config[ref]} \
+            {params.regionflag} \
+            -i {input.bam} \
+            --algo Haplotyper \
+            --emit_mode gvcf \
+            -d {config[dbsnp]} \
+            --min_map_qual {params.mmq} \
+            --trim_soft_clip \
+            {output.vcf} >& {log}
+        """
