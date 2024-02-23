@@ -12,7 +12,7 @@ rule gatk_genotypegvcfs:
     params:
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        # This likely needs to scale with number of input BAMs.
+        # This likely needs to scale with number of input BAMs. ~1500MB for 5 30X BAMs
         mem_mb=4000
     shell:
         """
@@ -55,7 +55,7 @@ rule gatk_combinegvcfs:
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     threads: 1
     resources:
-        # This likely needs to scale with number of input BAMs.
+        # This likely needs to scale with number of input BAMs.  1500MB for 5 ~30X BAMs.
         mem_mb=5000
     shell:
         """
@@ -86,7 +86,7 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=3000
+        mem_mb=2000
     shell:
         """
         gatk HaplotypeCaller \
