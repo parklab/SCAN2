@@ -121,7 +121,7 @@ rule eagle_prepare:
     params:
         chr="{chr}"
     resources:
-        mem_mb=4000
+        mem_mb=200
     shell:
         """
         bcftools view \
