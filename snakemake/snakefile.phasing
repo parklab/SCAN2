@@ -1,29 +1,31 @@
 # vim: syntax=python
 
+'''
 rule tabix_bulk_vcf:
     input:
-        vcf="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf"
+        vcf="call_mutations/hc_raw.mmq60.exnonvar_biallelic_bulkcalled.bcf"
     output:
-        vcfgz="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
-        idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi"
+        vcfgz="call_mutations/hc_raw.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
+        idx="call_mutations/hc_raw.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi"
     resources:
         mem_mb=4000
     shell:
         "bgzip -c {input.vcf} > {output.vcfgz} && tabix -p vcf {output.vcfgz}"
+'''
 
 
 rule phasing_phased_hsnps:
     input:
         config='scan.yaml',
-        bulk_called_vcf="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz",
-        bulk_called_vcf_idx="call_mutations/hc.mmq60.exnonvar_biallelic_bulkcalled.vcf.gz.tbi",
+        bulk_called_vcf="call_mutations/hc_raw.mmq60.exnonvar_biallelic_bulkcalled.bcf",
+        bulk_called_vcf_idx="call_mutations/hc_raw.mmq60.exnonvar_biallelic_bulkcalled.bcf.csi",
         phased_hsnps_vcf=config['phased_hsnps']
     output:
-        out_vcf=temp("phased_hsnps/phased_hets.vcf"),
-        out_vcf_gz="phased_hsnps/phased_hets.vcf.gz",
-        out_vcf_gz_tbi="phased_hsnps/phased_hets.vcf.gz.tbi"
+        out_vcf=temp("phased_hsnps/phased_filtered.vcf"),
+        out_vcf_gz="phased_hsnps/phased_filtered.vcf.gz",
+        out_vcf_gz_tbi="phased_hsnps/phased_filtered.vcf.gz.tbi"
     log:
-        "phased_hsnps/phased_hets.log"
+        "phased_hsnps/phased_filtered.log"
     params:
         genome=config['genome']
     threads: int(config['phased_hsnps_n_cores'])
@@ -33,99 +35,124 @@ rule phasing_phased_hsnps:
         config['scripts'] + "/join_phased_hsnps.R"
 
 
-rule phasing_gather:
+rule phasing_gather_file_list:
     input:
-        expand("{phaser}/{chr_prefix}{chr}/phased_hets.vcf",
+        vcfs=expand("{phaser}/{chr}/phased_filtered.vcf",
             phaser=config['phaser'],
-            chr_prefix=config['chr_prefix'],
             chr=config['chrs'])
     output:
-        vcf=temp(config['phaser'] + "/phased_hets.vcf"),
-        vcf_gz=config['phaser'] + "/phased_hets.vcf.gz",
-        vcf_gz_idx=config['phaser'] + "/phased_hets.vcf.gz.tbi",
-    params:
-        vcfs=' '.join(expand("-I {phaser}/{chr_prefix}{chr}/phased_hets.vcf",
-            phaser=config['phaser'],
-            chr_prefix=config['chr_prefix'],
-            chr=config['chrs']))
+        filelist=temp("{phaser}/file_list.txt")
+    localrule: True
+    run:
+        with open(output.filelist, 'w') as f:
+            for vcf in input.vcfs:
+                f.write(str(vcf) + "\n")
+
+
+rule phasing_gather:
+    input:
+        filelist=config['phaser'] + "/file_list.txt"
+    output:
+        bcf=temp(config['phaser'] + "/phased_filtered.bcf"),
+        bcfidx=temp(config['phaser'] + "/phased_filtered.bcf.csi"),
+        #vcf=temp(config['phaser'] + "/phased_filtered.vcf"),
+        #vcf_gz=config['phaser'] + "/phased_filtered.vcf.gz",
+        #vcf_gz_idx=config['phaser'] + "/phased_filtered.vcf.gz.tbi",
     resources:
-        mem_mb=4000
+        mem_mb=200
     shell:
-        "gatk GatherVcfs"
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    -R {config[ref]}"
-        "    {params.vcfs}"
-        "    -O {output.vcf} ; "
-        "bgzip -c {output.vcf} > {output.vcf_gz};"
-        "tabix -pvcf {output.vcf_gz}"
+        """
+        bcftools concat \
+            --file-list {input.filelist} \
+            -Ob -o {output.bcf}
+        bcftools index -o {output.bcfidx} {output.bcf}
+        """
 
 
 rule shapeit_prepare:
     input:
-        "gatk/hc_raw.mmq60.vcf"
+        bcf="gatk/hc_raw.mmq60.bcf",
+        bcfidx="gatk/hc_raw.mmq60.bcf.csi"
     output:
-        vcf=temp("shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])),
-        vcfidx=temp("shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf.idx".format(chr_prefix=config['chr_prefix']))
+        vcf=temp("shapeit/{chr}/hc_raw.mmq60.{chr}.vcf")
+    log:
+        "shapeit/{chr}/prepare.log"
+    benchmark:
+        "shapeit/{chr}/benchmark_prepare.txt"
     params:
         chr="{chr}",
         bulk_sample=config['bulk_sample']
     resources:
-        mem_mb=4000
+        mem_mb=200
     shell:
-        "gatk SelectVariants"
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    -R {config[ref]}"
-        "    -V {input}"
-        "    --select-type-to-include SNP"
-        "    --select-type-to-include INDEL"
-        "    --restrict-alleles-to BIALLELIC"
-        "    --exclude-non-variants"
-        "    --sample-name {params.bulk_sample}"
-        "    -L {params.chr}"
-        "    -O {output.vcf}"
+        # bcftools method is md5sum-identical to the gatk SelectVariants method except
+        # for the QUAL (6) and INFO (8) columns. Closer inspection shows the difference is
+        # in number of signiciant digits written. E.g., where the GATK method reports a QUAL
+        # score as "1929.80", the bcftools method reports "1929.8".
+        #
+        # (scan2dev) compute-a-16-171$ grep -v '^#' old_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
+        # 74fcb63714173ce1ca5259bcc1564fd6  -
+        # (scan2dev) compute-a-16-171$ grep -v '^#' new_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
+        # 74fcb63714173ce1ca5259bcc1564fd6  -
+        # 
+        # second bcftools call: i can't get ALT != "." to work in the first call,
+        # perhaps because ALT="." results from the application of --trim-alt-alleles.
+        # not sure.
+        """
+        bcftools view \
+            -s {params.bulk_sample} \
+            -r {params.chr} \
+            --trim-alt-alleles \
+            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
+            {input.bcf} \
+        | bcftools view \
+            --include 'ALT != "." & GT != "mis"' \
+            -Ov -o {output.vcf}
+        """
 
 
-
+# this is almost identical to shapeit_prepare - the only difference is the final
+# output is .vcf.gz instead of .vcf
 rule eagle_prepare:
     input:
-        "gatk/hc_raw.mmq60.vcf"
+        "gatk/hc_raw.mmq60.bcf"
     output:
-        out="eagle/{chr}/hc_raw.mmq60.{chr}.vcf",
-        gzout="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+        vcfgz="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
     params:
         chr="{chr}"
     resources:
         mem_mb=4000
     shell:
-        "gatk SelectVariants"
-        "    --java-options '-Xmx3G -Xms3G'"
-        "    -R {config[ref]}"
-        "    -V {input}"
-        "    --select-type-to-include SNP"
-        "    --select-type-to-include INDEL"
-        "    --sample-name {config[bulk_sample]}"
-        "    --restrict-alleles-to BIALLELIC"
-        "    --exclude-non-variants"
-        "    -L {params.chr}"
-        "    -O {output.out} ;"
-        "bgzip -c {output.out} > {output.gzout} ; "
-        "tabix {output.gzout}"
+        """
+        bcftools view \
+            -s {params.bulk_sample} \
+            -r {params.chr} \
+            --trim-alt-alleles \
+            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
+            {input.bcf} \
+        | bcftools view \
+            --include 'ALT != "." & GT != "mis"' \
+            -Oz -o {output.vcfgz}
+        tabix -pvcf {output.vcfgz}"
+        """
 
 
-# {chr_prefix} is an ugly hack to allow analysis of old workflows.
-# one day soon, it can be removed.
 rule shapeit_scatter:
     input:
-        "shapeit/{chr_prefix}{{chr}}/hc_raw.mmq60.{chr_prefix}{{chr}}.vcf".format(chr_prefix=config['chr_prefix'])
+        "shapeit/{chr}/hc_raw.mmq60.{chr}.vcf"
     output:
-        temp("shapeit/{chr_prefix}{{chr}}/phased_hets.vcf".format(chr_prefix=config['chr_prefix']))
+        temp("shapeit/{chr}/phased_filtered.vcf")
+    log:
+        "shapeit/{chr}/shapeit.log"
+    benchmark:
+        "shapeit/{chr}/benchmark_shapeit.tsv"
     params:
-        excludefile="shapeit/{chr_prefix}{{chr}}/shapeit_check.snp.strand.exclude".format(chr_prefix=config['chr_prefix']),
-        tmpout="shapeit/{chr_prefix}{{chr}}/{chr_prefix}{{chr}}.phased".format(chr_prefix=config['chr_prefix']),
-        tmpout2=temp("shapeit/{chr_prefix}{{chr}}/phased.vcf".format(chr_prefix=config['chr_prefix'])),
-        checklog="shapeit/{chr_prefix}{{chr}}/shapeit_check.log".format(chr_prefix=config['chr_prefix']),
-        phaselog="shapeit/{chr_prefix}{{chr}}/shapeit_phase.log".format(chr_prefix=config['chr_prefix']),
-        convertlog="shapeit/{chr_prefix}{{chr}}/shapeit_convert.log".format(chr_prefix=config['chr_prefix']),
+        excludefile="shapeit/{chr}/shapeit_check.snp.strand.exclude",
+        tmpout="shapeit/{chr}/{chr}.phased",
+        tmpout2=temp("shapeit/{chr}/phased.vcf"),
+        checklog="shapeit/{chr}/shapeit_check.log",
+        phaselog="shapeit/{chr}/shapeit_phase.log",
+        convertlog="shapeit/{chr}/shapeit_convert.log",
         gmap="genetic_map_chr{chr}",
         hap="1000GP_Phase3_chr{chr}",
         leg="1000GP_Phase3_chr{chr}",
@@ -134,8 +161,7 @@ rule shapeit_scatter:
         # the hap file is named 1000GP_Phase3_chrX_NONPAR.hap.gz
         extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
         xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
-    benchmark:
-        "shapeit/{chr_prefix}{{chr}}/benchmark.tsv".format(chr_prefix=config['chr_prefix'])
+    threads: 1
     resources:
         mem_mb=4000
     shell:
@@ -152,6 +178,7 @@ rule shapeit_scatter:
         "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
         "        {config[shapeit_refpanel]}/1000GP_Phase3.sample || true ; "
         "shapeit"
+        "    --thread {threads}"
         "    --input-vcf={input}"
         "    --output-log {params.phaselog}"
         "    --seed 1649118772"
@@ -168,7 +195,7 @@ rule shapeit_scatter:
         "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
         "(grep '^#' {input} | grep -v '^#CHROM' ; "
         " grep '^##source' {params.tmpout2} ; "
-        " awk '$10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
+        " awk '$10 == \"1|1\" || $10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
         "    | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" "
         "    | grep '^[^#]\|^#CHROM' ) > {output}"
         # These last few greps are necessary for preserving the original VCF
@@ -181,7 +208,7 @@ rule eagle_scatter:
     input:
         "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
     output:
-        "eagle/{chr}/phased_hets.vcf"
+        "eagle/{chr}/phased_filtered.vcf"
     params:
         tmpout="eagle/{chr}/phased_hsnps_tmp.vcf",
         zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
@@ -199,7 +226,7 @@ rule eagle_scatter:
             --geneticMapFile {config[eagle_genmap]} \
             --vcfOutFormat v \
             --outPrefix {params.outprefix} ;
-        awk 'BEGIN {{ OFS="\t"; }} {{ if ($1 ~ /^#/) {{ print $0; }}; if ($10 ~ /^1\|0/ || $10 ~ /^0\|1/) {{ split($10, gt, ":"); $10 = gt[1]; print $0; }} }}' {params.tmpout} \
+        awk 'BEGIN {{ OFS="\t"; }} {{ if ($1 ~ /^#/) {{ print $0; }}; if ($10 ~ /^1\|1/ || $10 ~ /^1\|0/ || $10 ~ /^0\|1/) {{ split($10, gt, ":"); $10 = gt[1]; print $0; }} }}' {params.tmpout} \
              | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" > {output}
         """
         # Unlike SHAPEIT, Eagle does preserve header info. We just need to
