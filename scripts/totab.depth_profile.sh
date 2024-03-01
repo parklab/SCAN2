@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -ne 2 ]; then
-    echo "usage: $0 inputvcf output"
+    echo "usage: $0 input_depth_of_coverage_table output"
     exit 1
 fi
 
