@@ -4,7 +4,7 @@
 # For now, just for organizing rules into manageably-sized files.
 include: "snakefile.select_gatk"
 include: "snakefile.depth_profile"
-include: "snakefile.phasing"
+include: "snakefile.select_phaser"
 include: "snakefile.cigars"
 include: "snakefile.integrated_table"
 include: "snakefile.sensitivity"
@@ -47,12 +47,12 @@ rule select_analyzable_sites:
         bcf="gatk/hc_raw.mmq{gatk_mmq}.bcf",
         bulk_sample_file="call_mutations/bulk_sample_file.txt"
     output:
-        bcf="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf",
-        bcfidx="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf.csi",
+        bcf="call_mutations/analyzable_sites.mmq{gatk_mmq}.bcf",
+        bcfidx="call_mutations/analyzable_sites.mmq{gatk_mmq}.bcf.csi"
     log:
-        "call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.log",
+        "call_mutations/analyzable_sites.mmq{gatk_mmq}.log",
     benchmark:
-        "call_mutations/benchmark_select_analyzable_sites_mmq{gatk_mmq}.txt"
+        "call_mutations/analyzable_sites.mmq{gatk_mmq}.benchmark.txt"
     resources:
         # Max RSS=9MB for a small test
         mem_mb=100
@@ -74,8 +74,8 @@ rule select_analyzable_sites:
 
 rule tablefy_sites:
     input:
-        bcf="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf",
-        bcfidx="call_mutations/hc_raw.mmq{gatk_mmq}.exnonvar_biallelic_bulkcalled.bcf.csi",
+        bcf="call_mutations/analyzable_sites.mmq{gatk_mmq}.bcf",
+        bcfidx="call_mutations/analyzable_sites.mmq{gatk_mmq}.bcf.csi"
     output:
         tab="call_mutations/mmq{gatk_mmq}.tab.gz",
         idx="call_mutations/mmq{gatk_mmq}.tab.gz.tbi"
@@ -90,6 +90,9 @@ rule tablefy_sites:
         # note the "|| true" fragment: bcftools query, when prevented from writing all
         # of its output as occurs with head -1, returns a non-0 exit code.  so we have
         # to short circuit it.
+        # 
+        # the awk script at the end translates missing AD counts (.) into zeroes. this
+        # allows fread to read the column as an integer.
         """
         ((bcftools query \
             -f '#chr\\tpos\\tdbsnp\\trefnt\\taltnt[\\t%SAMPLE\\tref\\talt]\\n' \
@@ -97,6 +100,7 @@ rule tablefy_sites:
          bcftools query \
             -f '%CHROM\\t%POS\\t%ID\\t%REF\\t%ALT[\\t%GT\\t%AD{{0}}\\t%AD{{1}}]\\n' \
             {input.bcf}) \
+        | awk 'BEGIN {{ ORS=""; OFS="\\t"; }} {{ print $1, $2, $3, $4, $5; for (i = 6; i <= NF; i = i+1) {{ if ($i == "." && i > 6) $i=0; printf "\\t%s", $i; }} printf "\\n"; }}' \
         | bgzip -c > {output.tab} 
         tabix -p vcf -S 1 {output.tab}
         """
