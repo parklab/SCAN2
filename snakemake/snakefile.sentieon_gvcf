@@ -2,9 +2,8 @@
 
 rule make_gvcf_arg_file_per_region:
     input:
-        gvcfs=lambda wildcards:
-                expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf",
-                       sample=config['bam_map'].keys())
+        gvcfs=expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf",
+                     sample=config['bam_map'].keys())
     output:
         listfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
     resources:
@@ -19,7 +18,9 @@ rule make_gvcf_arg_file_per_region:
 # Sentieon does not have GATK4's separate CombineGVCFs step 
 rule gatk_genotypegvcfs:
     input:
-        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
+        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list",
+        gvcfs=expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf",
+                     sample=config['bam_map'].keys())
     output:
         vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf")
     log:
@@ -36,7 +37,8 @@ rule gatk_genotypegvcfs:
         # final "-" argument on the last line of this call).
         """
         cat {input.argfile} \
-        | sentieon driver -t {threads} \
+        | sentieon driver \
+            -t {threads} \
             -r {config[ref]} \
             --algo GVCFtyper \
             {output.vcf} \
@@ -60,7 +62,6 @@ rule gatk_scatter:
     resources:
         # Max RSS from small, ~1.5MB regions is <100MB
         mem_mb=500
-        #mem_mb=lambda wildcards, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(config['bam_map'].values()))
     threads: 1
     shell:
         """

@@ -44,7 +44,9 @@ rule make_gvcf_arg_file_per_region:
 
 rule gatk_combinegvcfs:
     input:
-        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list"
+        argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list",
+        gvcfs=expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf.gz",
+                     sample=config['bam_map'].keys())
     output:
         gvcf="gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz"
     log:
