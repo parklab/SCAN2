@@ -32,6 +32,7 @@ scan2_param_defaults = {
     'parsimony_phasing': False,
     'target_fdr': 0.01,
     'rescue_target_fdr': 0.01,
+    'phasing_qual_cutoff_quantile': 0.05,
     'snv_min_sc_alt': 2,
     'snv_min_sc_dp': 6,
     'snv_min_bulk_dp': 11, 
@@ -65,7 +66,6 @@ scan2_param_defaults = {
     'compute_sensitivity': False,
     'sensitivity_n_cores': 20,
     'makepanel_n_cores': 20,
-    'phased_hsnps_n_cores': 20,
     'rescue_n_cores': 12,
     'resample_M': 20,
     'mimic_legacy': False,
@@ -104,7 +104,7 @@ scan2_file_defaults = {
     'gatk_vcf': None,
     'eagle_refpanel': {},
     'eagle_genmap': None,
-    'phased_hsnps': ''
+    'user_supplied_phasing': None
 }
 
 scan2_defaults = { **scan2_param_defaults, **scan2_file_defaults }
@@ -394,15 +394,15 @@ class Analysis:
             check_shapeit(self.cfg['shapeit_refpanel'])
         elif self.cfg['phaser'] == 'eagle':
             check_eagle(self.cfg['eagle_refpanel'], self.cfg['eagle_genmap'])
-        elif self.cfg['phaser'] == 'phased_hsnps':
-            check_phased_hsnps(self.cfg['phased_hsnps'])
+        elif self.cfg['phaser'] == 'user_supplied_phasing':
+            check_user_supplied_phasing(self.cfg['user_supplied_phasing'])
         else:
-            error("--phaser must be either 'shapeit', 'eagle' or 'phased_hsnps'\n")
+            error("--phaser must be either 'shapeit', 'eagle' or 'user_supplied_phasing'\n")
 
 
     def check_sex(self):
         if self.cfg['sex'] != 'male' and self.cfg['sex'] != 'female':
-            error("--sex must be either 'male' or 'female'\n")
+            error("--sex must be either 'male' or 'female', but got " + str(self.cfg['sex']) + "\n")
 
 
     def validate(self):
@@ -513,13 +513,17 @@ def check_dbsnp(dbsnp):
     readable_file(dbsnp + '.idx')
 
 
-def check_phased_hsnps(phased_hsnps):
-    """Just make sure the supplied dbsnp VCF is gzipped and tabix indexed."""
-    if phased_hsnps is None:
-        error("please provide a bgzipped, tabix-indexed VCF to --phased-hsnps")
-    if not phased_hsnps.lower().endswith(".gz"):
-        error("--phased-hsnps must be a bgzipped file ending in '.gz'")
-    readable_file(phased_hsnps + ".tbi")
+def check_user_supplied_phasing(user_supplied_phasing):
+    """Just make sure the supplied VCF is gzipped and tabix indexed."""
+    if user_supplied_phasing is None:
+        error("please provide an indexed variant file readable by bcftools (e.g., .BCF with .csi index; .vcf.gz with .tbi index) to --user-supplied-phasing")
+    if not (user_supplied_phasing.lower().endswith(".vcf.gz") or user_supplied_phasing.lower().endswith(".bcf")):
+        error("--user-supplied-phasing must be end in '.vcf.gz' or '.bcf'")
+
+    if user_supplied_phasing.lower().endswith(".vcf.gz"):
+        readable_file(user_supplied_phasing + ".tbi")
+    if user_supplied_phasing.lower().endswith(".bcf"):
+        readable_file(user_supplied_phasing + ".csi")
 
 
 def check_shapeit(shapeit_panel):
@@ -1051,9 +1055,12 @@ if __name__ == "__main__":
     
     
     phasing = config_parser.add_argument_group('Phasing options',
-        'Choose SHAPEIT2 or Eagle for phasing')
-    phasing.add_argument('--phaser', metavar='eagle|shapeit|phased_hsnps', type=str,
-        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. Eagle is currently untested for GRCh37, but may work. To skip population-based phasing, --phaser=phased_hsnps allows a phased VCF (using 0|1 and 1|0 phased genotypes) to be supplied via --phased-hsnps. The VCF must be bgzipped and tabix indexed and contain only germline heterozygous SNPs and short indels unless hemizygous sex chromosomes are to be analyzed (e.g., chrX of a male human). In the latter case, hemizygous germline variants should be included and the genotype strings must be reported as "1|1".  This phased_hsnps approach can be useful when external information provides better phasing; e.g.: crossbred mouse strains, human samples with mother-father-sibling trio to infer phase or samples for which long-read data can provide read-backed phasing via physical linkage across most of the genome.')
+        'SCAN2 can perform phasing internally (using SHAPEIT2 or Eagle) for human samples. Alternatively, the user can supply an index, phased variant file (i.e., vcf.gz or .bcf) with phase determined from external methods. This is the only method available for non-human samples.')
+    phasing.add_argument('--phaser', type=str,
+        choices=[ 'shapeit', 'eagle', 'user_supplied_phasing' ],
+        help='SHAPEIT2 does not provide a reference panel aligned to hg38. If your data are aligned to this genome version, please use Eagle instead. Eagle is currently untested for GRCh37, but may work. To skip population-based phasing, --phaser=user_supplied_phasing allows a phased VCF (using 0|1, 1|0 and 1|1 phased genotypes) to be supplied via --user-supplied-phasing. The VCF must be bgzipped and tabix indexed and contain only germline SNPs and short indels with phase 0|1, 1|0 or 1|1. Homozygous phased sites (1|1) are ignored except when analyzing haploid regions (e.g., male chrX and chrY).  The user_supplied_phasing approach can be advantageous when external information can provide better phasing than statistical phasing based on a reference panel; e.g.: crossbred mouse strains, human samples with mother-father-sibling trio to infer phase or samples for which long-read data can provide read-backed phasing via physical linkage across most of the genome.')
+    phasing.add_argument('--phasing-qual-cutoff-quantile', default=0.05, metavar='FLOAT',
+        help="Prior to phasing with Eagle or SHAPEIT, remove the bottom FLOAT percentile of sites. Quantiles are computed separately for germline SNVs and indels and is performed per-chromosome. Values must be between 0 and 1.")
     phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
     phasing.add_argument('--parsimony-phasing', action='store_true',
@@ -1062,8 +1069,8 @@ if __name__ == "__main__":
         help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ${chromosome}*.bcf. The user should take care to ensure that chromosome names contain the "chr" prefix to properly match the supplied reference genome. This parameter is required if phaser=eagle.')
     phasing.add_argument('--eagle-genmap', metavar='DIR',
         help='Path to Eagle\'s provided genetic map (can be found under the "tables" directory in the Eagle tarball). This is required if phaser=eagle.')
-    phasing.add_argument('--phased-hsnps', type=readable_file, metavar='VCF.GZ',
-        help='A bgzipped, tabix-indexed VCF file containing phased genotypes covering the majority of the genome for this individual. The VCF should contain only 10 columns, with the final genotype column being simply 0|1 or 1|0 depending on phase.')
+    phasing.add_argument('--user-supplied-phasing', type=readable_file, metavar='.vcf.gz|.bcf',
+        help='A bgzipped, tabix-indexed VCF file or .csi-index BCF file containing phased genotypes covering the majority of the genome for this individual. The VCF should contain only 10 columns, with no INFO fields and only a FORMAT/GT tag for a single sample with values 0|1, 1|0 or 1|1.')
     
     
     abmodel = config_parser.add_argument_group("AB model fitting",
