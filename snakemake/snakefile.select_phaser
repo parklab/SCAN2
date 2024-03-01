@@ -1,0 +1,16 @@
+# vim: syntax=python
+
+include: "snakefile.phasing_shared"
+
+if config['phaser'] == 'user_supplied_phasing':
+    print("Using user-supplied phased sites")
+    include: "snakefile.user_supplied_phasing"
+elif config['phaser'] == 'shapeit' or config['phaser'] == 'eagle':
+    if config['phaser'] == 'shapeit':
+        print("Using SHAPEIT for phasing")
+        include: "snakefile.phasing_shapeit"
+    if config['phaser'] == 'eagle':
+        print("Using Eagle for phasing")
+        include: "snakefile.phasing_eagle"
+else:
+    raise RuntimeError("unrecognized phasing strategy: " + config['phaser'])

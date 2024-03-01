@@ -1,0 +1,87 @@
+# vim: syntax=python
+
+rule user_supplied_phasing_ingest_sample_name_map:
+    input:
+        variants=config['user_supplied_phasing']
+    output:
+        txt="user_supplied_phasing/sample_rename_map.txt"
+    localrule: True
+    shell:
+        """
+        bcftools query -l {input.variants} \
+        | awk '{{ print $1, "__SCAN2_internal_phased_gt"; }}' > {output.txt}
+        """
+
+
+# The first step of analyzing a user-supplied phase set is to ensure a
+# specific format:
+#   1. The file contains one sing sample named `__SCAN2_internal_phased_gt`
+#   2. The file is in .BCF format with a .CSI index
+#   3. The file contains no missing genotypes
+#   4. The file contains no INFO tags and the FORMAT string contains only GT
+# 
+# Any format understood (automatically) by bcftools is allowed. E.g.,
+# .vcf, .bcf, .vcf.gz.
+rule user_supplied_phasing_ingest:
+    input:
+        variants=config['user_supplied_phasing'],
+        rename_file="user_supplied_phasing/sample_rename_map.txt"
+    output:
+        bcf="user_supplied_phasing/ingested_phased_variants.bcf",
+        bcfidx="user_supplied_phasing/ingested_phased_variants.bcf.csi"
+    log:
+        "user_supplied_phasing/ingested_phased_variants.log"
+    benchmark:
+        "user_supplied_phasing/ingested_phased_variants.benchmark.txt"
+    resources:
+        mem_mb=200
+    shell:
+        # First ensure a single sample in the user supplied variant file.
+        # I wish I knew of a better way to signal this error to the Snakemake
+        # pipeline directly.
+        #
+        # bcftools annotate: the ^ operator means to keep only the FORMAT/GT
+        # tag.  Remove the INFO tag since it inflates file size and is not used.
+        """
+        if [ "x$(wc -l {input.rename_file} | cut -f1 -d\ )" != "x1" ]; then
+            echo "User supplied phased variant file must contain exactly 1 sample but contains >1 samples:"
+            cut -f1 {input.rename_file}
+            exit 1
+        fi
+
+        bcftools reheader --samples {input.rename_file} {input.variants} \
+        | bcftools annotate \
+            --exclude 'GT="mis"' \
+            --remove '^FORMAT/GT,INFO' \
+            -Ob -o {output.bcf}
+        bcftools index -o {output.bcfidx} {output.bcf}
+        """
+    
+
+# Subset the user supplied phasing set to the sites deemed analyzable by SCAN2.
+# Internally generated phased sites are already a subset of analyzable_sites.mmq60.bcf.
+rule user_supplied_phasing_match_sites:
+    input:
+        bulk_called_bcf="call_mutations/analyzable_sites.mmq60.bcf",
+        bulk_called_bcfidx="call_mutations/analyzable_sites.mmq60.bcf.csi",
+        user_supplied_bcf="user_supplied_phasing/ingested_phased_variants.bcf",
+        user_supplied_bcfidx="user_supplied_phasing/ingested_phased_variants.bcf.csi"
+    output:
+        bcf="user_supplied_phasing/phased_filtered.bcf",
+        bcfidx="user_supplied_phasing/phased_filtered.bcf.csi"
+    log:
+        "user_supplied_phasing/phased_filtered.log"
+    benchmark:
+        "user_supplied_phasing/phased_filtered.benchmark.txt"
+    resources:
+        mem_mb=1000
+    shell:
+        """
+        bcftools isec \
+            --nfiles =2 \
+            --write 2 \
+            -Ob -o {output.bcf} \
+            {input.bulk_called_bcf} \
+            {input.user_supplied_bcf}
+        bcftools index {output.bcf}
+        """

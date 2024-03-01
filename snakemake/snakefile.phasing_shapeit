@@ -1,0 +1,92 @@
+# vim: syntax=python
+
+# shapeit requires an unzipped VCF file
+rule shapeit_prepare:
+    input:
+        snv_vcf="shapeit/{chr}/analyzable_sites.mmq60.filtered_bulk_snv_only.qual_cutoff.vcf",
+        indel_vcf="shapeit/{chr}/analyzable_sites.mmq60.filtered_bulk_indel_only.qual_cutoff.vcf",
+    output:
+        vcf="shapeit/{chr}/final_for_phasing.analyzable_sites.mmq60.vcf"
+    log:
+        "shapeit/{chr}/final_for_phasing.analyzable_sites.mmq60.log"
+    benchmark:
+        "shapeit/{chr}/final_for_phasing.analyzable_sites.mmq60.benchmark.txt"
+    resources:
+        mem_mb=4000
+    shell:
+        """
+        (bcftools concat \
+             {input.snv_vcf} {input.indel_vcf} \
+         | bcftools sort --max-mem=3500M \
+         | bcftools norm \
+             --multiallelics +both \
+             --do-not-normalize \
+             -Ov -o {output.vcf}) >& {log}
+        """
+
+
+rule shapeit_scatter:
+    input:
+        vcf="shapeit/{chr}/final_for_phasing.analyzable_sites.mmq60.vcf"
+    output:
+        temp("shapeit/{chr}/phased_filtered.analyzable_sites.mmq60.vcf")
+    log:
+        "shapeit/{chr}/shapeit.log"
+    benchmark:
+        "shapeit/{chr}/benchmark_shapeit.tsv"
+    params:
+        excludefile="shapeit/{chr}/shapeit_check.snp.strand.exclude",
+        tmpout="shapeit/{chr}/{chr}.phased",
+        tmpout2=temp("shapeit/{chr}/phased.vcf"),
+        checklog="shapeit/{chr}/shapeit_check.log",
+        phaselog="shapeit/{chr}/shapeit_phase.log",
+        convertlog="shapeit/{chr}/shapeit_convert.log",
+        gmap="genetic_map_chr{chr}",
+        hap="1000GP_Phase3_chr{chr}",
+        leg="1000GP_Phase3_chr{chr}",
+        # the genetic map is named genetic_map_chrX_nonPAR_combined_b37.txt
+        gmap_extra_x=lambda wildcards: '_nonPAR' if wildcards.chr == 'X' else '',
+        # the hap file is named 1000GP_Phase3_chrX_NONPAR.hap.gz
+        extra_x=lambda wildcards: '_NONPAR' if wildcards.chr == 'X' else '',
+        xflag=lambda wildcards: '--chrX' if wildcards.chr == 'X' else ''
+    threads: 1
+    resources:
+        mem_mb=4000
+    shell:
+        # Note the "|| true" after shapeit -check: this is because shapeit
+        # -check returns non-0 when it finds any number of problematic SNPs.
+        # This CAN be dangerous as we're avoiding Snakemake's pipefail error
+        # detection method.
+        "shapeit -check"
+        "    --input-vcf={input.vcf}"
+        "    --output-log {params.checklog}"
+        "    --seed 1649118769"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample || true ; "
+        "shapeit"
+        "    --thread {threads}"
+        "    --input-vcf={input.vcf}"
+        "    --output-log {params.phaselog}"
+        "    --seed 1649118772"
+        "    -M {config[shapeit_refpanel]}/{params.gmap}{params.gmap_extra_x}_combined_b37.txt"
+        "    --input-ref {config[shapeit_refpanel]}/{params.hap}{params.extra_x}.hap.gz"
+        "        {config[shapeit_refpanel]}/{params.leg}{params.extra_x}.legend.gz "
+        "        {config[shapeit_refpanel]}/1000GP_Phase3.sample"
+        "    --exclude-snp {params.excludefile}"
+        "    {params.xflag}"
+        "    -O {params.tmpout} ; "
+        "shapeit -convert "
+        "    --seed 1649118812"
+        "    --output-log {params.convertlog}"
+        "    --input-haps {params.tmpout} --output-vcf {params.tmpout2} ; "
+        "(grep '^#' {input.vcf} | grep -v '^#CHROM' ; "
+        " grep '^##source' {params.tmpout2} ; "
+        " awk '$10 == \"1|1\" || $10 == \"1|0\" || $10 == \"0|1\" || $1 ~ /^#/' {params.tmpout2}"
+        "    | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" "
+        "    | grep '^[^#]\|^#CHROM' ) > {output}"
+        # These last few greps are necessary for preserving the original VCF
+        # header, which some tools are strict about. SHAPEIT2 does not provide
+        # a header with the required annotations. The second grep also
+        # preserves the SHAPEIT version info (##source).

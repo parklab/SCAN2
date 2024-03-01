@@ -1,0 +1,31 @@
+# vim: syntax=python
+
+rule eagle_scatter:
+    input:
+        "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+    output:
+        "eagle/{chr}/phased_filtered.vcf"
+    params:
+        tmpout="eagle/{chr}/phased_sites_tmp.vcf",
+        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
+        refbcf=lambda wildcards:
+            config['eagle_refpanel'][wildcards.chr],
+        outprefix="eagle/{chr}/phased_sites_tmp"
+    benchmark:
+        "eagle/{chr}/benchmark.tsv"
+    resources:
+        mem_mb=8000
+    shell:
+        """
+        eagle --vcfTarget {params.zippedinput} \
+            --vcfRef {params.refbcf} \
+            --geneticMapFile {config[eagle_genmap]} \
+            --vcfOutFormat v \
+            --outPrefix {params.outprefix} ;
+        awk 'BEGIN {{ OFS="\t"; }} {{ if ($1 ~ /^#/) {{ print $0; }}; if ($10 ~ /^1\|1/ || $10 ~ /^1\|0/ || $10 ~ /^0\|1/) {{ split($10, gt, ":"); $10 = gt[1]; print $0; }} }}' {params.tmpout} \
+             | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" > {output}
+        """
+        # Unlike SHAPEIT, Eagle does preserve header info. We just need to
+        # change the sample name and only retain phased sites. Eagle outputs
+        # more than just the genotype string (0|1 or 1|0), so delete the extra
+        # info.

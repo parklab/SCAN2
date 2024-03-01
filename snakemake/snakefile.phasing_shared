@@ -1,0 +1,213 @@
+# vim: syntax=python
+
+rule phasing_tablefy:
+    input:
+        bcf=config['phaser'] + '/phased_filtered.bcf',
+        bcfidx=config['phaser'] + '/phased_filtered.bcf.csi'
+    output:
+        tab='call_mutations/phase_info.tab.gz',
+        tabidx='call_mutations/phase_info.tab.gz.tbi',
+    log:
+        'call_mutations/phase_info.log'
+    benchmark:
+        'call_mutations/phase_info.benchmark.txt'
+    resources:
+        mem_mb=200
+    shell:
+        """
+        (echo "#chr pos refnt altnt phasedgt" | tr ' ' '\t' ; 
+         bcftools query -f "%CHROM\t%POS\t%REF\t%ALT[\t%GT]\n" {input.bcf}) \
+        | bgzip -c > {output.tab}
+        tabix -pvcf -S 1 {output.tab}
+        """
+
+
+rule phasing_gather_file_list:
+    input:
+        vcfs=expand("{phaser}/{chr}/phased_filtered.analyzable_sites.mmq60.vcf",
+            phaser=config['phaser'],
+            chr=config['chrs'])
+    output:
+        filelist=temp("{phaser}/file_list.txt")
+    localrule: True
+    run:
+        with open(output.filelist, 'w') as f:
+            for vcf in input.vcfs:
+                f.write(str(vcf) + "\n")
+
+
+rule phasing_gather:
+    input:
+        filelist=config['phaser'] + "/file_list.txt",
+        vcfs=expand("{phaser}/{chr}/phased_filtered.analyzable_sites.mmq60.vcf",
+            phaser=config['phaser'],
+            chr=config['chrs'])
+    output:
+        bcf=temp(config['phaser'] + "/phased_filtered.bcf"),
+        bcfidx=temp(config['phaser'] + "/phased_filtered.bcf.csi"),
+    resources:
+        mem_mb=200
+    shell:
+        """
+        bcftools concat \
+            --file-list {input.filelist} \
+            -Ob -o {output.bcf}
+        bcftools index -o {output.bcfidx} {output.bcf}
+        """
+
+
+# Step 1 - get just the bulk sample with non-ref alleles to simplify
+# next steps.
+rule phasing_prepare_bulk:
+    input:
+        bcf="call_mutations/analyzable_sites.mmq60.bcf",
+        bcfidx="call_mutations/analyzable_sites.mmq60.bcf.csi"
+    output:
+        bcf=config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.bcf",
+        bcfidx=config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.bcf.csi"
+    log:
+        config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.log",
+    benchmark:
+        config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.benchmark.txt",
+    params:
+        # snv -> snp
+        muttype=lambda wildcards: 'snp' if wildcards.muttype == 'snv' else 'indel',
+        bulk_sample=config['bulk_sample'],
+        min_dp=lambda wildcards: config[wildcards.muttype + '_min_bulk_dp']
+    resources:
+        mem_mb=200
+    shell:
+        """
+        bcftools view \
+            -Ou \
+            --samples {params.bulk_sample} \
+            --trim-alt-alleles \
+            --include 'TYPE="{params.muttype}"' \
+            {input.bcf} \
+        | bcftools annotate \
+            -Ou \
+            --remove '^FORMAT/GT,^FORMAT/AD,^FORMAT/DP,^FORMAT/GQ,INFO' \
+        | bcftools view \
+            --include 'ALT != "." & FORMAT/GT != "mis" & FORMAT/GT != "ref" & FORMAT/DP >= {params.min_dp}' \
+            -Ob -o {output.bcf}
+        bcftools index -o {output.bcfidx} {output.bcf}
+        """
+
+
+# Very, very simple filtering to remove the most egregious bulk genotypes.
+#
+# It is important to remove very bad genotypes because SHAPEIT and Eagle
+# take them literally -- e.g., a depth=30 site with 1 reference read and
+# 29 variant reads in bulk can sometimes flagged as genotype=0/1 in GATK's
+# raw output. This is almost certainly wrong, and may confuse the phaser
+# since it takes the 0/1 assignment at face value.
+rule phasing_prepare_filter_by_qual:
+    input:
+        bcf=config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.bcf",
+        bcfidx=config['phaser'] + "/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.bcf.csi"
+    output:
+        qual_cutoff=config['phaser'] + "/{chr}/qual_cutoff_{muttype}.txt",
+        vcf=temp(config['phaser'] + "/{chr}/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.qual_cutoff.vcf")
+    log:
+        config['phaser'] + "/{chr}/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.qual_cutoff.log",
+    benchmark:
+        config['phaser'] + "/{chr}/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.qual_cutoff.benchmark.txt"
+    params:
+        phasing_qual_cutoff_quantile=config['phasing_qual_cutoff_quantile'],
+        phasing_gq_cutoff=30
+    resources:
+        mem_mb=100
+    shell:
+        # bcftools query+Rscript calculates the QUAL score cutoff
+        # bcftools filter removes sites that don't meet the QUAL cutoff
+        #
+        # N.B. it looks like QUAL is better at removing poor calls than FORMAT/GQ.
+        # Initially I thought the opposite may be true, because FORMAT/GQ is
+        # specific to the sample while QUAL represents all samples at the locus,
+        # making QUAL less appropriate a measure of the bulk sample.
+        # 
+        # However, it seems that the same reason has the opposite effect:
+        # aggregating information across the bulk and single cells is an
+        # information gain. This makes perfect sense for germline variants, since
+        # the majority of these should be shared by all single cells as well.
+        """
+        bcftools query -f '%QUAL\n' {input.bcf} \
+        | Rscript -e 'x <- scan("stdin", what=0, quiet=TRUE); cat(quantile(x, probs={params.phasing_qual_cutoff_quantile}))' > {output.qual_cutoff}
+        bcftools filter \
+            -Ov -o {output.vcf} \
+            --include "FORMAT/GQ >= {params.phasing_gq_cutoff} & QUAL >= $(cat {output.qual_cutoff})" \
+            {input.bcf}
+        """
+
+
+'''
+rule shapeit_prepare:
+    input:
+        bcf="call_mutations/analyzable_sites.mmq60.bcf",
+        bcfidx="call_mutations/analyzable_sites.mmq60.bcf.csi"
+    output:
+        vcf=temp("shapeit/{chr}/hc_raw.mmq60.{chr}.vcf")
+    log:
+        "shapeit/{chr}/prepare.log"
+    benchmark:
+        "shapeit/{chr}/benchmark_prepare.txt"
+    params:
+        chr="{chr}",
+        bulk_sample=config['bulk_sample']
+    resources:
+        mem_mb=200
+    shell:
+        # bcftools method is md5sum-identical to the gatk SelectVariants method except
+        # for the QUAL (6) and INFO (8) columns. Closer inspection shows the difference is
+        # in number of signiciant digits written. E.g., where the GATK method reports a QUAL
+        # score as "1929.80", the bcftools method reports "1929.8".
+        #
+        # (scan2dev) compute-a-16-171$ grep -v '^#' old_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
+        # 74fcb63714173ce1ca5259bcc1564fd6  -
+        # (scan2dev) compute-a-16-171$ grep -v '^#' new_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
+        # 74fcb63714173ce1ca5259bcc1564fd6  -
+        # 
+        # second bcftools call: i can't get ALT != "." to work in the first call,
+        # perhaps because ALT="." results from the application of --trim-alt-alleles.
+        # not sure.
+        """
+        bcftools view \
+            -s {params.bulk_sample} \
+            -r {params.chr} \
+            --trim-alt-alleles \
+            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
+            {input.bcf} \
+        | bcftools view \
+            --include 'ALT != "." & GT != "mis"' \
+            -Ov -o {output.vcf}
+        """
+'''
+
+
+# this is almost identical to shapeit_prepare - the only difference is the final
+# output is .vcf.gz instead of .vcf
+'''
+rule eagle_prepare:
+    input:
+        bcf="gatk/hc_raw.mmq60.bcf",
+        bcfidx="gatk/hc_raw.mmq60.bcf.csi"
+    output:
+        vcfgz="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+    params:
+        chr="{chr}"
+    resources:
+        mem_mb=200
+    shell:
+        """
+        bcftools view \
+            -s {params.bulk_sample} \
+            -r {params.chr} \
+            --trim-alt-alleles \
+            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
+            {input.bcf} \
+        | bcftools view \
+            --include 'ALT != "." & GT != "mis"' \
+            -Oz -o {output.vcfgz}
+        tabix -pvcf {output.vcfgz}"
+        """
+'''

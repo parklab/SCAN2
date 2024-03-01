@@ -2,13 +2,13 @@
 
 rule integrate_tables:
     input:
-        config_yaml='scan.yaml',    # quite the hack. would really prefer not to do this
+        config_yaml='scan.yaml',
         mmq60="call_mutations/mmq60.tab.gz",
         mmq60idx="call_mutations/mmq60.tab.gz.tbi",
         mmq1="call_mutations/mmq1.tab.gz",
         mmq1idx="call_mutations/mmq1.tab.gz.tbi",
-        phasing=config['phaser'] + "/phased_filtered.bcf",
-        phasingidx=config['phaser'] + "/phased_filtered.bcf.csi"
+        phasing="call_mutations/phase_info.tab.gz",
+        phasingidx="call_mutations/phase_info.tab.gz.tbi",
     output:
         tab=temp("call_mutations/integrated_table.tab"),
         tabgz="call_mutations/integrated_table.tab.gz",
