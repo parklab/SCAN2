@@ -6,8 +6,8 @@ if (!(length(args) %in% 4:5))
 
 inf <- args[1]
 metaf <- args[2]
-outf <- args[3]
-genome <- args[4]
+configf <- args[3]
+outf <- args[4]
 n.cores <- 1
 if (length(args) == 5)
     n.cores <- as.integer(args[5])
@@ -111,9 +111,8 @@ cat("Bulks: ")
 print(meta[amp=='bulk']$sample)
 
 # GRanges intervals for chunked pipeline
-genome.seqinfo <- scan2::genome.string.to.seqinfo.object(genome)
-grs <- tileGenome(seqlengths=genome.seqinfo[seqlevels(genome.seqinfo)[1:22]],
-                  tilewidth=10e6, cut.last.tile.in.chrom=TRUE)
+dummy.object <- scan2::make.scan(config.path=configf)
+grs <- scan2::restricted.genome.tiling(object=dummy.object, tilewidth=10e6)
 
 # map donor <-> sample IDs
 dmap <- meta$donor   
