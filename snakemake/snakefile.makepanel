@@ -2,37 +2,65 @@
 
 include: "snakefile.select_gatk"
 
-rule vcf_to_tab:
+rule bcf_to_tab:
     input:
-        "gatk/hc_raw.mmq60.vcf"
+        bcf="gatk/hc_raw.mmq60.bcf"
     output:
         tabgz="panel/hc_raw.mmq60.tab.gz",
         tabidx="panel/hc_raw.mmq60.tab.gz.tbi",
     log:
-        "panel/vcf_to_tab.log"
+        "panel/bcf_to_tab.log"
     resources:
         mem_mb=1000
     benchmark:
-        "gatk/benchmark_vcf_to_tab.txt"
+        "gatk/benchmark_bcf_to_tab.txt"
     shell:
+        # I don't think bcftools query can compute simple expressions, so need
+        # to use plugin +fill-tags to calculate the number of alt alleles and the summed
+        # alt allele depth across all alleles
+        #
+        # the bcftools implementation is md5sum-identical to the older awk implementation below:
+        #     bcftools view -Ov {input.bcf} | {config[scripts]}/totab.panel.sh /dev/stdin /dev/stdout | bgzip -c > {output.tabgz}
+        #
+        # TODO: eventually this panel should split multiallelic sites.  As it works
+        # currently, individual single cell tables are joined to the panel on (chr,pos),
+        # not (chr,pos,ref,alt), because the panel often contains many multialleleic
+        # sites (since so many samples are provided to it).  In this situation, the
+        # single cell analysis does not know how often the specific allele it detected
+        # was seen in the panel.
+        #
+        # first bcftools query: easier to output the header like this. note the "|| true"
+        # and extra nested shell (): bcftools query exits with non-0 error code when
+        # interrupted by, e.g., head, so the "|| true" prevents the rule from failing.
+        #
+        # the final awk script converts missing read depths (.) to 0
         """
-        {config[scripts]}/totab.panel.sh {input} /dev/stdout | bgzip -c > {output.tabgz}
+        ((bcftools query \
+            --format '#chr\\tpos\\tdbsnp\\trefnt\\taltnt\\tnalleles[\\t%SAMPLE]\\n' \
+            {input.bcf} || true) | head -1 ;
+         bcftools plugin fill-tags \
+             -Ou {input.bcf} -- \
+             --tags 'INFO/N_ALT:1=int(count(ALT)),FORMAT/ALL_ALT_AD:1=int(smpl_sum(FORMAT/AD[*:1-]))' \
+         | bcftools query --format '%CHROM\t%POS\t%ID\t%REF\t%ALT\t%N_ALT[\t%ALL_ALT_AD]\n' \
+        ) \
+        | awk 'BEGIN {{ ORS=""; OFS="\\t"; }} {{ print $1, $2, $3, $4, $5, $6; for (i = 7; i <= NF; i = i+1) {{ if ($i == ".") $i=0; printf "\\t%s", $i; }} printf "\\n"; }}' \
+        | bgzip -c > {output.tabgz}
         tabix -p vcf -S 1 {output.tabgz}
         """
+
 
 rule process_tab:
     input:
         tab="panel/hc_raw.mmq60.tab.gz",
         tabgz="panel/hc_raw.mmq60.tab.gz.tbi",
-        meta=lambda wildcards: config['makepanel_metadata']
+        meta=lambda wildcards: config['makepanel_metadata'],
+        config='scan.yaml'
     output:
         tab=temp("panel/panel.tab"),
         tabgz="panel/panel.tab.gz",
         tabix="panel/panel.tab.gz.tbi"
     log:
         "panel/make_panel.log"
-    params:
-        genome=config['genome']
     benchmark:
         "panel/benchmark_make_panel.txt"
     threads: config['makepanel_n_cores']
@@ -41,7 +69,7 @@ rule process_tab:
     shell:
         """
         {config[scripts]}/make_panel.R \
-            {input.tab} {input.meta} {output.tab} {params.genome} {threads}
+            {input.tab} {input.meta} {input.config} {output.tab} {threads}
         """
 
 
