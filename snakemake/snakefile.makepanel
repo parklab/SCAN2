@@ -11,9 +11,9 @@ rule bcf_to_tab:
     log:
         "panel/bcf_to_tab.log"
     resources:
-        mem_mb=1000
+        mem_mb=200
     benchmark:
-        "gatk/benchmark_bcf_to_tab.txt"
+        "panel/benchmark_bcf_to_tab.txt"
     shell:
         # I don't think bcftools query can compute simple expressions, so need
         # to use plugin +fill-tags to calculate the number of alt alleles and the summed
