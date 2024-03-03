@@ -15,7 +15,7 @@ rule mutsig_rescue:
     resources:
         # ~6 GB RAM per worker, unfortunately. Could be down to ~3 GB if
         # we could prevent copying the @gatk table after load()ing the object.
-        mem_mb=lambda wildcards, input, output, threads: 6000*threads
+        mem_mb=lambda wildcards, input, threads: 6000*threads
     benchmark:
         "benchmark_mutsig_rescue.txt"
     shell:

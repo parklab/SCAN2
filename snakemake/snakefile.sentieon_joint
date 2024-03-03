@@ -51,7 +51,7 @@ rule gatk_scatter:
         #         2: 10000 + 31*4*x  MB
         #         3: 200000          MB  (=200GB)
         # N.B. attempt starts at 1
-        mem_mb=lambda wildcards, input, output, threads, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(input))
+        mem_mb=lambda wildcards, input, threads, attempt: 200000 if attempt == 3 else (1000 + (9000*(attempt-1)) + 31*(4**(attempt-1))*len(input))
     threads: 1
     shell:
         """

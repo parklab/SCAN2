@@ -40,6 +40,6 @@ rule abmodel_scatter:
         "ab_model/{sample}/benchmark_abmodel_scatter_{chr}.tsv"
     threads: config['abmodel_n_cores']
     resources:
-        mem_mb=lambda wildcards, input, output, threads: 1000*threads  # 1 GB per core
+        mem_mb=lambda wildcards, input, threads: 1000*threads  # 1 GB per core
     script:
         "scripts/abmodel_scatter_chrom_tiled_script.R"

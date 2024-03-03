@@ -20,7 +20,7 @@ rule depth_profile_region_summarize_per_sample:
         # many real world runs. the max. memory used was 1555 MB per thread; did
         # not scale with number of samples in each batch, as expected. give 1800 MB,
         # a little extra headroom.
-        mem_mb=lambda wildcards, input, output, threads: 1800 * threads
+        mem_mb=lambda wildcards, input, threads: 1800 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """

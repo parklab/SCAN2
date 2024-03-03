@@ -54,7 +54,7 @@ rule genotype:
         sc_sample="{sample}",
     threads: config['genotype_n_cores']
     resources:
-        mem_mb=lambda wildcards, input, output, threads: 1500*threads
+        mem_mb=lambda wildcards, input, threads: 1500*threads
     shell:
         """
         {config[scripts]}/call_mutations.R \

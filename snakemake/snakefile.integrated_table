@@ -20,7 +20,7 @@ rule integrate_tables:
         cross_sample_panel=config['cross_sample_panel']
     threads: config['integrate_table_n_cores']
     resources:
-        mem_mb=lambda wilcards, input, output, threads: 2000*threads
+        mem_mb=lambda wildcards, input, threads: 2000*threads
     benchmark:
         "call_mutations/benchmark_integrate_tables.txt"
     script:
