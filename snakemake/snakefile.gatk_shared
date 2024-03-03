@@ -46,14 +46,17 @@ rule gatk_gather:
     output:
         bcf="gatk/hc_raw.mmq{gatk_mmq}.bcf",
         bcfidx="gatk/hc_raw.mmq{gatk_mmq}.bcf.csi"
-    resources:
-        mem_mb=200
+    log:
+        "gatk/concat_benchmark.mmq{gatk_mmq}.log"
     benchmark:
         "gatk/concat_benchmark.mmq{gatk_mmq}.tsv"
+    resources:
+        mem_mb=200
+    threads: 1
     shell:
         """
         bcftools concat \
             --file-list {input.listfile} \
-            -Ob -o {output.bcf} && \
+            -Ob -o {output.bcf}
         bcftools index {output.bcf} --output {output.bcfidx}
         """
