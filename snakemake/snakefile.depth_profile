@@ -20,7 +20,7 @@ rule depth_profile_region_summarize_per_sample:
         # many real world runs. the max. memory used was 1555 MB per thread; did
         # not scale with number of samples in each batch, as expected. give 1800 MB,
         # a little extra headroom.
-        mem_mb=lambda wildcards, input, threads: 1800 * threads
+        mem_mb=lambda wildcards, input, output, threads: 1800 * threads
     threads: config['digest_depth_n_cores']
     shell:
         """
@@ -48,7 +48,9 @@ rule depth_profile_gather:
         # There may be 1000s of regions (and thus files) in larger projects.  There
         # is a limit to how long a command line can be, so read the file names from
         # a file rather than pasting them into a command.
-        argfile="depth_profile/region_arg_file.txt"
+        argfile="depth_profile/region_arg_file.txt",
+        files=expand("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt",
+            analysis_region=config['analysis_regions'])
     output:
         tabgz="depth_profile/joint_depth_matrix.tab.gz",
         tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
