@@ -12,7 +12,7 @@ rule sensitivity_abmodel_covariates:
         "sensitivity/{sample}/benchmark_abmodel_covariates.txt"
     threads: config['sensitivity_n_cores']
     resources:
-        mem_mb=lambda wildcards, input, threads: 2500*config['sensitivity_n_cores']
+        mem_mb=lambda wildcards, input, output, threads: 2500*threads
     script:
         config['scripts'] + '/spatial_sens_abmodel.R'
 
@@ -29,7 +29,7 @@ rule sensitivity_depth_covariates:
         "sensitivity/{sample}/benchmark_depth_covariates.txt"
     threads: config['sensitivity_n_cores']
     resources:
-        mem_mb=lambda wildcards, input, threads: 3000*config['sensitivity_n_cores']
+        mem_mb=lambda wildcards, input, output, threads: 3000*threads
     script:
         config['scripts'] + '/spatial_sens_depth.R'
 

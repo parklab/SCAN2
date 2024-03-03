@@ -48,13 +48,13 @@ rule genotype:
         "call_mutations/{sample}/scan2_object.rda"
     log:
         "call_mutations/{sample}/call_mutations.log"
+    benchmark:
+        "call_mutations/{sample}/benchmark_genotype.txt"
     params:
         sc_sample="{sample}",
     threads: config['genotype_n_cores']
     resources:
-        mem_mb=1500*config['genotype_n_cores']
-    benchmark:
-        "call_mutations/{sample}/benchmark_genotype.txt"
+        mem_mb=lambda wildcards, input, output, threads: 1500*threads
     shell:
         """
         {config[scripts]}/call_mutations.R \
