@@ -27,35 +27,42 @@ scs=$(cat $sd/scan.yaml | shyaml keys sc_bams)
 chroms=$(cat $sd/scan.yaml | shyaml get-values chrs)
 
 # Number of windows the genome is divided into for GATK HaplotypeCaller and DepthOfCoverage
-gatk_chunks=$(cat $sd/scan.yaml | shyaml get-value gatk_chunks)
+#gatk_chunks=$(cat $sd/scan.yaml | shyaml get-value gatk_chunks)
+
+# Was spatial sensitivity calculated?
+spatial_sens=$(cat $sd/scan.yaml | shyaml get-value compute_sensitivity)j
 
 # all benchmark files have identical headers. However, we need to choose a
 # benchmark file shared across all analysis types (or do some special handling).
-echo "job_category job subjob $(head -1 $sd/gatk/gather_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
+echo "job_category job subjob $(head -1 $sd/gatk/concat_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
 
 
 
 
 if [ "x$analysis" == "xmakepanel" ]; then
     echo "GATK (MMQ >= 60)"
-    echo "panel gather_mmq60 1 $(tail -n +2 $sd/gatk/gather_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
-    for i in `seq 1 $gatk_chunks`; do
-        echo "panel haplotypecaller_mmq60 $i $(tail -n +2 $sd/gatk/scatter_benchmark.mmq60_chunk${i}.tsv | tr '\t' ' ')" >> $out
+    echo "panel gather_mmq60 1 $(tail -n +2 $sd/gatk/concat_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
+    cat $sd/scan.yaml | shyaml get-values analysis_regions \
+    | while read region; do 
+        echo "panel haplotypecaller_mmq60 $region $(tail -n +2 $sd/gatk/scatter_benchmark.mmq60.region_${region}.tsv | tr '\t' ' ')" >> $out
     done
 
     echo "Make panel"
+    echo "panel bcftotab 1 $(tail -n +2 $sd/panel/benchmark_bcf_to_tab.txt | tr '\t' ' ')" >> $out
     echo "panel makepanel 1 $(tail -n +2 $sd/panel/benchmark_make_panel.txt | tr '\t' ' ')" >> $out
 elif [ "x$analysis" == "xcall_mutations" ]; then
     echo "GATK (MMQ >= 60)"
-    echo "gatk gather_mmq60 1 $(tail -n +2 $sd/gatk/gather_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
-    for i in `seq 1 $gatk_chunks`; do
-        echo "gatk haplotypecaller_mmq60 $i $(tail -n +2 $sd/gatk/scatter_benchmark.mmq60_chunk${i}.tsv | tr '\t' ' ')" >> $out
+    echo "gatk gather_mmq60 1 $(tail -n +2 $sd/gatk/concat_benchmark.mmq60.tsv | tr '\t' ' ')" >> $out
+    cat $sd/scan.yaml | shyaml get-values analysis_regions \
+    | while read region; do 
+            echo "gatk haplotypecaller_mmq60 $region $(tail -n +2 $sd/gatk/scatter_benchmark.mmq60.region_${region}.tsv | tr '\t' ' ')" >> $out
     done
 
     echo "GATK (MMQ >= 1)"
-    echo "gatk gather_mmq1 1 $(tail -n +2 $sd/gatk/gather_benchmark.mmq1.tsv | tr '\t' ' ')" >> $out
-    for i in `seq 1 $gatk_chunks`; do
-        echo "gatk haplotypecaller_mmq1 $i $(tail -n +2 $sd/gatk/scatter_benchmark.mmq1_chunk${i}.tsv | tr '\t' ' ')" >> $out
+    echo "gatk gather_mmq1 1 $(tail -n +2 $sd/gatk/concat_benchmark.mmq1.tsv | tr '\t' ' ')" >> $out
+    cat $sd/scan.yaml | shyaml get-values analysis_regions \
+    | while read region; do 
+        echo "gatk haplotypecaller_mmq1 $region $(tail -n +2 $sd/gatk/scatter_benchmark.mmq1.region_${region}.tsv | tr '\t' ' ')" >> $out
     done
 
     echo "Depth profiling"
@@ -63,14 +70,15 @@ elif [ "x$analysis" == "xcall_mutations" ]; then
     for sc in $scs; do
         echo "depth_profile summarize $sc $(tail -n +2 $sd/depth_profile/benchmark_${sc}_region_summarize.txt | tr '\t' ' ')" >> $out
     done
-    for i in `seq 1 $gatk_chunks`; do
-        echo "depth_profile gatk_depthofcoverage $i $(tail -n +2 $sd/depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage_chunk${i}.txt | tr '\t' ' ')" >> $out
+    cat $sd/scan.yaml | shyaml get-values analysis_regions \
+    | while read region; do 
+        echo "depth_profile gatk_depthofcoverage $region $(tail -n +2 $sd/depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage.region_${region}.txt | tr '\t' ' ')" >> $out
     done
 
 
     echo "SHAPEIT"
     for chr in $chroms; do
-        echo "phasing shapeit $chr $(tail -n +2 $sd/shapeit/$chr/benchmark.tsv | tr '\t' ' ')" >> $out
+        echo "phasing shapeit $chr $(tail -n +2 $sd/shapeit/$chr/benchmark_shapeit.tsv | tr '\t' ' ')" >> $out
     done
 
 
@@ -105,12 +113,16 @@ elif [ "x$analysis" == "xcall_mutations" ]; then
     done
 
 
-    echo "Spatial sensitivity"
-    for sc in $scs; do
-        echo "spatial_sensitivity abmodel_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_abmodel_covariates.txt | tr '\t' ' ')" >> $out
-        echo "spatial_sensitivity depth_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_depth_covariates.txt | tr '\t' ' ')" >> $out
-        echo "spatial_sensitivity integrate_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_integrate.txt | tr '\t' ' ')" >> $out
-    done
+    if [ $spatial_sensitivity == "True" ]; then
+        echo "Spatial sensitivity"
+        for sc in $scs; do
+            echo "spatial_sensitivity abmodel_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_abmodel_covariates.txt | tr '\t' ' ')" >> $out
+            echo "spatial_sensitivity depth_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_depth_covariates.txt | tr '\t' ' ')" >> $out
+            echo "spatial_sensitivity integrate_covariates $sc $(tail -n +2 $sd/sensitivity/$sc/benchmark_integrate.txt | tr '\t' ' ')" >> $out
+        done
+    else
+        echo "Skipping spatial sensitivity (compute_sensitivity=$spatial_sensitivity)"
+    fi
 else
     echo "ERROR: unsupported analysis type in $sd/scan.yaml ($analysis). Only analysis=call_mutations and analysis=makepanel are supported"
     exit 1
