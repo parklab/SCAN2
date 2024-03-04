@@ -1013,7 +1013,7 @@ if __name__ == "__main__":
     gatk = config_parser.add_argument_group('Analysis intervals',
         'These parameters allow the user to specify which portions of the genome should be analyzed and how to parallelize jobs.  The default is to analyze the first 22 contigs in the user-supplied reference genome (and parallelize at the chromosome level); THIS IS NOT RECOMMENDED BECAUSE THE PARALLELIZATION IS NOT GRANULAR ENOUGH.  Regions MUST be specified in the same order as the reference genome and must not overlap!  The user is responsible for ensuring that only diploid, phaseable autosomes and known haploid sex chromosomes are among the list of regions.  We do not recommend analysis of pseudoautosomal regions (PARs), but the user is allowed to specify them.')
     gatk.add_argument('--regions', metavar="STRING",
-        help='A comma separated list of regions in the format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.  Regions must be 1-indexed, unlike --regions-file, which is a BED file (0-indexed).')
+        help='A comma separated list of regions in the format: chr:start-stop, e.g. 22:30000001-31000000,22:31000001-32000000.  Cannot be specified in addition to --regions-file.  Regions must be 1-indexed, unlike --regions-file, which is a BED file (0-indexed), and both ends of the interval are inclusive.')
     gatk.add_argument('--regions-file', metavar='PATH',
         help='A 0-indexed BED file containing regions to be analyzed.  Cannot be specified in addition to --regions.  Also note that --regions is 1-indexed while intervals in PATH are expected to be 0-indexed.')
     
