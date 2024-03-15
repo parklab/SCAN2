@@ -5,6 +5,7 @@ wildcard_constraints:
     gatk_chunk="\d+",
     gatk_mmq="\d+",
     phaser="shapeit|eagle",
+    depth_method="gatkdocov|samtoolsdepth",
     muttype='snv|indel',
     passtype='pass|rescue'
 
