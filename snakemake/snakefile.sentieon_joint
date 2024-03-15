@@ -62,6 +62,7 @@ rule gatk_scatter:
             --algo Haplotyper \
             -d {config[dbsnp]} \
             --min_map_qual {params.mmq} \
+            --min_base_qual {config[min_base_quality_score]} \
             --trim_soft_clip \
             {output.vcf} >& {log}
         """

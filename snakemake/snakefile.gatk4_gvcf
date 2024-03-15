@@ -96,8 +96,8 @@ rule gatk_scatter:
             --dont-use-soft-clipped-bases \
             --dbsnp {config[dbsnp]} \
             --minimum-mapping-quality {params.mmq} \
-           --emit-ref-confidence BP_RESOLUTION \
             --min-base-quality-score {config[min_base_quality_score]} \
+            --emit-ref-confidence BP_RESOLUTION \
             {params.regionflag} \
             -R {config[ref]} \
             -I {input.bam} \

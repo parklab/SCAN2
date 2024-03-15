@@ -51,7 +51,12 @@ scan2_param_defaults = {
     'indel_cigar_id_score_quantile_cutoff': 0.05,
     'indel_cigar_hs_score_quantile_cutoff': 0.05,
     'indel_exclude_dbsnp': True,
-    'min_base_quality_score': 20,
+    # This is the GATK4 default. Option not yet exposed to users. Likely
+    # that a value >=25 would be good for NovaSeq6000/X WGA data since
+    # raw BQs are 2, 12, 23, 37, but then usually BQSR drops this so
+    # that the top quality is 31-32.
+    # Needs testing.
+    'min_base_quality_score': 10,      
     'analyze_snvs': True,
     'analyze_indels': True,
     'abmodel_use_fit': {},
@@ -819,6 +824,10 @@ def do_progress(args):
             print('%-40s %s' % (k, progress_bar(n_complete, v)))
 
 
+def do_vcf(args):
+    print("scan2 vcf NOT IMPLEMENTED!")
+
+
 
 ##########################################################################
 # Command line arguments and subcommand definitions.
@@ -1244,6 +1253,19 @@ if __name__ == "__main__":
     permtool_parser.set_defaults(executor=do_permtool)
     permtool_parser = add_runtime_args(permtool_parser)
 
+    ##########################################################################
+    # The 'vcf' subcommand
+    #
+    # Converts a scan2 object into a vcf file.
+    vcf_parser = subparsers.add_parser('vcf',
+        help='[NOT IMPLEMENTED] Convert a SCAN2 full analysis object to VCF format.')
+    vcf_parser.add_argument('scan2_object', type=readable_file, metavar='PATH',
+        help='PATH to a SCAN2 object to convert')
+    vcf_parser.add_argument('vcf', type=str, metavar='PATH',
+        help='Write output VCF to PATH.')
+    vcf_parser.add_argument('--simple-filters', action='store_true', default=False,
+        help='Choose only one filter (in a fairly arbitrary, though consistent order) to report in the VCF file. Greatly reduces runtime.')
+    vcf_parser.set_defaults(executor=do_vcf)
 
     # Get the args and run the relavent subcommand
     args = ap.parse_args()
@@ -1252,5 +1274,6 @@ if __name__ == "__main__":
         ap.print_help()
         exit(1)
     
-    args.analysis_dir = os.path.abspath(args.analysis_dir)
+    if args.subcommand != 'vcf':
+        args.analysis_dir = os.path.abspath(args.analysis_dir)
     args.executor(args)
