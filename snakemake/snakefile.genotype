@@ -43,7 +43,7 @@ rule genotype:
         bulkcigarsidx="call_mutations/%s/cigars.tab.gz.tbi" % config['bulk_sample'],
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
-        dptab="depth_profile/{sample}_depth_table.rda"
+        dptab="depth_profile/{sample}_samtoolsdepth_depth_table.rda"
     output:
         "call_mutations/{sample}/scan2_object.rda"
     log:
