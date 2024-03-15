@@ -1,16 +1,24 @@
 # vim: syntax=python
 
+# Basepair resolution depth profiles are used for extrapolation of mutation burden.
+# There are two tools for calculating this bp-res depth:
+#       1. GATK DepthOfCoverage
+#       2. samtools depths
+# GATK DepthOfCoverage is ~100x slower than samtools depth and gives comparable
+# output. Because of this, the two tools are parallelized differently. GATK uses
+# analysis_regions and samtools depths splits jobs per chromosome.
+
 rule depth_profile_region_summarize_per_sample:
     input:
         config_yaml='scan.yaml',
-        tab="depth_profile/joint_depth_matrix.tab.gz",
-        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
+        tab="depth_profile/{depth_method}_joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/{depth_method}_joint_depth_matrix.tab.gz.tbi"
     output:
-        rda="depth_profile/{sample}_depth_table.rda"
+        rda="depth_profile/{sample}_{depth_method}_depth_table.rda"
     params:
         sc_sample="{sample}"
     benchmark:
-        "depth_profile/benchmark_{sample}_region_summarize.txt"
+        "depth_profile/benchmark_{sample}_{depth_method}_region_summarize.txt"
     resources:
         # This memory value depends strongly on the size of GATK regions. Here we
         # assume 10 Mb chunks and 10 bytes per position per sample.
@@ -32,10 +40,10 @@ rule depth_profile_region_summarize_per_sample:
 
 rule depth_profile_make_arg_file:
     input:
-        files=expand("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt",
-            analysis_region=config['analysis_regions'])
+        files=lambda wildcards: expand("depth_profile/{{depth_method}}/region_{analysis_region}.txt",
+            analysis_region=config['analysis_regions'] if wildcards.depth_method == "gatkdocov" else config['chrs'])
     output:
-        argfile="depth_profile/region_arg_file.txt"
+        argfile="depth_profile/{depth_method}_region_arg_file.txt"
     localrule: True
     run:
         with open(output.argfile, 'w') as f:
@@ -48,16 +56,16 @@ rule depth_profile_gather:
         # There may be 1000s of regions (and thus files) in larger projects.  There
         # is a limit to how long a command line can be, so read the file names from
         # a file rather than pasting them into a command.
-        argfile="depth_profile/region_arg_file.txt",
-        files=expand("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt",
-            analysis_region=config['analysis_regions'])
+        argfile="depth_profile/{depth_method}_region_arg_file.txt",
+        files=lambda wildcards: expand("depth_profile/{{depth_method}}/region_{analysis_region}.txt",
+            analysis_region=config['analysis_regions'] if wildcards.depth_method == "gatkdocov" else config['chrs'])
     output:
-        tabgz="depth_profile/joint_depth_matrix.tab.gz",
-        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
+        tabgz="depth_profile/{depth_method}_joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/{depth_method}_joint_depth_matrix.tab.gz.tbi"
     log:
-        "depth_profile/joint_depth_matrix.log"
+        "depth_profile/{depth_method}_joint_depth_matrix.log"
     benchmark:
-        "depth_profile/benchmark_joint_depth_matrix.txt"
+        "depth_profile/benchmark_{depth_method}_joint_depth_matrix.txt"
     threads: 4
     resources:
         mem_mb=1000
@@ -75,16 +83,16 @@ rule depth_profile_gather:
 
 # Needs to match GATK read filters (e.g., mapping quality, additional
 # default HaplotypeCaller read filters) to be meaningful.
-rule depth_profile_scatter:
+rule gatkdocov_depth_profile_scatter:
     input:
         argfile="gatk/arg_file_bams.list"
     output:
-        tmp=temp("depth_profile/gatk_depthofcoverage/region_{analysis_region}.tmp.txt"),
-        txt=temp("depth_profile/gatk_depthofcoverage/region_{analysis_region}.txt")
+        tmp=temp("depth_profile/gatkdocov/region_{analysis_region}.tmp.txt"),
+        txt=temp("depth_profile/gatkdocov/region_{analysis_region}.txt")
     log:
-        "depth_profile/gatk_depthofcoverage/region_{analysis_region}.log"
+        "depth_profile/gatkdocov/region_{analysis_region}.log"
     benchmark:
-        "depth_profile/gatk_depthofcoverage/benchmark_depthofcoverage.region_{analysis_region}.txt"
+        "depth_profile/gatkdocov/benchmark_depthofcoverage.region_{analysis_region}.txt"
     params:
         regionflag="-L {analysis_region}"
     threads: 1
@@ -113,4 +121,48 @@ rule depth_profile_scatter:
             --output-format TABLE \
             -O {output.tmp}
         {config[scripts]}/totab.depth_profile.sh {output.tmp} {output.txt} \
+        """
+
+
+rule make_samtoolsdepth_argfile:
+    input:
+        files=config['bam_map'].values()
+    output:
+        argfile="depth_profile/samtoolsdepth/bam_arg_file.txt"
+    localrule: True
+    run:
+        with open(output.argfile, 'w') as f:
+            for infile in input.files:
+                f.write(str(infile) + "\n")
+
+
+# Needs to match GATK read filters (e.g., mapping quality, additional
+# default HaplotypeCaller read filters) to be meaningful.
+rule samtoolsdepth_depth_profile_scatter:
+    input:
+        argfile="depth_profile/samtoolsdepth/bam_arg_file.txt"
+    output:
+        txt=temp("depth_profile/samtoolsdepth/region_{analysis_region}.txt")
+    log:
+        "depth_profile/samtoolsdepth/region_{analysis_region}.log"
+    benchmark:
+        "depth_profile/samtoolsdepth/benchmark_samtoolsdepth.region_{analysis_region}.txt"
+    params:
+        regionflag="-r {analysis_region}"
+    threads: 1
+    resources:
+        mem_mb=1000
+    shell:
+        # First two lines create a header in the correct order
+        """
+        (echo -n "#chr pos "|tr ' ' '\t' ;
+         cat {input.argfile} | samtools samples | cut -f1 | tr '\n' '\t' | sed -e 's/\t$//' ;
+         echo "" ;
+         samtools depth \
+            -a \
+            -f {input.argfile} \
+            --reference {config[ref]} \
+            {params.regionflag} \
+            --min-MQ 60 \
+            --excl-flags UNMAP,SECONDARY,QCFAIL,DUP,SUPPLEMENTARY ) > {output.txt}
         """
