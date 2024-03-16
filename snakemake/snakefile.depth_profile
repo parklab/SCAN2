@@ -151,7 +151,7 @@ rule samtoolsdepth_depth_profile_scatter:
         regionflag="-r {analysis_region}"
     threads: 1
     resources:
-        mem_mb=1000
+        mem_mb=500
     shell:
         # First two lines create a header in the correct order
         """
