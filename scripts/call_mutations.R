@@ -2,8 +2,8 @@
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)
-if (length(args) < 9)
-    stop('usage: call_mutations.R sc.sample config.yaml integrated_table.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda dptab.rda output.rda [n.cores]')
+if (length(args) < 12)
+    stop('usage: call_mutations.R sc.sample config.yaml integrated_table.tab.gz abmodel_fits.rda single_cell_cigars.tab.gz bulk_cigars.tab.gz cigar_training_data.rda dptab.rda sc.binned.counts bulk.binned.counts gc.bins out.rda [n.cores]')
 
 sc.sample <- args[1]
 config.yaml <- args[2]
@@ -13,11 +13,14 @@ sccigars <- args[5]
 bulkcigars <- args[6]
 cigardata <- args[7]
 dptab <- args[8]
-out.rda <- args[9]
+sc.bins <- args[9]
+bulk.bins <- args[10]
+gc.bins <- args[11]
+out.rda <- args[12]
 
 n.cores <- 1
-if (length(args) == 10)
-    n.cores <- as.integer(args[10])
+if (length(args) == 13)
+    n.cores <- as.integer(args[13])
 
 if (file.exists(out.rda))
     stop(paste('output file', out.rda, 'already exists, please delete it first'))
@@ -37,6 +40,9 @@ with_progress({
         int.tab=int.tab, abfits=abmodel.fits,
         sccigars=sccigars, bulkcigars=bulkcigars,
         trainingcigars=cigardata, dptab=dptab,
+        sc.binned.counts=sc.bins,
+        bulk.binned.counts=bulk.bins,
+        gc.content.bins=gc.bins,
         verbose=FALSE, report.mem=TRUE)
 }, enable=TRUE)
 
