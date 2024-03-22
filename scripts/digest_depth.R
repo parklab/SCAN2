@@ -54,8 +54,9 @@ progressr::with_progress({
 }, enable=TRUE)
 
 dptab <- results$dptab
+dptabs.sex <- results$dptabs.sex
 clamp.dp <- results$clamp.dp
-save(dptab, clamp.dp, file=out.rda)
+save(dptab, dptabs.sex, clamp.dp, file=out.rda)
 
 if ('snakemake' %in% ls()) {
     sink()
