@@ -11,14 +11,14 @@
 rule depth_profile_region_summarize_per_sample:
     input:
         config_yaml='scan.yaml',
-        tab="depth_profile/{depth_method}_joint_depth_matrix.tab.gz",
-        tabidx="depth_profile/{depth_method}_joint_depth_matrix.tab.gz.tbi"
+        tab="depth_profile/joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
-        rda="depth_profile/{sample}_{depth_method}_depth_table.rda"
+        rda="depth_profile/{sample}_depth_table.rda"
     params:
         sc_sample="{sample}"
     benchmark:
-        "depth_profile/benchmark_{sample}_{depth_method}_region_summarize.txt"
+        "depth_profile/benchmark_{sample}_region_summarize.txt"
     resources:
         # This memory value depends strongly on the size of GATK regions. Here we
         # assume 10 Mb chunks and 10 bytes per position per sample.
@@ -56,16 +56,17 @@ rule depth_profile_gather:
         # There may be 1000s of regions (and thus files) in larger projects.  There
         # is a limit to how long a command line can be, so read the file names from
         # a file rather than pasting them into a command.
-        argfile="depth_profile/{depth_method}_region_arg_file.txt",
-        files=lambda wildcards: expand("depth_profile/{{depth_method}}/region_{analysis_region}.txt",
-            analysis_region=config['analysis_regions'] if wildcards.depth_method == "gatkdocov" else config['chrs'])
+        argfile="depth_profile/" + config['depth_method'] + "_region_arg_file.txt",
+        files=lambda wildcards: expand("depth_profile/{depth_method}/region_{analysis_region}.txt",
+            depth_method=config['depth_method'],
+            analysis_region=config['analysis_regions'] if config['depth_method'] == "gatkdocov" else config['chrs'])
     output:
-        tabgz="depth_profile/{depth_method}_joint_depth_matrix.tab.gz",
-        tabidx="depth_profile/{depth_method}_joint_depth_matrix.tab.gz.tbi"
+        tabgz="depth_profile/joint_depth_matrix.tab.gz",
+        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
     log:
-        "depth_profile/{depth_method}_joint_depth_matrix.log"
+        "depth_profile/joint_depth_matrix.log"
     benchmark:
-        "depth_profile/benchmark_{depth_method}_joint_depth_matrix.txt"
+        "depth_profile/benchmark_joint_depth_matrix.txt"
     threads: 4
     resources:
         mem_mb=1000
@@ -165,4 +166,54 @@ rule samtoolsdepth_depth_profile_scatter:
             {params.regionflag} \
             --min-MQ 60 \
             --excl-flags UNMAP,SECONDARY,QCFAIL,DUP,SUPPLEMENTARY ) > {output.txt}
+        """
+
+
+
+# Unlike depth_profile, which counts sequencing depth per position,
+# binned_counts counts the number of reads that start in a bin, which
+# is more of an indication of amplification uniformity and/or local copy
+# number.  the bins are derived such that they contain an equal number
+# of alignable positions using high quality read filters.
+rule binned_counts_profile:
+    input:
+        #bins="../ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/bins/bins_mapq60_width1000.bed.gz"
+        bam=lambda wildcards: config['bam_map'][wildcards.sample],
+        bins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/bins/bins_mapq60_width1000.bed.gz"
+    output:
+        tab="depth_profile/binned_counts/{sample}.tab.gz",
+        idx="depth_profile/binned_counts/{sample}.tab.gz.tbi"
+    log:
+        "depth_profile/binned_counts/{sample}.log"
+    benchmark:
+        "depth_profile/binned_counts/{sample}.benchmark.txt"
+    threads: 1
+    resources:
+        mem_mb=1000
+    shell:
+        # Slightly odd required read flags:
+        #       -f 2 - read must be a proper pair orientation
+        #       -f 3856 - read must NOT be:
+        #           * reverse strand
+        #           * secondary alignment
+        #           * QC fail
+        #           * PCR duplicate
+        #           * supplementary alignment
+        # The reason for the reverse strand filter is that the binning method only
+        # simulates forward strand reads. Presumably, reverse strand would have
+        # nearly identical (if not exactly identical) mappability as the forward
+        # strand, but we do this anyway to exactly match the process.
+        """
+        (echo "#chr start end count" | tr ' ' '\t' ;
+         samtools view \
+             -f 2 -F 3856 \
+             --min-MQ 60 \
+             {input.bam} \
+         | awk 'BEGIN {{ OFS="\t"; }}{{ print $3, $4-1, $4, NR; }}'\
+         | bedtools intersect -sorted -c \
+             -a {input.bins} \
+             -b /dev/stdin \
+         | cut -f1-3,5 ) \
+         | bgzip -c > {output.tab}
+         tabix -p bed {output.tab}
         """
