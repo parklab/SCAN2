@@ -27,8 +27,10 @@ scan2_param_defaults = {
     'analysis': 'call_mutations',
     'genome': 'hs37d5',
     'sex': None,
+    'chrY': None,
     'is_started': False,
     'gatk': 'gatk3_joint',
+    'depth_method': 'samtoolsdepth',
     'parsimony_phasing': False,
     'target_fdr': 0.01,
     'rescue_target_fdr': 0.01,
@@ -82,6 +84,7 @@ scan2_param_defaults = {
     'cross_sample_panel': None, # must be readable IF specified, but pipeline should run without it too
     'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',  # also a directory
     'bam_map': {},             # maps sample name -> bam path
+    'amplification_map': {},   # map sample name -> bulk|MDA|PTA|other things in the future..
     'permtool_config_map': {},
     'permtool_matrix_map': {},
     'permtool_n_permutations': 10000,
@@ -229,8 +232,14 @@ class Analysis:
         # not set in a previous configure().
         if 'ref' in new_cfg and \
             'analysis_regions' not in new_cfg and self.cfg['analysis_regions'] == []:
+            if args.genome == 'mm10':
+                error("Must supply --regions or --regions-file for genome=mm10")
             autosomes = get_autosomes_from_ref(new_cfg['ref'])
             new_cfg = { **new_cfg, **Analysis.handle_regions(autosomes) } # dict merge
+
+        if 'ref' in new_cfg or 'ref' in self.cfg:
+            ref = new_cfg['ref'] if 'ref' in new_cfg else self.cfg['ref']
+            new_cfg['chrY'] = get_chrY_from_ref(ref)
 
         updates = 0
         for k, v in new_cfg.items():
@@ -315,6 +324,11 @@ class Analysis:
         # just ensure lower case
         if key == 'sex':
             return { 'sex': value.lower() }
+
+        # a list of [sample_ID, amplification method] lists is provided.
+        # normalize the amplification method to lower case.
+        if key == 'amplification':
+            return { 'amplification_map' : dict((k, v.lower()) for k, v in value) }
 
         # default: use the key=value pair as specified on command line
         return { key: value }
@@ -415,6 +429,10 @@ class Analysis:
         Check that all necessary files exist and ensure the list of
         BAMs and single cell/bulk sample IDs make sense.
         """
+        print("Checking --amplification settings..")
+        check_amplification(all_samples=self.cfg['bam_map'].keys(),
+            amp_map=self.cfg['amplification_map'])
+
         if self.cfg['analysis'] == 'call_mutations' or self.cfg['analysis'] == 'makepanel':
             # Additional checks: index files
             print("Checking reference genome..")
@@ -491,6 +509,18 @@ def readable_file(path):
         error("file {0} could not be read:\n    {1}".format(path, err))
 
 
+def check_amplification(all_samples, amp_map):
+    """
+    Ensure samples in the amplification map are valid sample IDs and
+    the amplification types specified are recognized.
+    """
+    for sample, amp in amp_map.items():
+        if sample not in all_samples:
+            error("sample '{0}' is not present in any of the supplied BAMs".format(sample))
+        if amp not in [ 'pta', 'mda', 'bulk', 'unknown' ]:
+            error("amplification type '{0}' is not a recognized method. See scan2 config --help.".format(amp))
+    
+
 def check_refgenome(refgenome):
     """Check for FASTA index (.fai) and dictionary (.dict) files.
        Assumes refgenome has already been checked."""
@@ -503,10 +533,26 @@ def check_refgenome(refgenome):
 def get_autosomes_from_ref(refpath):
     """
     Get the correct names for chromosomes 1-22 from the FASTA header.
-    ASSUMES the first 22 contigs in the header are the autosomes.
+    ASSUMES the first 22 contigs in the header are the autosomes. mm10 is
+    not sorted this way.
     """
     with open(refpath + '.fai', 'r') as f:
         return [ line.split('\t')[0] for line in f ][0:22]
+
+
+def get_chrY_from_ref(refpath):
+    """
+    Get the contig name for chrY from the FASTA header.
+    For the 2 organisms supported (human and mouse), chrY is haploid
+    and thus there is no reference panel for phasing.  SCAN2 needs
+    to be aware of this to avoid phasing chrY.
+    """
+    with open(refpath + '.fai', 'r') as f:
+        for line in f:
+            chrom = line.strip().split('\t')[0]
+            if chrom == "Y" or chrom == "chrY":
+                return chrom
+    error("Could not find a recognized Y chromosome in reference FASTA index file")
 
 
 def check_dbsnp(dbsnp):
@@ -1016,6 +1062,10 @@ if __name__ == "__main__":
         help='Additional BAM files that will be included in GATK\'s'
             'joint genotyping, but will otherwise not affect the '
             'analysis.  May be specified several times.')
+    infiles.add_argument('--amplification', nargs=2, action='append', metavar=('SAMPLE_ID', '{pta|mda|bulk|other}'),
+        help="Indicate the type of amplification used to generate sample SAMPLE_ID.  "
+            "SAMPLE_ID must match a sample ID specified in the header of one of the "
+            "supplied BAM files.")
     
     
     
@@ -1042,7 +1092,7 @@ if __name__ == "__main__":
     caller.add_argument('--snv-max-bulk-af', type=float,  metavar='FLOAT',
         help='Reject mosaic SNVs with VAF > FLOAT in bulk. IMPORTANT: decreasing beyond the default (1) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed.  Set to 1 to disable this filter.')
     caller.add_argument('--snv-max-bulk-binom-prob', type=float,  metavar='FLOAT',
-        help='Use a one-sided binomial test on bulk data to derive a probability that a candidate site has VAF=50% in bulk. The alternative hypothesis is that VAF < 50% (e.g., a potential mosaic). Reject mosaic SNVs with probability >= FLOAT in bulk. Napkin math assuming 2M het germline SNPs per individual and a uniform distribution of probabilities (which holds if the null is true) gives (prob cutoff) = (# of errors committed)/2M. E.g., to commit 1 error (i.e., misclassification of a germline het variant as a somatic mosaic), prob cutoff = 1/2M, or --max-bulk-af=0.0000005. IMPORTANT: decreasing beyond the default (1) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed. Set to 1 to disable this filter.')
+        help='Use a one-sided binomial test on bulk data to derive a probability that a candidate site has VAF=50%% in bulk. The alternative hypothesis is that VAF < 50%% (e.g., a potential mosaic). Reject mosaic SNVs with probability >= FLOAT in bulk. Napkin math assuming 2M het germline SNPs per individual and a uniform distribution of probabilities (which holds if the null is true) gives (prob cutoff) = (# of errors committed)/2M. E.g., to commit 1 error (i.e., misclassification of a germline het variant as a somatic mosaic), prob cutoff = 1/2M, or --max-bulk-af=0.0000005. IMPORTANT: decreasing beyond the default (1) also causes SCAN2 to allow bulk sites with GATK genotype string 0/1 when normally only 0/0 is allowed. Set to 1 to disable this filter.')
     caller.add_argument('--indel-min-sc-alt', type=int, metavar='INT',
         help='Reject somatic indels with fewer than INT reads carrying the mutation in single cells.')
     caller.add_argument('--indel-min-sc-dp', type=int, metavar='INT',
