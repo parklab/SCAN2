@@ -31,8 +31,11 @@ if ('snakemake' %in% ls()) {
 
 args <- commandArgs(trailingOnly=TRUE)
 if (length(args) < 8) {
-    stop("usage: integrate_tables.R mmq60.tab.gz mmq1.tab.gz phased_hets.vcf.gz cross_sample_panel.tab.gz config.yaml out.tab out.tab.gz out_resampling_details.rda [n.cores]")
+    cat('if no cross sample panel was created, use the string "NA" to skip loading\n')
+    stop("usage: integrate_tables.R mmq60.tab.gz mmq1.tab.gz phase_info.tab.gz cross_sample_panel.tab.gz config.yaml out.tab out.tab.gz out_resampling_details.rda [n.cores]")
 }
+
+print(args)
 
 mmq60 <- args[1]
 mmq1 <- args[2]
@@ -56,7 +59,7 @@ suppressMessages(library(scan2))
 suppressMessages(library(future))
 plan(multicore, workers=n.cores)
 
-if (is.na(panel))
+if (is.na(panel) | panel == "NA")
     panel <- NULL
 
 # This SCAN2 object is not for use, it is just to parse the config file.
