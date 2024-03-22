@@ -43,7 +43,10 @@ rule genotype:
         bulkcigarsidx="call_mutations/%s/cigars.tab.gz.tbi" % config['bulk_sample'],
         cigardata="call_mutations/{sample}/cigardata.tab.gz",
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
-        dptab="depth_profile/{sample}_samtoolsdepth_depth_table.rda"
+        scbinnedcounts="depth_profile/binned_counts/{sample}.tab.gz",
+        bulkbinnedcounts="depth_profile/binned_counts/%s.tab.gz" % config['bulk_sample'],
+        gcbins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/nuc_content/bins_mapq60_width1000/gc_content.tab.gz",
+        dptab="depth_profile/{sample}_depth_table.rda"
     output:
         "call_mutations/{sample}/scan2_object.rda"
     log:
@@ -62,5 +65,8 @@ rule genotype:
            {input.inttab} {input.fits} \
            {input.sccigars} {input.bulkcigars} \
            {input.cigardata} {input.dptab} \
+           {input.scbinnedcounts} \
+           {input.bulkbinnedcounts} \
+           {input.gcbins} \
            {output} {threads} >& {log}
         """
