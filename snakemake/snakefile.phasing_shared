@@ -12,7 +12,7 @@ rule phasing_tablefy:
     benchmark:
         'call_mutations/phase_info.benchmark.txt'
     resources:
-        mem_mb=200
+        mem_mb=250
     shell:
         """
         (echo "#chr pos refnt altnt phasedgt" | tr ' ' '\t' ; 
@@ -24,7 +24,7 @@ rule phasing_tablefy:
 
 rule phasing_gather_file_list:
     input:
-        vcfs=expand("{phaser}/{chr}/phased_filtered.analyzable_sites.mmq60.vcf",
+        vcfs=expand("{phaser}/{chr}/phased.vcf",
             phaser=config['phaser'],
             chr=config['chrs'])
     output:
@@ -39,14 +39,14 @@ rule phasing_gather_file_list:
 rule phasing_gather:
     input:
         filelist=config['phaser'] + "/file_list.txt",
-        vcfs=expand("{phaser}/{chr}/phased_filtered.analyzable_sites.mmq60.vcf",
+        vcfs=expand("{phaser}/{chr}/phased.vcf",
             phaser=config['phaser'],
             chr=config['chrs'])
     output:
         bcf=temp(config['phaser'] + "/phased_filtered.bcf"),
         bcfidx=temp(config['phaser'] + "/phased_filtered.bcf.csi"),
     resources:
-        mem_mb=200
+        mem_mb=250
     shell:
         """
         bcftools concat \
@@ -75,7 +75,7 @@ rule phasing_prepare_bulk:
         bulk_sample=config['bulk_sample'],
         min_dp=lambda wildcards: config[wildcards.muttype + '_min_bulk_dp']
     resources:
-        mem_mb=200
+        mem_mb=250
     shell:
         """
         bcftools view \
@@ -113,10 +113,12 @@ rule phasing_prepare_filter_by_qual:
     benchmark:
         config['phaser'] + "/{chr}/analyzable_sites.mmq60.filtered_bulk_{muttype}_only.qual_cutoff.benchmark.txt"
     params:
+        chrom='{chr}',
         phasing_qual_cutoff_quantile=config['phasing_qual_cutoff_quantile'],
         phasing_gq_cutoff=30
+    localrule: True
     resources:
-        mem_mb=100
+        mem_mb=250
     shell:
         # bcftools query+Rscript calculates the QUAL score cutoff
         # bcftools filter removes sites that don't meet the QUAL cutoff
@@ -131,57 +133,16 @@ rule phasing_prepare_filter_by_qual:
         # information gain. This makes perfect sense for germline variants, since
         # the majority of these should be shared by all single cells as well.
         """
-        bcftools query -f '%QUAL\n' {input.bcf} \
+        bcftools query \
+            -r {params.chrom} \
+            -f '%QUAL\n' {input.bcf} \
         | Rscript -e 'x <- scan("stdin", what=0, quiet=TRUE); cat(quantile(x, probs={params.phasing_qual_cutoff_quantile}))' > {output.qual_cutoff}
         bcftools filter \
+            -r {params.chrom} \
             -Ov -o {output.vcf} \
             --include "FORMAT/GQ >= {params.phasing_gq_cutoff} & QUAL >= $(cat {output.qual_cutoff})" \
             {input.bcf}
         """
-
-
-'''
-rule shapeit_prepare:
-    input:
-        bcf="call_mutations/analyzable_sites.mmq60.bcf",
-        bcfidx="call_mutations/analyzable_sites.mmq60.bcf.csi"
-    output:
-        vcf=temp("shapeit/{chr}/hc_raw.mmq60.{chr}.vcf")
-    log:
-        "shapeit/{chr}/prepare.log"
-    benchmark:
-        "shapeit/{chr}/benchmark_prepare.txt"
-    params:
-        chr="{chr}",
-        bulk_sample=config['bulk_sample']
-    resources:
-        mem_mb=200
-    shell:
-        # bcftools method is md5sum-identical to the gatk SelectVariants method except
-        # for the QUAL (6) and INFO (8) columns. Closer inspection shows the difference is
-        # in number of signiciant digits written. E.g., where the GATK method reports a QUAL
-        # score as "1929.80", the bcftools method reports "1929.8".
-        #
-        # (scan2dev) compute-a-16-171$ grep -v '^#' old_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
-        # 74fcb63714173ce1ca5259bcc1564fd6  -
-        # (scan2dev) compute-a-16-171$ grep -v '^#' new_method_prepared.vcf|cut -f1-5,7,9,10|md5sum
-        # 74fcb63714173ce1ca5259bcc1564fd6  -
-        # 
-        # second bcftools call: i can't get ALT != "." to work in the first call,
-        # perhaps because ALT="." results from the application of --trim-alt-alleles.
-        # not sure.
-        """
-        bcftools view \
-            -s {params.bulk_sample} \
-            -r {params.chr} \
-            --trim-alt-alleles \
-            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
-            {input.bcf} \
-        | bcftools view \
-            --include 'ALT != "." & GT != "mis"' \
-            -Ov -o {output.vcf}
-        """
-'''
 
 
 # this is almost identical to shapeit_prepare - the only difference is the final
