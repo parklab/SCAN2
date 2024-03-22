@@ -55,7 +55,7 @@ rule select_analyzable_sites:
         "call_mutations/analyzable_sites.mmq{gatk_mmq}.benchmark.txt"
     resources:
         # Max RSS=9MB for a small test
-        mem_mb=100
+        mem_mb=1000
     shell:
         # The second bcftools view is needed to remove ALT="." sites. It seems that when
         # --trim-alt-alleles is used, the ALT field isn't updated before filtering.
@@ -85,7 +85,7 @@ rule tablefy_sites:
         "call_mutations/benchmark_tablefy_sites_mmq{gatk_mmq}.txt"
     resources:
         # Max RSS=1.4 for a small test
-        mem_mb=100
+        mem_mb=1000
     shell:
         # note the "|| true" fragment: bcftools query, when prevented from writing all
         # of its output as occurs with head -1, returns a non-0 exit code.  so we have
