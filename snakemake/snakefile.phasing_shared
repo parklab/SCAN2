@@ -45,6 +45,8 @@ rule phasing_gather:
     output:
         bcf=temp(config['phaser'] + "/phased_filtered.bcf"),
         bcfidx=temp(config['phaser'] + "/phased_filtered.bcf.csi"),
+    benchmark:
+        config['phaser'] + "/phased_filtered.benchmark.txt"
     resources:
         mem_mb=250
     shell:
@@ -145,30 +147,32 @@ rule phasing_prepare_filter_by_qual:
         """
 
 
-# this is almost identical to shapeit_prepare - the only difference is the final
-# output is .vcf.gz instead of .vcf
-'''
-rule eagle_prepare:
+# Handling for haploid chromosomes
+rule phase_chrY:
     input:
-        bcf="gatk/hc_raw.mmq60.bcf",
-        bcfidx="gatk/hc_raw.mmq60.bcf.csi"
+        vcf="shapeit/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf"
     output:
-        vcfgz="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
-    params:
-        chr="{chr}"
-    resources:
-        mem_mb=200
+        vcf=temp("shapeit/" + config['chrY'] + "/phased.vcf")
+    log:
+        "shapeit/" + config['chrY'] + "/shapeit.log"
+    benchmark:
+        "shapeit/" + config['chrY'] + "/benchmark_phaser.tsv"
     shell:
+        # bcftools annotate trims down the format field to only the GT tag,
+        # to match shapeit's output.
+        # Then setGT sets every genotype to phased, under the assumption that
+        # bulk GTs will be primarily hom. alt (1/1).
+        # It turns out this is a poor assumption at least for human chrY. Even
+        # after excluding PARs, there were ~3-fold more het genotypes in bulk
+        # then hom genotypes (1633 0/1 vs. 687 1/1), suggesting that variant
+        # calling on chrY in general is very poor.
         """
-        bcftools view \
-            -s {params.bulk_sample} \
-            -r {params.chr} \
-            --trim-alt-alleles \
-            --include '(TYPE="snp" | TYPE="indel") & N_ALT=1' \
-            {input.bcf} \
-        | bcftools view \
-            --include 'ALT != "." & GT != "mis"' \
-            -Oz -o {output.vcfgz}
-        tabix -pvcf {output.vcfgz}"
+        bcftools annotate \
+            --remove '^FORMAT/GT' \
+            {input.vcf} \
+        | bcftools +setGT \
+            -Ov -o {output} \
+            -- \
+            --target-gt a \
+            --new-gt p
         """
-'''
