@@ -10,7 +10,7 @@ rule copy_user_vcf:
         vcf="gatk/hc_raw.mmq60.vcf",
         idx="gatk/hc_raw.mmq60.vcf.idx"
     resources:
-        mem_mb=500
+        mem_mb=250
     shell:
         """
         cp -n {input.vcf} {output.vcf}
