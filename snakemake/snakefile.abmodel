@@ -1,18 +1,17 @@
 # vim: syntax=python
+#
+# AB model parameter fitting jobs.  It is the responsibility of the genotype
+# job to ask for a the file path that determines the method used for fitting:
+#   - ab_model/{sample}/fits.rda             grid search
+#   - ab_model_gradient/{sample}/fits.rda    gradient descent
+#   - ab_model_use_fit/{sample}/fits.rda     previously computed fits - just copy in
 
 rule abmodel_gather:
     input:
-        lambda wildcards:
-            # If the user supplied a fit file, do not depend on the chromosome level
-            # fit_{chr}.rda files or else abmodel_scatter will be triggered.
-            config['abmodel_use_fit'][wildcards.sample] if wildcards.sample in config['abmodel_use_fit'] else expand("ab_model/{sample}/fit_{chr}.rda",
-                    sample=wildcards.sample,
-                    chr=config['chrs'])
+        expand("ab_model/{{sample}}/fit_{chr}.rda", chr=config['chrs'])
     output:
         fits="ab_model/{sample}/fits.rda",
         fit_details="ab_model/{sample}/fit_details.rda"
-    params:
-        use_fit=lambda wildcards: wildcards.sample in config['abmodel_use_fit']
     log:
         "ab_model/{sample}/abmodel_gather.log"
     benchmark:
@@ -38,8 +37,80 @@ rule abmodel_scatter:
         "ab_model/{sample}/abmodel_scatter_{chr}.log"
     benchmark:
         "ab_model/{sample}/benchmark_abmodel_scatter_{chr}.tsv"
-    threads: config['abmodel_n_cores']
+    threads: 10
     resources:
         mem_mb=lambda wildcards, input, threads: 1000*threads  # 1 GB per core
     script:
         "scripts/abmodel_scatter_chrom_tiled_script.R"
+
+
+###########################################################################
+# An alternate method for fitting AB model params: gradient descent.
+# 
+# Gradient descent is much faster than grid fitting, but there have been
+# issues in reliably converging to parameters as good as (as measured by
+# the log likelihood value) the grid fit results. This seems to be solved
+# by running several gradient descent optim()s using random starting
+# params.
+#
+# This could still be greatly improved. The analytical derivative is
+# available (given in Rasmussen and Williams), which would avoid costly
+# approximations with numerical derivs. The parameters could be scaled
+# so that unit change in param = ~unit change in log likelihood, as
+# expected by L-BFGS.
+###########################################################################
+
+rule abmodel_gradient_gather:
+    input:
+        expand("ab_model_gradient/{{sample}}/fit_{chr}.rda", chr=config['chrs'])
+    output:
+        fits="ab_model_gradient/{sample}/fits.rda",
+        fit_details="ab_model_gradient/{sample}/fit_details.rda"
+    log:
+        "ab_model_gradient/{sample}/abmodel_gather.log"
+    benchmark:
+        "ab_model_gradient/{sample}/benchmark_abmodel_gather.txt"
+    resources:
+        mem_mb=2000
+    script:
+        "scripts/abmodel_gradient_gather.R"
+
+
+rule abmodel_gradient_scatter:
+    input:
+        inttab="call_mutations/integrated_table.tab.gz",
+        inttabidx="call_mutations/integrated_table.tab.gz.tbi"
+    output:
+        rda="ab_model_gradient/{sample}/fit_{chr}.rda"
+    log:
+        "ab_model_gradient/{sample}/abmodel_scatter_{chr}.log"
+    benchmark:
+        "ab_model_gradient/{sample}/benchmark_abmodel_scatter_{chr}.tsv"
+    params:
+        bulk_sample=config['bulk_sample'],
+        sc_sample="{sample}",
+        genome=config['genome'],
+        chrom="{chr}",
+        n_tiles=config['abmodel_hsnp_n_tiles'],
+        # Number of times to run the gradient descent; each run gets a different
+        # random starting parameter set. 
+        n_inits=config['abmodel_gradient_descent_iterations']
+    threads: 10
+    resources:
+        mem_mb=lambda wildcards, input, threads: 1000*threads  # 1 GB per core
+    script:
+        "scripts/abmodel_gradient_scatter.R"
+
+
+# If a previous fit is supplied, just copy it into the local working directory.
+# Note there is no accompanying "details" file here.
+rule abmodel_use_fit:
+    input:
+        lambda wildcards: config['abmodel_use_fit'][wildcards.sample]
+    output:
+        "ab_model_use_fit/{sample}/fits.rda"
+    localrule: True
+    shell:
+        """
+        cp {input} {output}
+        """
