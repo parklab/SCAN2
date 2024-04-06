@@ -1,31 +1,90 @@
 # vim: syntax=python
 
+# almost identical to shapeit_prepare - the only difference is the final
+# output is .vcf.gz instead of .vcf
+rule eagle_prepare:
+    input:
+        snv_vcf="eagle/{chr}/analyzable_sites.mmq60.filtered_bulk_snv_only.qual_cutoff.vcf",
+        indel_vcf="eagle/{chr}/analyzable_sites.mmq60.filtered_bulk_indel_only.qual_cutoff.vcf",
+    output:
+        vcfgz="eagle/{chr}/final_for_phasing.analyzable_sites.mmq60.vcf.gz",
+        vcfgzi="eagle/{chr}/final_for_phasing.analyzable_sites.mmq60.vcf.gz.tbi"
+    log:
+        "eagle/{chr}/final_for_phasing.analyzable_sites.mmq60.log"
+    benchmark:
+        "eagle/{chr}/final_for_phasing.analyzable_sites.mmq60.benchmark.txt"
+    localrule: True
+    resources:
+        mem_mb=250
+    shell:
+        """
+        (bcftools concat \
+             {input.snv_vcf} {input.indel_vcf} \
+         | bcftools sort --max-mem={resources.mem_mb}M \
+         | bcftools norm \
+             --multiallelics +both \
+             --do-not-normalize \
+             -Oz -o {output.vcfgz}) >& {log}
+        tabix -pvcf {output.vcfgz}"
+        """
+
+
+ruleorder: phase_chrY > eagle_scatter
+
 rule eagle_scatter:
     input:
-        "eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz"
+        vcfgz="eagle/{chr}/final_for_phasing.analyzable_sites.mmq60.vcf.gz"
     output:
-        "eagle/{chr}/phased_filtered.vcf"
-    params:
-        tmpout="eagle/{chr}/phased_sites_tmp.vcf",
-        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
-        refbcf=lambda wildcards:
-            config['eagle_refpanel'][wildcards.chr],
-        outprefix="eagle/{chr}/phased_sites_tmp"
+        vcf=temp("eagle/{chr}/phased.vcf")
+    log:
+        "eagle/{chr}/eagle.log"
     benchmark:
-        "eagle/{chr}/benchmark.tsv"
+        "eagle/{chr}/benchmark_phaser.tsv"
+    params:
+        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
+        refbcf=lambda wildcards: config['eagle_refpanel'][wildcards.chr],
+        outprefix="eagle/{chr}/phased_sites_tmp"
     resources:
         mem_mb=8000
     shell:
         """
-        eagle --vcfTarget {params.zippedinput} \
+        eagle --vcfTarget {input.vcfgz} \
             --vcfRef {params.refbcf} \
             --geneticMapFile {config[eagle_genmap]} \
             --vcfOutFormat v \
-            --outPrefix {params.outprefix} ;
-        awk 'BEGIN {{ OFS="\t"; }} {{ if ($1 ~ /^#/) {{ print $0; }}; if ($10 ~ /^1\|1/ || $10 ~ /^1\|0/ || $10 ~ /^0\|1/) {{ split($10, gt, ":"); $10 = gt[1]; print $0; }} }}' {params.tmpout} \
-             | sed -e\"s/^\(#CHROM.*\){config[bulk_sample]}/\\1phasedgt/g\" > {output}
+            --outPrefix {params.outprefix}
         """
-        # Unlike SHAPEIT, Eagle does preserve header info. We just need to
-        # change the sample name and only retain phased sites. Eagle outputs
-        # more than just the genotype string (0|1 or 1|0), so delete the extra
-        # info.
+
+'''
+# special handling for chromosomes expected to be hemizygous
+ruleorder: eagle_scatter_chrY > eagle_scatter
+
+rule eagle_scatter_chrY:
+    input:
+        vcf="eagle/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf"
+    output:
+        vcf=temp("eagle/" + config['chrY'] + "/phased.vcf")
+    log:
+        "eagle/" + config['chrY'] + "/eagle.log"
+    benchmark:
+        "eagle/" + config['chrY'] + "/benchmark_phaser.tsv"
+    shell:
+        # bcftools annotate trims down the format field to only the GT tag,
+        # to match shapeit's output.
+        # Then setGT sets every genotype to phased, under the assumption that
+        # bulk GTs will be primarily hom. alt (1/1).
+        # It turns out this is a poor assumption at least for human chrY. Even
+        # after excluding PARs, there were ~3-fold more het genotypes in bulk
+        # then hom genotypes (1633 0/1 vs. 687 1/1), suggesting that variant
+        # calling on chrY in general is very poor.
+        """
+        bcftools annotate \
+            --remove '^FORMAT/GT' \
+            {input.vcf} \
+        | bcftools +setGT \
+            -Ov -o {output} \
+            -- \
+            --target-gt a \
+            --new-gt p
+        """
+'''
