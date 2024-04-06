@@ -9,6 +9,7 @@ wildcard_constraints:
     muttype='snv|indel',
     passtype='pass|rescue'
 
+print("SCAN2 version=" + config['scan2_version'] + ", buildnum=" + str(config['scan2_buildnum']) + ", githash=" + config['scan2_githash'])
 
 if config['analysis'] == 'call_mutations':
     include: "snakefile.call_mutations"
@@ -16,9 +17,9 @@ if config['analysis'] == 'call_mutations':
     rule call_mutations:
         input:
             "call_mutations_collected_benchmarks.txt",
-            objects=lambda wildcards: expand("{final_step}/{sample}/scan2_object.rda",
-                final_step='sensitivity' if config['compute_sensitivity'] else 'call_mutations',
+            objects=lambda wildcards: expand("call_mutations/{sample}/scan2_object.rda",
                 sample=config['sc_bams'].keys())
+        default_target: True
 
 if config['analysis'] == 'makepanel':
     include: "snakefile.makepanel"
