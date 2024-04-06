@@ -18,6 +18,13 @@ import distutils.util # for strtobool
 import csv
 from sys import exit
 
+try:
+    from version import githash, buildnum, version
+except ImportError:
+    version = "__no_version__"
+    buildnum = "__no_version__"
+    githash = "__no_version__"
+
 
 # The default set must include ALL POSSIBLE parameters, even ones like BAM
 # lists that will be empty at first.  This is because the default dict keys
@@ -30,6 +37,7 @@ scan2_param_defaults = {
     'chrY': None,
     'is_started': False,
     'gatk': 'gatk3_joint',
+    'abmodel_method': 'grid_search',    # or gradient_descent
     'depth_method': 'samtoolsdepth',
     'parsimony_phasing': False,
     'target_fdr': 0.01,
@@ -66,14 +74,8 @@ scan2_param_defaults = {
     'abmodel_hsnp_tile_size': 100,
     'abmodel_hsnp_n_tiles': 250,
     'abmodel_refine_steps': 4,
-    'abmodel_n_cores': 20,
-    'digest_depth_n_cores': 20,
-    'genotype_n_cores': 20,
-    'integrate_table_n_cores': 20,
+    'abmodel_gradient_descent_iterations': 10,
     'compute_sensitivity': False,
-    'sensitivity_n_cores': 20,
-    'makepanel_n_cores': 20,
-    'rescue_n_cores': 12,
     'resample_M': 20,
     'mimic_legacy': False,
     'bulk_sample': None,
@@ -83,6 +85,7 @@ scan2_param_defaults = {
     'shapeit_refpanel': None,  # a directory, so readable_file fails
     'cross_sample_panel': None, # must be readable IF specified, but pipeline should run without it too
     'scripts': '/opt/anaconda1anaconda2anaconda3/lib/scan2',  # also a directory
+    'resources': '/opt/anaconda1anaconda2anaconda3/lib/scan2/resources',  # also a directory
     'bam_map': {},             # maps sample name -> bam path
     'amplification_map': {},   # map sample name -> bulk|MDA|PTA|other things in the future..
     'permtool_config_map': {},
@@ -90,9 +93,6 @@ scan2_param_defaults = {
     'permtool_n_permutations': 10000,
     'permtool_snv_generation_param': 100000,
     'permtool_indel_generation_param': 1/50,
-    'permtool_callable_bed_n_cores': 20,
-    'permtool_make_permutations_n_cores': 20,
-    'permtool_combine_permutations_n_cores': 20
 }
 
 # Unlike params, all files listed here must be readable upon a call
@@ -695,15 +695,26 @@ def do_config(args):
     a.configure(args)
 
 
-
 def do_validate(args):
     a = Analysis(args.analysis_dir)
     a.validate()
 
 
-
 def do_run(args):
     a = Analysis(args.analysis_dir)
+
+    # XXX:
+    # As in run_snakemake() below, when snakemake encounters multiple --set-threads
+    # arguments, it ignores all but the last.  So if the user passes --set-threads
+    # through the --snakemake-args parameter, all values here will be lost.
+    # Need a separate --set-threads argument in SCAN2 that collects all values.
+    set_threads = [
+        '--set-threads', 'abmodel_scatter=' + str(args.abmodel_n_cores),
+        'abmodel_gradient_scatter=' + str(args.abmodel_gradient_n_cores),
+        'genotype=' + str(args.genotype_n_cores),
+        'integrate_tables=' + str(args.integrate_table_n_cores),
+        'depth_profile_region_summarize_per_sample=' + str(args.digest_depth_n_cores)
+    ]
 
     # I would like to use the snakemake API directly (i.e., call snakemake()),
     # but this makes it difficult to allow the user to supply arbitrary
@@ -716,8 +727,8 @@ def do_run(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit)
-    ]
+        "--jobs", str(args.joblimit),
+    ] + set_threads
 
     run_snakemake(snakemake_command, args, a)
 
@@ -725,6 +736,16 @@ def do_run(args):
 # Runs a snakemake command provided by the user. Assumes 'args' contains
 # runtime args.
 def run_snakemake(snakemake_command, args, a):
+    # Add version info to the config object in Snakemake
+    #
+    # XXX: This might be bad. seems like snakemake does not allow multiple --config
+    # options to be passed on the command line, meaning we are preventing users from
+    # accessing this through --snakemake-args. Might need to add a special --config
+    # option to allow this (i.e., instruct users NOT to use --config via --snakemake-args).
+    snakemake_command += [
+        "--config", "scan2_version=" + str(version), "scan2_buildnum=" + str(buildnum), "scan2_githash=" + str(githash)
+    ]
+
     if args.memlimit:
         snakemake_command += [ "--resources",  "mem=" + str(args.memlimit) ]
 
@@ -757,7 +778,8 @@ def do_makepanel(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit)
+        "--jobs", str(args.joblimit),
+        "--set-threads", "process_tab=" + str(args.n_cores)
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -772,7 +794,8 @@ def do_rescue(args):
         "--directory", a.analysis_dir,
         "--latency-wait", "30",
         "--rerun-incomplete",
-        "--jobs", str(args.joblimit)
+        "--jobs", str(args.joblimit),
+        "--set-threads", "mutsig_rescue=" + str(args.n_cores)
     ]
 
     run_snakemake(snakemake_command, args, a)
@@ -781,6 +804,12 @@ def do_rescue(args):
 def do_permtool(args):
     a = Analysis(args.analysis_dir)
 
+    set_threads = [
+        '--set-threads', 'make_callable_bed=' + str(args.callable_bed__n_cores),
+        '--set-threads', 'make_permutations=' + str(args.make_permutations_n_cores),
+        '--set-threads', 'combine_permutations=' + str(args.combine_permutations_n_cores),
+    ]
+
     snakemake_command = [
         "--snakefile",  args.snakefile,
         "--configfile", a.config_path,
@@ -788,7 +817,7 @@ def do_permtool(args):
         "--latency-wait", "30",
         "--rerun-incomplete",
         "--jobs", str(args.joblimit)
-    ]
+    ] + set_threads
 
     run_snakemake(snakemake_command, args, a)
 
@@ -874,6 +903,14 @@ def do_vcf(args):
     print("scan2 vcf NOT IMPLEMENTED!")
 
 
+# Variables here are global
+def version_string():
+    return("SCAN2 version " + version + ", build #" + buildnum + ", git hash: " + githash)
+
+
+def do_version(args):
+    print(version_string())
+
 
 ##########################################################################
 # Command line arguments and subcommand definitions.
@@ -908,6 +945,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(prog='scan2',
         description='Somatic SNV genotyper for whole genome amplified '
                     'single cell sequencing experiments.',
+        epilog=version_string(),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     ap.add_argument('-d', '--analysis-dir', metavar='PATH', default='.',
         type=str,
@@ -951,6 +989,10 @@ if __name__ == "__main__":
         default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
         help='Path to SCAN2 script files.  Usually points to an installed '
             'set of files.')
+    config_parser.add_argument('--resources', metavar='PATH',
+        default='/opt/anaconda1anaconda2anaconda3/lib/scan2',
+        help='Path to SCAN2 resource.  Usually points to an installed '
+            'set of files.')
     config_parser.add_argument('--gatk', default='gatk3_joint',
         choices=[ 'gatk3_joint', 'gatk4_joint', 'gatk4_gvcf', 'sentieon_joint', 'sentieon_gvcf' ],
         help='GATK version and strategy for generating candidate somatic '
@@ -986,28 +1028,11 @@ if __name__ == "__main__":
              'match the strategy originally used to generate VCF.')
     config_parser.add_argument('--mimic-legacy', action='store_true', default=False,
         help="Mimic some behaviors of older SCAN2 versions. Not comprehensive.")
-    config_parser.add_argument('--genotype-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores to be used in the final genotyping step.")
-    config_parser.add_argument('--integrate-table-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores to be used when creating the integrated table.")
-    config_parser.add_argument('--digest-depth-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores used to tabulate single cell and bulk sequencing "
-             "depth.")
     config_parser.add_argument('--compute-sensitivity', default=False, action='store_true',
         help='Model somatic mutation detection sensitivity as a function of genomic position. '
              'If this option is enabled, final SCAN2 objects will be output in sensitivity/<sample name>/scan2_object.rda '
              'rather than the usual call_mutations/<sample name>/scan2_object.rda. SCAN2 objects '
-             'with sensitivity models are much larger than standard SCAN2 objects.')
-    config_parser.add_argument('--sensitivity-n-cores', default=20, type=int, metavar='N',
-        help='Number of cores used to collect depth and compute AB model estimates '
-             'genome-wide for spatial sensitivity estimation.')
-    config_parser.add_argument('--permtool-callable-bed-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores to use when creating the BED of callable regions.")
-    config_parser.add_argument('--permtool-make-permutations-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores to use when generating shuffled mutation candidates.")
-    config_parser.add_argument('--permtool-combine-permutations-n-cores', default=20, type=int, metavar='N',
-        help="Number of cores to use when gathering per-sample permutations.")
-    
+             'with sensitivity models are much larger than standard SCAN2 objects. [THIS PARAMETER IS CURRENTLY IGNORED, SENSITIVITY IS ALWAYS COMPUTED]')
 
     # required arguments
     req = config_parser.add_argument_group("External data")
@@ -1122,8 +1147,9 @@ if __name__ == "__main__":
         help="Prior to phasing with Eagle or SHAPEIT, remove the bottom FLOAT percentile of sites. Quantiles are computed separately for germline SNVs and indels and is performed per-chromosome. Values must be between 0 and 1.")
     phasing.add_argument('--shapeit-refpanel', metavar='DIR',
         help='Path to the 1000 genomes project phase 3 SHAPEIT panel.  At this time, other phasing panels are not supported. This panel is required if phaser=shapeit.')
-    phasing.add_argument('--parsimony-phasing', action='store_true',
-        help='Choose the phase of each training hSNP i to minimize |VAF_(i-1) - VAF_i|.  This overrides population-based phasing and does not produce well-phased mutations.  Instead, it ensures that switching errors (caused by panel phasing) in regions with allelic imbalance do not inflate model variance or lead to "ping-pong" allele balance estimates.')
+    # No longer does anything
+    #phasing.add_argument('--parsimony-phasing', action='store_true',
+        #help='Choose the phase of each training hSNP i to minimize |VAF_(i-1) - VAF_i|.  This overrides population-based phasing and does not produce well-phased mutations.  Instead, it ensures that switching errors (caused by panel phasing) in regions with allelic imbalance do not inflate model variance or lead to "ping-pong" allele balance estimates.')
     phasing.add_argument('--eagle-refpanel', metavar='DIR',
         help='Path to the an Eagle compatible phasing panel. The reference panel is a set of BCF files, one per chromosome. File names must match the pattern ${chromosome}*.bcf. The user should take care to ensure that chromosome names contain the "chr" prefix to properly match the supplied reference genome. This parameter is required if phaser=eagle.')
     phasing.add_argument('--eagle-genmap', metavar='DIR',
@@ -1133,17 +1159,20 @@ if __name__ == "__main__":
     
     
     abmodel = config_parser.add_argument_group("AB model fitting",
-        "These parameters control the exhaustive parameter search used to fit an AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
-    abmodel.add_argument('--abmodel-n-cores', type=int, metavar='INT',
-        help='Multithread with INT cores when fitting the AB model parameters.  This is the preferred way of fitting the AB model and contrasts with the chunk strategy, described below.')
-    abmodel.add_argument('--abmodel-samples-per-step', type=int, metavar='INT',
-        help='Sample the AB model log-likelihood function INT times during each parameter space refinement step.')
-    abmodel.add_argument('--abmodel-hsnp-tile-size', type=int, metavar='INT',
-        help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping tiles of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).')
-    abmodel.add_argument('--abmodel-refine-steps', type=int, metavar='INT',
-        help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.')
+        "These parameters control the method used to fit the parameters of the AB correlation function for each chromosome.  This is by far the most time consuming step of the calling process.  None of these parameters are used for subsequent AB inference.")
     abmodel.add_argument('--abmodel-use-fit', nargs=2, action='append', metavar=('SAMPLE_ID', 'FITS.RDA'),
         help='Do not fit the AB model for sample SAMPLE_ID; instead, use the fits provided in FITS.RDA. This option may be specified multiple times.')
+    abmodel.add_argument('--abmodel-method', default='grid_search',
+        choices=[ 'grid_search', 'gradient_descent' ],
+        help='We offer two methods for estimating the AB model parameters, both of which search for a maximum likelihood estimator: a multi-step grid search and gradient descent via L-BGFS. Grid search is very expensive, but is currently the most reliably accurate method and is thus the default. The total cost of grid search is ~200 CPU hours per single cell. Gradient descent is far more efficient, requiring about ~20 CPU hours per single cell, but sometimes fails to find solutions with likelihood values as large as the grid search.')
+    abmodel.add_argument('--abmodel-samples-per-step', type=int, metavar='INT',
+        help='Sample the AB model log-likelihood function INT times during each parameter space refinement step.  This parameter applies only to --abmodel-method=grid_search.')
+    abmodel.add_argument('--abmodel-refine-steps', type=int, metavar='INT',
+        help='Refine the parameter space for random sampling INT times.  After the first log-likelihood sampling has completed, a new parameter space is defined so as to contain the 50 points with highest log likelihood.  This parameter applies only to --abmodel-method=grid_search.')
+    abmodel.add_argument('--abmodel-gradient-descent-iterations', type=int, default=10, metavar='INT',
+        help='To increase the probability of finding a global optimum (MLE), gradient descent is performed INT times, each with a randomly chosen initial parameter set.  On PTA-amplified single cells, 10 iterations is sufficient to attain a parameter set with equal likelihood to the grid search; however, MDA cells and some PTA cells with erratic amplification qualities can require as many as 50 iterations to attain parameters comparable to grid search.  This option has no effect unless --abmodel-method=gradient_descent.')
+    abmodel.add_argument('--abmodel-hsnp-tile-size', type=int, metavar='INT',
+        help='Approximate the AB model likelihood function for each chromosome by breaking hSNPs into non-overlapping tiles of size INT.  Larger values significantly increase runtime, but may be necessary for organisms with high SNP density (e.g., >1 hSNP per kilobase on average).  This parameter applies to both --abmodel-method=grid_search and gradient_descent.')
     
     
     spikein = config_parser.add_argument_group("hSNP spike-ins",
@@ -1198,26 +1227,42 @@ if __name__ == "__main__":
 
 
 
+
     ##########################################################################
     # The 'validate' subcommand
     #
     # Tries to ensure the configuration is complete.
     validate_parser = subparsers.add_parser('validate',
         help='Validate the configuration parameters of a SCAN2 analysis.'
-            '  [ATTENTION: not yet exhaustive.]')
+            '  [NOTE: not necessarily exhaustive.]')
     validate_parser.set_defaults(executor=do_validate)
     
     
+
     ##########################################################################
-    # The 'run' subcommand
+    # The 'call_mutations' subcommand
     #
-    # This actually runs an analysis
-    run_parser = subparsers.add_parser('run',
-        help='Run a fully configured SCAN2 analysis.  Always run the '
-            '"validate" subcommand first.')
+    # This runs a call_mutations "first pass" analysis
+    run_parser = subparsers.add_parser('call_mutations',
+        help='Run a fully configured SCAN2 call_mutations analysis, which is '
+            ' sometimes referred to as the "first pass".  Always run the '
+            '"validate" subcommand first to ensure that the configuration is '
+            'valid.')
     run_parser.set_defaults(executor=do_run)
     run_parser = add_runtime_args(run_parser)
+    run_threading = run_parser.add_argument_group("Multithreading options.  Some jobs that can be multi-threaded are not listed here.  Threads for those jobs can be set using the Snakemake syntax --set-threads RULE=N.")
+    run_threading.add_argument('--abmodel-n-cores', default=10, type=int, metavar='INT',
+        help='Multithread with INT cores when fitting the AB model parameters.  This is the preferred way of fitting the AB model and contrasts with the chunk strategy')
+    run_threading.add_argument('--abmodel-gradient-n-cores', default=10, type=int, metavar='INT',
+        help='Multithread with INT cores when fitting the AB model parameters using gradient descent.  This is an experimental method for fitting the model.')
+    run_threading.add_argument('--genotype-n-cores', default=1, type=int, metavar='INT',
+        help="Use INT cores in the final genotyping step.")
+    run_threading.add_argument('--integrate-table-n-cores', default=10, type=int, metavar='INT',
+        help="Use INT cores when creating the integrated table.")
+    run_threading.add_argument('--digest-depth-n-cores', default=10, type=int, metavar='INT',
+        help="Use INT cores to tabulate single cell and bulk sequencing depth.")
     
+
 
     ##########################################################################
     # The 'show' subcommand
@@ -1259,8 +1304,9 @@ if __name__ == "__main__":
              '--gatk options are used between makepanel and run.')
     makepanel_parser.set_defaults(executor=do_makepanel)
     makepanel_parser = add_runtime_args(makepanel_parser)
-    makepanel_parser.add_argument('--makepanel-n-cores', type=int, default=20, metavar='N',
-        help='Number of cores to use when digesting cross-sample panel GATK output.')
+    makepanel_threading = makepanel_parser.add_argument_group("Multithreading options")
+    makepanel_threading.add_argument('--n-cores', type=int, default=10, metavar='N',
+        help='Number of cores to use when digesting cross-sample panel GATK output. Note that the most consequential parallelization for `makepanel` is the size of the windows passed as --analysis-regions.')
     
     
     ##########################################################################
@@ -1277,10 +1323,11 @@ if __name__ == "__main__":
              'artifactual.')
     rescue_parser.set_defaults(executor=do_rescue)
     rescue_parser = add_runtime_args(rescue_parser)
-    rescue_parser.add_argument('--rescue-n-cores', type=int, default=20, metavar='N',
+    rescue_threading = rescue_parser.add_argument_group("Multithreading options")
+    rescue_threading.add_argument('--n-cores', type=int, default=10, metavar='N',
         help='Parallelize somatic mutation rescue over N cores. Each core reads '
              'and processes a full SCAN2 object. For typical human cells, about '   
-             '6 GB of RAM is necessary per core.')
+             '6 GB of RAM is necessary per core if not used on summary.SCAN2 objects.')
 
 
     ##########################################################################
@@ -1302,6 +1349,14 @@ if __name__ == "__main__":
              'regions file.')
     permtool_parser.set_defaults(executor=do_permtool)
     permtool_parser = add_runtime_args(permtool_parser)
+    permtool_threading = permtool_parser.add_argument_group("Multithreading options")
+    permtool_threading.add_argument('--callable-bed-n-cores', default=10, type=int, metavar='N',
+        help="Number of cores to use when creating the BED of callable regions.")
+    permtool_threading.add_argument('--make-permutations-n-cores', default=10, type=int, metavar='N',
+        help="Number of cores to use when generating shuffled mutation candidates.")
+    permtool_threading.add_argument('--combine-permutations-n-cores', default=10, type=int, metavar='N',
+        help="Number of cores to use when gathering per-sample permutations.")
+
 
     ##########################################################################
     # The 'vcf' subcommand
@@ -1316,6 +1371,16 @@ if __name__ == "__main__":
     vcf_parser.add_argument('--simple-filters', action='store_true', default=False,
         help='Choose only one filter (in a fairly arbitrary, though consistent order) to report in the VCF file. Greatly reduces runtime.')
     vcf_parser.set_defaults(executor=do_vcf)
+
+
+    ##########################################################################
+    # The 'version' subcommand
+    #
+    # Just prints version info.
+    version_parser = subparsers.add_parser('version',
+        help='Print version info about the SCAN2 pipeline. Note that versions of the SCAN2 pipeline and SCAN2 R package are tracked separately.')
+    version_parser.set_defaults(executor=do_version)
+
 
     # Get the args and run the relavent subcommand
     args = ap.parse_args()
