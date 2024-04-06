@@ -63,7 +63,7 @@ rule process_tab:
         "panel/make_panel.log"
     benchmark:
         "panel/benchmark_make_panel.txt"
-    threads: config['makepanel_n_cores']
+    threads: 10
     resources:
         mem_mb=lambda wildcards, input, threads: 1500*threads
     shell:
