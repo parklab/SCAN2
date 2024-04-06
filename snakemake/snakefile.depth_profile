@@ -29,7 +29,7 @@ rule depth_profile_region_summarize_per_sample:
         # not scale with number of samples in each batch, as expected. give 1800 MB,
         # a little extra headroom.
         mem_mb=lambda wildcards, input, threads: 1800 * threads
-    threads: config['digest_depth_n_cores']
+    threads: 10
     shell:
         """
         {config[scripts]}/digest_depth.R \
@@ -169,6 +169,20 @@ rule samtoolsdepth_depth_profile_scatter:
         """
 
 
+# Build a genome file for bedtools to ensure consistent sorting order.
+rule binned_counts_make_genome_file:
+    input:
+        fai=config['ref'] + '.fai'   # the FASTA index is checked for in scan2 validate
+    output:
+        genome="depth_profile/binned_counts/genome_file_for_bedtools.txt"
+    localrule: True
+    resources:
+        mem_mb=100
+    shell:
+        """
+        cut -f1,2 {input.fai} > {output.genome}
+        """
+
 
 # Unlike depth_profile, which counts sequencing depth per position,
 # binned_counts counts the number of reads that start in a bin, which
@@ -177,9 +191,9 @@ rule samtoolsdepth_depth_profile_scatter:
 # of alignable positions using high quality read filters.
 rule binned_counts_profile:
     input:
-        #bins="../ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/bins/bins_mapq60_width1000.bed.gz"
         bam=lambda wildcards: config['bam_map'][wildcards.sample],
-        bins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/bins/bins_mapq60_width1000.bed.gz"
+        bins=config['resources'] + "/binned_counts/" + config['genome'] + "/bins_mapq60_width1000.bed.gz",
+        genome="depth_profile/binned_counts/genome_file_for_bedtools.txt"
     output:
         tab="depth_profile/binned_counts/{sample}.tab.gz",
         idx="depth_profile/binned_counts/{sample}.tab.gz.tbi"
@@ -187,6 +201,15 @@ rule binned_counts_profile:
         "depth_profile/binned_counts/{sample}.log"
     benchmark:
         "depth_profile/binned_counts/{sample}.benchmark.txt"
+    params:
+        # Technically binned_counts is for assessing amplification, so we really
+        # want the whole genome analyzed even if the user only wants to call
+        # mutations on a subset. However, this prevents fast test/demo runs (e.g.,
+        # analyze chr22:30Mb-31Mb. So instead of always surveying the whole genome,
+        # at least analyze the chromosomes present in the analysis set. This gives
+        # some indication of quality (e.g., MAPD can be computed although it won't
+        # necessarily match the genome-wide MAPD).
+        chrs_as_regions=' '.join(config['chrs'])
     threads: 1
     resources:
         mem_mb=1000
@@ -209,10 +232,12 @@ rule binned_counts_profile:
              -f 2 -F 3856 \
              --min-MQ 60 \
              {input.bam} \
+             {params.chrs_as_regions} \
          | awk 'BEGIN {{ OFS="\t"; }}{{ print $3, $4-1, $4, NR; }}'\
          | bedtools intersect -sorted -c \
              -a {input.bins} \
              -b /dev/stdin \
+             -g {input.genome} \
          | cut -f1-3,5 ) \
          | bgzip -c > {output.tab}
          tabix -p bed {output.tab}
