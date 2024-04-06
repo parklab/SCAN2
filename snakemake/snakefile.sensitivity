@@ -1,52 +1,135 @@
 # vim: syntax=python
 
-rule sensitivity_abmodel_covariates:
+rule sensitivity_abmodel_covariates_scatter:
     input:
-        scan2_object="call_mutations/{sample}/scan2_object.rda",
-        integrated_table="call_mutations/integrated_table.tab.gz"
+        integrated_table="call_mutations/integrated_table.tab.gz",
+        abfits=lambda wildcards: "ab_model" + ("_use_fit" if wildcards.sample in config['abmodel_use_fit'].keys() else ("" if config['abmodel_method'] == "grid_search" else "_gradient")) + "/{sample}/fits.rda",
+        bedgz="call_mutations/covariate_windows.{chr}.bed.gz"
     output:
-        txt="sensitivity/{sample}/abmodel_covariates.txt"
+        tab=temp("call_mutations/{sample}/abmodel_covariates.{chr}.tab"),
+        tabgz=temp("call_mutations/{sample}/abmodel_covariates.{chr}.tab.gz"),
+        tabgzi=temp("call_mutations/{sample}/abmodel_covariates.{chr}.tab.gz.tbi")
     log:
-        "sensitivity/{sample}/abmodel_covariates.log"
+        "call_mutations/{sample}/abmodel_covariates.{chr}.log"
     benchmark:
-        "sensitivity/{sample}/benchmark_abmodel_covariates.txt"
-    threads: config['sensitivity_n_cores']
-    resources:
-        mem_mb=lambda wildcards, input, threads: 2500*threads
-    script:
-        config['scripts'] + '/spatial_sens_abmodel.R'
-
-
-rule sensitivity_depth_covariates:
-    input:
-        scan2_object="call_mutations/{sample}/scan2_object.rda",
-        joint_depth_matrix="depth_profile/joint_depth_matrix.tab.gz"
-    output:
-        txt="sensitivity/{sample}/depth_covariates.txt"
-    log:
-        "sensitivity/{sample}/depth_covariates.log"
-    benchmark:
-        "sensitivity/{sample}/benchmark_depth_covariates.txt"
-    threads: config['sensitivity_n_cores']
-    resources:
-        mem_mb=lambda wildcards, input, threads: 3000*threads
-    script:
-        config['scripts'] + '/spatial_sens_depth.R'
-
-
-rule sensitivity_integrate:
-    input:
-        scan2_object="call_mutations/{sample}/scan2_object.rda",
-        spatial_depth="sensitivity/{sample}/depth_covariates.txt",
-        spatial_abmodel="sensitivity/{sample}/abmodel_covariates.txt"
-    output:
-        rda="sensitivity/{sample}/scan2_object.rda"
-    log:
-        "sensitivity/{sample}/integrate.log"
-    benchmark:
-        "sensitivity/{sample}/benchmark_integrate.txt"
-    resources:
-        mem_mb=12000
+        "call_mutations/{sample}/abmodel_covariates.{chr}.benchmark.txt"
+    params:
+        sc_sample='{sample}',
+        genome=config['genome']
     threads: 1
+    resources:
+        mem_mb=lambda wildcards, input, threads: 1000*threads + 500
     script:
-        config['scripts'] + '/spatial_sens_integrate.R'
+        'scripts/abmodel_covariates.R'
+
+
+rule sensitivity_abmodel_covariates_gather:
+    input:
+        tabgzs=expand("call_mutations/{{sample}}/abmodel_covariates.{chr}.tab.gz",
+            chr=config['chrs']),
+        # must specify due to temp() status (would be deleted otherwise)
+        tabgzis=expand("call_mutations/{{sample}}/abmodel_covariates.{chr}.tab.gz.tbi",
+            chr=config['chrs'])
+    output:
+        tabgz="call_mutations/{sample}/abmodel_covariates.tab.gz",
+        tabgzi="call_mutations/{sample}/abmodel_covariates.tab.gz.tbi"
+    log:
+        "call_mutations/{sample}/abmodel_covariates.log"
+    benchmark:
+        "call_mutations/{sample}/abmodel_covariates.benchmark.txt"
+    threads: 1
+    resources:
+        mem_mb=250
+    shell:
+        """
+        {config[scripts]}/concat_tabix.sh bed {output.tabgz} {input.tabgzs}
+        """
+
+
+# Not really a BED: uses 1-based positions but is still [a,b)
+rule sensitivity_covariates_chrom_bed:
+    input:
+        # This is used as the `-g` input to bedtools. It turns out that FASTA
+        # indexes have the same first two column format as bedtools' "genome" file.
+        faiidx=config['ref'] + ".fai"
+    output:
+        bedgz=temp("call_mutations/covariate_windows.{chr}.bed.gz")
+    params:
+        chrom="{chr}",
+        window_size=1000
+    localrule: True
+    resources:
+        mem_mb=100
+    shell:
+        """
+        awk '$1 == "{params.chrom}"' {input.faiidx} \
+        | bedtools makewindows -w {params.window_size} -g /dev/stdin \
+        | awk 'BEGIN {{ OFS="\t";}} {{ print $1, $2+1, $3+1; }}' \
+        | bgzip -c > {output.bedgz}
+        """
+
+
+rule sensitivity_depth_covariates_scatter:
+    input:
+        joint_depth_matrix="depth_profile/joint_depth_matrix.tab.gz",
+        bed="call_mutations/covariate_windows.{chr}.bed.gz"
+    output:
+        tabgz=temp("call_mutations/{sample}/depth_covariates.{chr}.tab.gz"),
+        tabgzi=temp("call_mutations/{sample}/depth_covariates.{chr}.tab.gz.tbi")
+    log:
+        "call_mutations/{sample}/depth_covariates.{chr}.log"
+    benchmark:
+        "call_mutations/{sample}/depth_covariates.{chr}.benchmark.txt"
+    params:
+        chrom="{chr}",
+        snv_min_sc_dp=config['snv_min_sc_dp'],
+        snv_min_bulk_dp=config['snv_min_bulk_dp'],
+        indel_min_sc_dp=config['indel_min_sc_dp'],
+        indel_min_bulk_dp=config['indel_min_bulk_dp'],
+        sc_sample="{sample}",
+        bulk_sample=config['bulk_sample']
+    threads: 1
+    resources:
+        mem_mb=200
+    shell:
+        # Position +1 / -1: BEDtools uses BED coordinates, which are [a,b), but
+        # the output file should be [a,b].
+        """
+        ( echo "#chr start end mean.sc.dp mean.bulk.dp bases.gt.snv.sc.min.dp bases.gt.snv.bulk.min.dp bases.gt.indel.sc.min.dp bases.gt.indel.bulk.min.dp" | tr " " "\t" ;
+        tabix --print-header {input.joint_depth_matrix} {params.chrom} \
+        | awk 'BEGIN {{ OFS="\t"; }} \
+            NR==1 {{ for (i = 1; i <= NF; ++i) {{ if ($i == bulk_sample) bcol=i; if ($i == sc_sample) scol=i; }} }} \
+            NR>1 {{ print $1, $2, $2+1, $scol, $bcol, $scol >= {params.snv_min_sc_dp}, $bcol >= {params.snv_min_bulk_dp}, $scol >= {params.indel_min_sc_dp}, $bcol >= {params.indel_min_bulk_dp}; }}' \
+            bulk_sample='{params.bulk_sample}' sc_sample='{params.sc_sample}' \
+        | bedtools map -a {input.bed} -b /dev/stdin \
+            -c 4,5,6,7,8,9 \
+            -o mean,mean,sum,sum,sum,sum \
+        | awk 'BEGIN {{ OFS="\t"; }} {{ $3=$3-1; print $0; }}' ) \
+        | bgzip -c > {output.tabgz}
+        tabix -p bed {output.tabgz}
+        """
+
+
+rule sensitivity_depth_covariates_gather:
+    input:
+        tabgzs=expand("call_mutations/{{sample}}/depth_covariates.{chr}.tab.gz",
+            chr=config['chrs']),
+        # must specify here because the files are temp()ed
+        tabgzis=expand("call_mutations/{{sample}}/depth_covariates.{chr}.tab.gz.tbi",
+            chr=config['chrs'])
+    output:
+        tabgz="call_mutations/{sample}/depth_covariates.tab.gz",
+        tabgzi="call_mutations/{sample}/depth_covariates.tab.gz.tbi"
+    log:
+        "call_mutations/{sample}/depth_covariates.log"
+    benchmark:
+        "call_mutations/{sample}/depth_covariates.benchmark.txt"
+    threads: 1
+    resources:
+        mem_mb=200
+    shell:
+        # These output files are not technically beds, but they use a 3-column
+        # chrom,start,end format.
+        """
+        {config[scripts]}/concat_tabix.sh bed {output.tabgz} {input.tabgzs}
+        """
