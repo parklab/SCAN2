@@ -10,9 +10,13 @@ if ('snakemake' %in% ls()) {
 
     commandArgs <- function(...) {
         ret <- unlist(c(
-            snakemake@input['scan2_object'],
             snakemake@input['integrated_table'],
-            snakemake@output['txt'],
+            snakemake@input['abfits'],
+            snakemake@input['bedgz'],
+            snakemake@params['sc_sample'],
+            snakemake@params['genome'],
+            snakemake@output['tab'],
+            snakemake@output['tabgz'],
             snakemake@threads
         ))
         ret
@@ -22,45 +26,61 @@ if ('snakemake' %in% ls()) {
 }
 
 args <- commandArgs(trailingOnly=TRUE)
-if (length(args) != 4) {
-    stop("usage: spatial_sens_abmodel.R scan2_object.rda integrated_table.tab.gz output.txt n_cores")
+if (length(args) != 8) {
+    stop("usage: spatial_sens_abmodel.R integrated_table.tab.gz abfits.rda regions.bed.gz singlecell_id genome_string out.tab out.tab.gz n_cores")
 }
 
-scan2.path <- args[1]
-integrated.table.path <- args[2]
-out.txt <- args[3]
-n.cores <- as.integer(args[4])
+integrated.table.path <- args[1]
+abfits.path <- args[2]
+bed.path <- args[3]
+sc.sample <- args[4]
+genome.string <- args[5]
+out.tab <- args[6]
+out.tab.gz <- args[7]
+n.cores <- as.integer(args[8])
 
-for (f in out.txt)
+for (f in c(out.tab, out.tab.gz))
     if (file.exists(f))
         stop(paste('output file', f, 'already exists, please delete it first'))
 
 suppressMessages(library(scan2))
+suppressMessages(library(Rsamtools))
 suppressMessages(library(future))
 suppressMessages(library(progressr))
 plan(multicore, workers=n.cores)
 
+ab.fits <- get(load(abfits.path))
 
-# MUST delete this object before running the pipeline to prevent copying the
-# memory to child processes.
-object <- get(load(scan2.path)) # loads "results"
-single.cell.id <- copy(object@single.cell)
-ab.fits <- copy(object@ab.fits)
-genome.string <- copy(object@genome.string)
-rm(object)
-rm(results)
-gc()
-ls()
+sens.regions <- data.table::fread(bed.path)
+colnames(sens.regions) <- c('chr', 'start', 'end')
+sens.regions$end <- sens.regions$end - 1
+
+gr.sens.regions <- GenomicRanges::GRanges(seqnames=sens.regions$chr,
+    ranges=IRanges::IRanges(start=sens.regions$start, end=sens.regions$end),
+    seqinfo=genome.string.to.seqinfo.object(genome.string))
+
+# Don't want that many tiles here; each one causes two extra tabix reads.
+grs.for.para <- analysis.set.tiling.for.parallelization.helper(
+    regions=GenomicRanges::reduce(gr.sens.regions),
+    total.tiles=10)
 
 with_progress({
     handlers(handler_newline())
-    abmodel <- compute.spatial.sensitivity.abmodel(single.cell.id=single.cell.id,
-        ab.fits=ab.fits, integrated.table.path=integrated.table.path,
-        sens.tilewidth=1e3, genome.string=genome.string)
+    abmodel <- compute.spatial.sensitivity.abmodel(
+        single.cell.id=sc.sample,
+        ab.fits=ab.fits,
+        integrated.table.path=integrated.table.path,
+        grs.for.sens=gr.sens.regions,
+        grs.for.parallelization=grs.for.para,
+        genome.string=genome.string)
 }, enable=TRUE)
 
-cat("Writing results to", out.txt, "\n")
-fwrite(abmodel, file=out.txt)
+cat("Writing results to", out.tab, "\n")
+colnames(abmodel)[1] <- "#chr"
+data.table::fwrite(abmodel, file=out.tab, sep="\t", col.names=TRUE)
+
+Rsamtools::bgzip(out.tab, out.tab.gz)
+Rsamtools::indexTabix(file=out.tab.gz, format='bed', comment='#')
 
 if ('snakemake' %in% ls()) {
     sink()
