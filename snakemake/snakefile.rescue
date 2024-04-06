@@ -8,16 +8,18 @@ rule mutsig_rescue:
         sht="sig_homogeneity_tests.txt",
         rdas=expand("objects/{sample}_scan2_object_rescue.rda",
             sample=config['scan2_objects'].keys())
+    log:
+        "mutsig_rescue.log"
+    benchmark:
+        "mutsig_rescue.benchmark.txt"
     params:
         addmuts='' if config['add_muts'] is None else '--add-muts ' + config['add_muts'],
         objflags=' '.join([ '--object ' + v + ' objects/' + k + '_scan2_object_rescue.rda' for k, v in config['scan2_objects'].items()])
-    threads: config['rescue_n_cores']
+    threads: 10
     resources:
         # ~6 GB RAM per worker, unfortunately. Could be down to ~3 GB if
         # we could prevent copying the @gatk table after load()ing the object.
         mem_mb=lambda wildcards, input, threads: 6000*threads
-    benchmark:
-        "benchmark_mutsig_rescue.txt"
     shell:
         """
         {config[scripts]}/mutsig_rescue.R \
@@ -26,5 +28,5 @@ rule mutsig_rescue:
             --sig-homogeneity-test {output.sht} \
             --threads {threads} \
             --rescue-target-fdr {config[rescue_target_fdr]} \
-            {output.muts}
+            {output.muts} >& {log}
         """
