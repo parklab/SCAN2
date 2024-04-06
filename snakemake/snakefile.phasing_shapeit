@@ -18,46 +18,14 @@ rule shapeit_prepare:
         """
         (bcftools concat \
              {input.snv_vcf} {input.indel_vcf} \
-         | bcftools sort --max-mem=3500M \
+         | bcftools sort --max-mem={resources.mem_mb}M \
          | bcftools norm \
              --multiallelics +both \
              --do-not-normalize \
              -Ov -o {output.vcf}) >& {log}
         """
 
-
-# special handling for chromosomes expected to be hemizygous
-ruleorder: shapeit_scatter_chrY > shapeit_scatter
-
-rule shapeit_scatter_chrY:
-    input:
-        vcf="shapeit/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf"
-    output:
-        vcf=temp("shapeit/" + config['chrY'] + "/phased.vcf")
-    log:
-        "shapeit/" + config['chrY'] + "/shapeit.log"
-    benchmark:
-        "shapeit/" + config['chrY'] + "/benchmark_shapeit.tsv"
-    shell:
-        # bcftools annotate trims down the format field to only the GT tag,
-        # to match shapeit's output.
-        # Then setGT sets every genotype to phased, under the assumption that
-        # bulk GTs will be primarily hom. alt (1/1).
-        # It turns out this is a poor assumption at least for human chrY. Even
-        # after excluding PARs, there were ~3-fold more het genotypes in bulk
-        # then hom genotypes (1633 0/1 vs. 687 1/1), suggesting that variant
-        # calling on chrY in general is very poor.
-        """
-        bcftools annotate \
-            --remove '^FORMAT/GT' \
-            {input.vcf} \
-        | bcftools +setGT \
-            -Ov -o {output} \
-            -- \
-            --target-gt a \
-            --new-gt p
-        """
-
+ruleorder: phase_chrY > shapeit_scatter
 
 rule shapeit_scatter:
     input:
@@ -67,7 +35,7 @@ rule shapeit_scatter:
     log:
         "shapeit/{chr}/shapeit.log"
     benchmark:
-        "shapeit/{chr}/benchmark_shapeit.tsv"
+        "shapeit/{chr}/benchmark_phaser.tsv"
     params:
         excludefile="shapeit/{chr}/shapeit_check.snp.strand.exclude",
         tmpout="shapeit/{chr}/{chr}.phased",
