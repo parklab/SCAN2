@@ -16,12 +16,12 @@ rule integrate_tables:
         details="call_mutations/germline_resampling_details.rda"
     log:
         "call_mutations/integrate_tables.log"
-    params:
-        cross_sample_panel=config['cross_sample_panel']
-    threads: config['integrate_table_n_cores']
-    resources:
-        mem_mb=lambda wildcards, input, threads: 2000*threads
     benchmark:
         "call_mutations/benchmark_integrate_tables.txt"
+    params:
+        cross_sample_panel=config['cross_sample_panel']
+    threads: 10
+    resources:
+        mem_mb=lambda wildcards, input, threads: 2000*threads
     script:
         config['scripts'] + "/integrate_tables.R"
