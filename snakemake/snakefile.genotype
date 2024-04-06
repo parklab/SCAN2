@@ -14,13 +14,13 @@ rule pregenotype:
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
     log:
         "call_mutations/{sample}/pregenotype.log"
-    threads: 1
-    params:
-        sc_sample="{sample}"
-    resources:
-        mem_mb=8000
     benchmark:
         "call_mutations/{sample}/benchmark_pregenotyping.txt"
+    params:
+        sc_sample="{sample}"
+    threads: 1
+    resources:
+        mem_mb=8000
     shell:
         """
         {config[scripts]}/pregenotyping.R \
@@ -36,7 +36,8 @@ rule genotype:
         config_yaml='scan.yaml',
         inttab="call_mutations/integrated_table.tab.gz",
         inttabidx="call_mutations/integrated_table.tab.gz.tbi",
-        fits="ab_model/{sample}/fits.rda",
+        # depending on the AB fit method: ab_model/ or ab_model_gradient/ or ab_model_use_fit/
+        fits=lambda wildcards: "ab_model" + ("_use_fit" if wildcards.sample in config['abmodel_use_fit'].keys() else ("" if config['abmodel_method'] == "grid_search" else "_gradient")) + "/{sample}/fits.rda",
         sccigars="call_mutations/{sample}/cigars.tab.gz",
         sccigarsidx="call_mutations/{sample}/cigars.tab.gz.tbi",
         bulkcigars="call_mutations/%s/cigars.tab.gz" % config['bulk_sample'],
@@ -45,19 +46,35 @@ rule genotype:
         cigardataidx="call_mutations/{sample}/cigardata.tab.gz.tbi",
         scbinnedcounts="depth_profile/binned_counts/{sample}.tab.gz",
         bulkbinnedcounts="depth_profile/binned_counts/%s.tab.gz" % config['bulk_sample'],
-        gcbins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/nuc_content/bins_mapq60_width1000/gc_content.tab.gz",
-        dptab="depth_profile/{sample}_depth_table.rda"
+        gcbins=config['resources'] + "/binned_counts/" + config['genome'] + "/gc_content.tab.gz",
+        #gcbins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/nuc_content/bins_mapq60_width1000/gc_content.tab.gz",
+        dptab="depth_profile/{sample}_depth_table.rda",
+        # If these two files are supplied, it will trigger a scatter/gather
+        # process to precompute them. To not use precomputed files, comment
+        # out these two paths and replace them in the shell command below with
+        # the string "NULL"
+        precomputed_ab_and_models='call_mutations/{sample}/ab_ests_and_models.tab.gz',
+        precomputed_excess_cigar_scores='call_mutations/{sample}/excess_cigar_scores.tab.gz',
+        depth_covs="call_mutations/{sample}/depth_covariates.tab.gz",
+        abmodel_covs="call_mutations/{sample}/abmodel_covariates.tab.gz"
     output:
         "call_mutations/{sample}/scan2_object.rda"
     log:
         "call_mutations/{sample}/call_mutations.log"
     benchmark:
-        "call_mutations/{sample}/benchmark_genotype.txt"
+        "call_mutations/{sample}/benchmark_call_mutations.txt"
     params:
         sc_sample="{sample}",
-    threads: config['genotype_n_cores']
+        # Should these be saved to disk in the config file? Not sure..
+        scan2_version=config['scan2_version'],
+        scan2_buildnum=config['scan2_buildnum'],
+        scan2_githash=config['scan2_githash']
+    # If the precomputed AB ests and excess cigar files are not available,
+    # then 10+ threads should be used.
+    threads: 1
     resources:
-        mem_mb=lambda wildcards, input, threads: 1500*threads
+        # The final sensitivity model calcs use quite a lot of memory
+        mem_mb=lambda wildcards, input, threads: 1500*threads + 6000
     shell:
         """
         {config[scripts]}/call_mutations.R \
@@ -68,5 +85,12 @@ rule genotype:
            {input.scbinnedcounts} \
            {input.bulkbinnedcounts} \
            {input.gcbins} \
-           {output} {threads} >& {log}
+           {input.precomputed_ab_and_models} \
+           {input.precomputed_excess_cigar_scores} \
+           {input.abmodel_covs} \
+           {input.depth_covs} \
+           {output} {threads} \
+           {params.scan2_version} \
+           {params.scan2_buildnum} \
+           {params.scan2_githash} >& {log}
         """
