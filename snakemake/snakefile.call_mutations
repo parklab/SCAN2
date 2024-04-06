@@ -8,7 +8,7 @@ include: "snakefile.select_phaser"
 include: "snakefile.cigars"
 include: "snakefile.integrated_table"
 include: "snakefile.sensitivity"
-include: "snakefile.abmodel_multithreaded"
+include: "snakefile.abmodel"
 
 # Use the new SCAN2 R object
 include: "snakefile.genotype"
@@ -23,13 +23,6 @@ wildcard_constraints:
 if config['gatk_vcf'] is not None:
     # Contains a single rule that overrides gatk_gather for mmq60
     include: "snakefile.gatk_user_vcf"
-
-
-# Probably no longer necessary
-rule all:
-    input:
-        scan2_objects=expand("call_mutations/{sample}/scan2_object.rda",
-            sample=config['sc_bams'].keys())
 
 
 rule make_bulk_sample_file:
@@ -106,15 +99,103 @@ rule tablefy_sites:
         """
 
 
+rule scatter_compute_ab_ests_and_models:
+    input:
+        config_yaml='scan.yaml',
+        inttab='call_mutations/integrated_table.tab.gz',
+        abfits=lambda wildcards: "ab_model" + ("_use_fit" if wildcards.sample in config['abmodel_use_fit'].keys() else ("" if config['abmodel_method'] == "grid_search" else "_gradient")) + "/{sample}/fits.rda"
+    output:
+        tab=temp('call_mutations/{sample}/ab_ests_and_models.{chrom}.tab'),
+        tabgz=temp('call_mutations/{sample}/ab_ests_and_models.{chrom}.tab.gz'),
+        tabgzidx=temp('call_mutations/{sample}/ab_ests_and_models.{chrom}.tab.gz.tbi')
+    log:
+        'call_mutations/{sample}/ab_ests_and_models.{chrom}.log'
+    benchmark:
+        'call_mutations/{sample}/ab_ests_and_models.{chrom}.benchmark.txt'
+    params:
+        single_cell='{sample}',
+        chroms='{chrom}'
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, input, threads: threads*1000 + 500
+    script:
+        config['scripts'] + "/compute_ab_ests_and_models.R"
+
+
+rule gather_compute_ab_ests_and_models:
+    input:
+        tabgzs=expand('call_mutations/{{sample}}/ab_ests_and_models.{chrom}.tab.gz',
+            chrom=config['chrs']),
+        tabgzis=expand('call_mutations/{{sample}}/ab_ests_and_models.{chrom}.tab.gz.tbi',
+            chrom=config['chrs'])
+    output:
+        tabgz='call_mutations/{sample}/ab_ests_and_models.tab.gz',
+        tabgzidx='call_mutations/{sample}/ab_ests_and_models.tab.gz.tbi'
+    log:
+        'call_mutations/{sample}/ab_ests_and_models.log'
+    benchmark:
+        'call_mutations/{sample}/ab_ests_and_models.benchmark.txt'
+    threads: 1
+    resources:
+        mem_mb=200
+    shell:
+        """
+        {config[scripts]}/concat_tabix.sh vcf {output.tabgz} {input.tabgzs}
+        """
+
+
+rule scatter_compute_excess_cigar_scores:
+    input:
+        config_yaml='scan.yaml',
+        inttab='call_mutations/integrated_table.tab.gz',
+        sccigars='call_mutations/{sample}/cigars.tab.gz',
+        bulkcigars='call_mutations/' + config['bulk_sample'] + '/cigars.tab.gz',
+        trainingdata='call_mutations/{sample}/cigardata.tab.gz'
+    output:
+        tab=temp('call_mutations/{sample}/excess_cigar_scores.{chrom}.tab'),
+        tabgz=temp('call_mutations/{sample}/excess_cigar_scores.{chrom}.tab.gz'),
+        tabgzidx=temp('call_mutations/{sample}/excess_cigar_scores.{chrom}.tab.gz.tbi')
+    log:
+        'call_mutations/{sample}/excess_cigar_scores.{chrom}.log'
+    benchmark:
+        'call_mutations/{sample}/excess_cigar_scores.{chrom}.benchmark.txt'
+    params:
+        single_cell='{sample}',
+        chroms='{chrom}'
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, input, threads: threads*1000 + 500
+    script:
+        config['scripts'] + "/compute_excess_cigar_scores.R"
+
+
+rule gather_compute_excess_cigar_scores:
+    input:
+        tabgzs=expand('call_mutations/{{sample}}/excess_cigar_scores.{chrom}.tab.gz',
+            chrom=config['chrs']),
+        tabgzis=expand('call_mutations/{{sample}}/excess_cigar_scores.{chrom}.tab.gz.tbi',
+            chrom=config['chrs'])
+    output:
+        tabgz='call_mutations/{sample}/excess_cigar_scores.tab.gz',
+        tabgzidx='call_mutations/{sample}/excess_cigar_scores.tab.gz.tbi'
+    log:
+        'call_mutations/{sample}/excess_cigar_scores.log'
+    benchmark:
+        'call_mutations/{sample}/excess_cigar_scores.benchmark.txt'
+    threads: 1
+    resources:
+        mem_mb=250
+    shell:
+        """
+        {config[scripts]}/concat_tabix.sh vcf {output.tabgz} {input.tabgzs}
+        """
+
+
 rule call_mutations_benchmarks:
     input:
         # big hack: just listing the last benchmark file in the pipeline. will definitely break later
-        expand("{final_step}/{sample}/benchmark_{filename}.txt",
-            final_step='sensitivity' if config['compute_sensitivity'] else 'call_mutations',
-            sample=config['sc_bams'].keys(),
-            # The final benchmark file is called benchmark_genotype.txt for call_mutations,
-            # benchmark_integrate.txt for sensitivity.
-            filename='integrate' if config['compute_sensitivity'] else 'genotype')
+        expand("call_mutations/{sample}/benchmark_call_mutations.txt",
+            sample=config['sc_bams'].keys())
     output:
         txt="call_mutations_collected_benchmarks.txt"
     log:
