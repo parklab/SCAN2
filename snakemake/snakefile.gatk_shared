@@ -47,9 +47,9 @@ rule gatk_gather:
         bcf="gatk/hc_raw.mmq{gatk_mmq}.bcf",
         bcfidx="gatk/hc_raw.mmq{gatk_mmq}.bcf.csi"
     log:
-        "gatk/concat_benchmark.mmq{gatk_mmq}.log"
+        "gatk/gatk_gather.mmq{gatk_mmq}.log"
     benchmark:
-        "gatk/concat_benchmark.mmq{gatk_mmq}.tsv"
+        "gatk/gatk_gather.mmq{gatk_mmq}.benchmark.tsv"
     resources:
         mem_mb=200
     threads: 1
