@@ -115,7 +115,7 @@ config <- scan2::read.config(configf)
 config$bulk_sample <- 'PLACEHOLDER'
 config$sex <- 'male'
 dummy.object <- scan2::make.scan(config=config)
-grs <- scan2::restricted.genome.tiling(object=dummy.object, tilewidth=10e6)
+grs <- scan2::analysis.set.tiling.for.parallelization(object=dummy.object)
 
 # map donor <-> sample IDs
 dmap <- meta$donor   
