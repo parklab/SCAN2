@@ -74,7 +74,7 @@ rule genotype:
     threads: 1
     resources:
         # The final sensitivity model calcs use quite a lot of memory
-        mem_mb=lambda wildcards, input, threads: 2000*threads + 8000
+        mem_mb=lambda wildcards, input, threads: 2000*threads + 14000
     shell:
         """
         {config[scripts]}/call_mutations.R \
