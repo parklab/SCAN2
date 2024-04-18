@@ -713,7 +713,9 @@ def do_run(args):
         'abmodel_gradient_scatter=' + str(args.abmodel_gradient_n_cores),
         'genotype=' + str(args.genotype_n_cores),
         'integrate_tables=' + str(args.integrate_table_n_cores),
-        'depth_profile_region_summarize_per_sample=' + str(args.digest_depth_n_cores)
+        'depth_profile_region_summarize_per_sample=' + str(args.digest_depth_n_cores),
+        'scatter_compute_ab_ests_and_models=' + str(args.abests_and_mutmodels_n_cores),
+        'sensitivity_abmodel_covariates_scatter=' + str(args.ab_covariates_n_cores)
     ]
 
     # I would like to use the snakemake API directly (i.e., call snakemake()),
@@ -1261,7 +1263,10 @@ if __name__ == "__main__":
         help="Use INT cores when creating the integrated table.")
     run_threading.add_argument('--digest-depth-n-cores', default=10, type=int, metavar='INT',
         help="Use INT cores to tabulate single cell and bulk sequencing depth.")
-    
+    run_threading.add_argument('--abests-and-mutmodels-n-cores', default=2, type=int, metavar='INT',
+        help="Use INT cores per chromosome to compute AB estimates and mutation models.")
+    run_threading.add_argument('--ab-covariates-n-cores', default=2, type=int, metavar='INT',
+        help="Use INT cores per chromosome to compute AB estimates and mutation models.")
 
 
     ##########################################################################
