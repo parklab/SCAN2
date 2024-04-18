@@ -1,6 +1,6 @@
 package:
     name: scan2
-    version: "1.2.9"
+    version: "1.2.11"
     githash: {{ GIT_FULL_HASH }}
 
 build:
@@ -21,7 +21,7 @@ requirements:
       - bedtools
       - htslib
       - bcftools>=1.19   # 1.19 is necessary for bcftools view -AA to remove <NON_REF>
-      - r-scan2>=1.2.9
+      - r-scan2>=1.2.11
       - shyaml
       - r-argparse
 
