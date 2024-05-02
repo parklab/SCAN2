@@ -20,7 +20,7 @@ rule pregenotype:
         sc_sample="{sample}"
     threads: 1
     resources:
-        mem_mb=8000
+        mem_mb=12000
     shell:
         """
         {config[scripts]}/pregenotyping.R \

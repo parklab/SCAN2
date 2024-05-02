@@ -22,6 +22,6 @@ rule integrate_tables:
         cross_sample_panel=config['cross_sample_panel']
     threads: 10
     resources:
-        mem_mb=lambda wildcards, input, threads: 2000*threads
+        mem_mb=lambda wildcards, input, threads: 2000*threads+5000
     script:
         config['scripts'] + "/integrate_tables.R"
