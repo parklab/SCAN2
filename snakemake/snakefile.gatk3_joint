@@ -20,7 +20,7 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=5000
+        mem_mb=lambda wildcards, input, threads, attempt: 5000  + (attempt-1)*10000
     shell:
         """
         gatk3 \
@@ -32,7 +32,7 @@ rule gatk_scatter:
             --dbsnp {config[dbsnp]} \
             -rf BadCigar  \
             -mmq {params.mmq} \
-            --min_base_quality_score {config['min_base_quality_score']} \
+            --min_base_quality_score {config[min_base_quality_score]} \
             {params.regionflag} \
             -o {output.vcf} >& {log}
         """

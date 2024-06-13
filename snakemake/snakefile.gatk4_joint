@@ -20,7 +20,7 @@ rule gatk_scatter:
         # by the cluster scheduler.
         memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
     resources:
-        mem_mb=5000
+        mem_mb=lambda wildcards, input, threads, attempt: 5000 + (attempt-1)*10000
     shell:
         """
         gatk HaplotypeCaller \
