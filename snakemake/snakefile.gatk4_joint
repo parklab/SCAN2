@@ -2,7 +2,9 @@
 
 rule gatk_scatter:
     input:
-        argfile="gatk/arg_file_bams.list"
+        argfile="gatk/arg_file_bams.list",
+        dbsnp=config['dbsnp'],
+        ref=config['ref']
     output:
         vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf"),
         vcfidx=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf.idx")
@@ -11,27 +13,25 @@ rule gatk_scatter:
     benchmark:
         "gatk/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
-        regionflag="-L {analysis_region}",
-        mmq="{gatk_mmq}",
-        # allocate half of the memory to stack, half to heap
-        # it seems some JVMs allocate this memory immediately, whether used by
-        # the program or not. so we subtract 1000MB (500 from stack and heap
-        # each) from the total to ensure that the job isn't immediately killed
-        # by the cluster scheduler.
-        memreq=lambda wildcards, input, output, threads, resources: str(int(resources.mem_mb/2) - 500) + "M"
+        min_base_quality_score=config['min_base_quality_score']
     resources:
-        mem_mb=lambda wildcards, input, threads, attempt: 5000 + (attempt-1)*10000
+        # Warning: mem_mb must be >2500 (and in reality at least double that) since
+        # the first 2500M is allocated to non-heap memory.
+        # This memory usage is not well-tuned like the sentieon module. DO NOT ATTEMPT
+        # to tune this. In an example where 99% of jobs had RSS < 5G, supplying mem_mb=5000
+        # failed almost all of the time due to lack of memory. 
+        mem_mb=lambda wildcards, input, threads, attempt: 6000 + (attempt-1)*25000
     shell:
         """
         gatk HaplotypeCaller \
-            --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
+            --java-options "-Xmx$(({resources.mem_mb} - 1000))M" \
             --arguments_file {input.argfile} \
             --dont-use-soft-clipped-bases \
-            --dbsnp {config[dbsnp]} \
-            --minimum-mapping-quality {params.mmq} \
-            --min-base-quality-score {config[min_base_quality_score]} \
+            --dbsnp {input.dbsnp} \
+            --minimum-mapping-quality {wildcards.gatk_mmq} \
+            --min-base-quality-score {params.min_base_quality_score} \
             --emit-ref-confidence NONE \
-            {params.regionflag} \
-            -R {config[ref]} \
+            -L {wildcards.analysis_region} \
+            -R {params.ref} \
             -O {output.vcf} >& {log}
         """
