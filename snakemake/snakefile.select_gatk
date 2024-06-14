@@ -11,7 +11,7 @@ include: "snakefile.gatk_shared"   # shared utilities
 if config['gatk'] == 'gatk3_joint':
     include: "snakefile.gatk3_joint"
     print("Using GATK version 3 with joint calling")
-    print("This method was used in the publication.")
+    print("This method was used in Luquette et al, Nature Genetics 2022.")
     print("WARNING: joint calling requires rerunning GATK for cross-sample analysis of SNVs (mutation signatures) and indels. This can take an extremely long time to run for large sample sets.")
 elif config['gatk'] == 'gatk4_joint':
     include: "snakefile.gatk4_joint"
@@ -22,6 +22,7 @@ elif config['gatk'] == 'gatk4_gvcf':
     print("Using GATK version 4 with GVCF calling (EXPERIMENTAL)!")
 elif config['gatk'] == 'sentieon_joint':
     include: "snakefile.sentieon_joint"
+    print("This method was used in Ganz*, Luquette*, Bizzotto* et al, Cell 2024.")
     print("Using Sentieon for HaplotypeCaller in joint mode. Be sure to export SENTIEON_LICENSE.\n")
 elif config['gatk'] == 'sentieon_gvcf':
     include: "snakefile.sentieon_gvcf"
