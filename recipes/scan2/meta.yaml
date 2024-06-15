@@ -4,7 +4,7 @@ package:
     githash: {{ GIT_FULL_HASH }}
 
 build:
-    number: 1
+    number: 2
 
 requirements:
     run:
@@ -21,7 +21,7 @@ requirements:
       - bedtools
       - htslib
       - bcftools>=1.19   # 1.19 is necessary for bcftools view -AA to remove <NON_REF>
-      - r-scan2>=1.2.11
+      - r-scan2>=1.2.13
       - shyaml
       - r-argparse
 
