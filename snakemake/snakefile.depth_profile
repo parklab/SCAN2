@@ -8,33 +8,85 @@
 # output. Because of this, the two tools are parallelized differently. GATK uses
 # analysis_regions and samtools depths splits jobs per chromosome.
 
-rule depth_profile_region_summarize_per_sample:
+rule make_analysis_regions_bed_step1:
     input:
-        config_yaml='scan.yaml',
-        tab="depth_profile/joint_depth_matrix.tab.gz",
-        tabidx="depth_profile/joint_depth_matrix.tab.gz.tbi"
     output:
-        rda="depth_profile/{sample}_depth_table.rda"
-    params:
-        sc_sample="{sample}"
-    benchmark:
-        "depth_profile/benchmark_{sample}_region_summarize.txt"
+        txt=temp("depth_profile/{chrom}_analysis_regions_step1.txt")
+    localrule: True
     resources:
-        # This memory value depends strongly on the size of GATK regions. Here we
-        # assume 10 Mb chunks and 10 bytes per position per sample.
-        #
-        # it is unclear to me why this much RAM is needed when reading in chunks
-        # and reading only 2 samples at a time, but these values are derived from
-        # many real world runs. the max. memory used was 1555 MB per thread; did
-        # not scale with number of samples in each batch, as expected. give 1800 MB,
-        # a little extra headroom.
-        mem_mb=lambda wildcards, input, threads: 1800 * threads
-    threads: 10
+        mem_mb=100
+    run:
+        with open(output.txt, 'w') as f:
+            for line in config['analysis_regions']:
+                chrom, other = line.split(':')
+                if chrom == wildcards.chrom:
+                    start, end = other.split('-')
+                    f.write(chrom + '\t' + start + '\t' + end + '\n')
+
+
+rule make_analysis_regions_bed:
+    input:
+        txt="depth_profile/{chrom}_analysis_regions_step1.txt"
+    output:
+        txt="depth_profile/{chrom}_analysis_regions.txt"
+    localrule: True
+    resources:
+        mem_mb=100
     shell:
         """
-        {config[scripts]}/digest_depth.R \
-            {params.sc_sample} {input.config_yaml} {input.tab} \
-            {output.rda} {threads}
+        cat {input.txt} | bedtools merge -d 1 > {output.txt}
+        """
+
+    
+rule depth_profile_region_summarize_scatter:
+    input:
+        regions="depth_profile/{chrom}_analysis_regions.txt",
+        matrix="depth_profile/joint_depth_matrix.tab.gz",
+        idx="depth_profile/joint_depth_matrix.tab.gz.tbi",
+        awk_program=config['scripts'] + "/summarize_depth_scatter.awk"
+    output:
+        tab="depth_profile/{sample}/{chrom}_depth_table.txt"
+    log:
+        "depth_profile/{sample}/{chrom}_depth_table.log"
+    benchmark:
+        "depth_profile/{sample}/{chrom}_depth_table.benchmark.txt"
+    params:
+        bulk_sample=config['bulk_sample'],
+        max_depth=500
+    resources:
+        mem_mb=250
+    threads: 1
+    shell:
+        """
+        echo bulk_sample index=$(tabix -H {input.matrix} | tr '\t' '\n' | awk '{{ if($0 == "{params.bulk_sample}") print NR; }}')
+        echo sc_sample index=$(tabix -H {input.matrix} | tr '\t' '\n' | awk '{{ if($0 == "{wildcards.sample}") print NR; }}')
+        tabix --print-header --regions {input.regions} {input.matrix} \
+        | cut -f $(tabix -H {input.matrix} | tr '\t' '\n' | awk '{{ if($0 == "{params.bulk_sample}") print NR; }}'),$(tabix -H {input.matrix} | tr '\t' '\n' | awk '{{ if($0 == "{wildcards.sample}") print NR; }}') \
+        | awk -f {input.awk_program} \
+            --assign max_depth={params.max_depth} \
+            --assign bulk_sample={params.bulk_sample} \
+            --assign sc_sample={wildcards.sample} \
+            --assign chrom={wildcards.chrom} > {output.tab}
+        """
+
+
+rule depth_profile_region_summarize_gather:
+    input:
+        tabs=expand("depth_profile/{{sample}}/{chrom}_depth_table.txt", chrom=config['chrs'])
+    output:
+        rda="depth_profile/{sample}_depth_table.rda"
+    log:
+        "depth_profile/{sample}_depth_table.log"
+    benchmark:
+        "depth_profile/{sample}_depth_table.benchmark.txt"
+    params:
+        genome=config['genome']
+    resources:
+        mem_mb=1000
+    threads: 1
+    shell:
+        """
+        {config[scripts]}/summarize_depth_gather.R {params.genome} {output.rda} {input.tabs}
         """
 
 
