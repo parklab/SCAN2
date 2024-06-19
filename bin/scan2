@@ -807,7 +807,7 @@ def do_permtool(args):
     a = Analysis(args.analysis_dir)
 
     set_threads = [
-        '--set-threads', 'make_callable_bed=' + str(args.callable_bed__n_cores),
+        '--set-threads', 'make_callable_bed=' + str(args.callable_bed_n_cores),
         '--set-threads', 'make_permutations=' + str(args.make_permutations_n_cores),
         '--set-threads', 'combine_permutations=' + str(args.combine_permutations_n_cores),
     ]
