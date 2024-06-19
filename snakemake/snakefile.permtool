@@ -91,7 +91,7 @@ rule make_basepair_resolution_depth_bigwig:
         "callable_regions/{sample}_basepair_resolution_depth.benchmark.txt"
     threads: 1
     resources:
-        mem_mb=250
+        mem_mb=2000
     shell:
         # XXX: FIXME: make the below script use set -eo pipefail
         # Used to implement the above script (just a few commands) inline here, but
@@ -123,7 +123,7 @@ rule make_callable_bed:
         bulk_min_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + "_min_bulk_dp"]
     threads: 1
     resources:
-        mem_mb=250
+        mem_mb=2000
     shell:
         # wiggletools write_bg - compress: the 'compress' unary operator collapses
         # contiguous regions with the same values in the bp resolution bedgraph output
