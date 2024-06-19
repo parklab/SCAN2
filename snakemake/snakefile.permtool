@@ -7,6 +7,12 @@ yaml_by_sample = {}
 for sample, path in config['permtool_config_map'].items():
     with open(path) as cf: 
         yaml_by_sample[sample] = yaml.load(cf, Loader=yaml.FullLoader)
+        # It is also important to find the joint depth matrix for each bulk sample,
+        # which is not supplied on the command line the way single cells are.
+        # This will be overwritten for each single cell using the same bulk, which
+        # is fine.
+        config['permtool_matrix_map'][yaml_by_sample[sample]['bulk_sample']] = config['permtool_matrix_map'][sample]
+        
 
 
 rule combine_permutations:
@@ -72,6 +78,68 @@ rule make_permutations:
         """
 
 
+rule make_basepair_resolution_depth_bigwig:
+    input:
+        matrix=lambda wildcards: config['permtool_matrix_map'][wildcards.sample],
+        fai=config['ref'] + '.fai',
+        script=config['scripts'] + "/joint_depth_matrix_to_bigwig.sh"
+    output:
+        bigwig="callable_regions/{sample}_basepair_resolution_depth.bw"
+    log:
+        "callable_regions/{sample}_basepair_resolution_depth.log"
+    benchmark:
+        "callable_regions/{sample}_basepair_resolution_depth.benchmark.txt"
+    threads: 1
+    resources:
+        mem_mb=250
+    shell:
+        # XXX: FIXME: make the below script use set -eo pipefail
+        # Used to implement the above script (just a few commands) inline here, but
+        # gunzip and tail throw error signals when they are interrupted in the pipe,
+        # leading to a command failure since snakemake uses 'set -eo pipefail'.
+        """
+        {input.script} \
+            {input.matrix} \
+            {input.fai} \
+            $(tabix -H {input.matrix} | tr '\t' '\n' | awk '{{ if ($0 == "{wildcards.sample}") print NR; }}') \
+            {output.bigwig}
+        """
+
+
+rule make_callable_bed:
+    input:
+        sc_bigwig='callable_regions/{sample}_basepair_resolution_depth.bw',
+        bulk_bigwig=lambda wildcards: expand('callable_regions/{bulk}_basepair_resolution_depth.bw',
+            bulk=yaml_by_sample[wildcards.sample]['bulk_sample'])
+    output:
+        bed="callable_regions/{sample}_{muttype}.bed"
+    log:
+        "callable_regions/{sample}_{muttype}.log"
+    benchmark:
+        "callable_regions/benchmark_{sample}_{muttype}.txt"
+    params:
+        # muttype must be 'snv' or 'indel' to work with current config structure
+        sc_min_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + "_min_sc_dp"],
+        bulk_min_dp=lambda wildcards: yaml_by_sample[wildcards.sample][wildcards.muttype + "_min_bulk_dp"]
+    threads: 1
+    resources:
+        mem_mb=250
+    shell:
+        # wiggletools write_bg - compress: the 'compress' unary operator collapses
+        # contiguous regions with the same values in the bp resolution bedgraph output
+        # to a single record.
+        """
+        echo "getting regions with single cell depth ({wildcards.sample}) >= {params.sc_min_dp}"
+        echo "and matched bulk depth >= {params.bulk_min_dp}."
+        wiggletools write_bg - compress gte 2 \
+            sum \
+                gte {params.sc_min_dp} {input.sc_bigwig} \
+                gte {params.bulk_min_dp} {input.bulk_bigwig} \
+        | cut -f1-3 > {output.bed}
+        """
+
+
+'''
 rule make_callable_bed:
     input:
         config='scan.yaml',
@@ -94,3 +162,4 @@ rule make_callable_bed:
             {params.sc_sample} {params.muttype} {input.config} {input.tab} \
             {output.bed} {threads} >& {log}
         """
+'''
