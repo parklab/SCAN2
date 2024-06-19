@@ -22,7 +22,7 @@ rule combine_permutations:
         "benchmark_combine_permutations_{muttype}_{passtype}.txt"
     params:
         genome=config['genome']
-    threads: config['permtool_combine_permutations_n_cores']
+    threads: 10
     resources:
         mem_mb=lambda wildcards, input, threads: 7500*threads
     shell:
@@ -52,7 +52,7 @@ rule make_permutations:
         muttype="{muttype}",
         passtype="{passtype}",
         generation_param=lambda wildcards: config['permtool_' + wildcards.muttype + '_generation_param']
-    threads: config['permtool_make_permutations_n_cores']
+    threads: 10
     resources:
         mem_mb=lambda wildcards, input, threads: 5500*threads
     shell:
@@ -85,7 +85,7 @@ rule make_callable_bed:
     params:
         sc_sample="{sample}",
         muttype="{muttype}"
-    threads: config['permtool_callable_bed_n_cores']
+    threads: 10
     resources:
         mem_mb=lambda wildcards, input, threads: 1500*threads
     shell:
