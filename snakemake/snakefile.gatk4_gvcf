@@ -2,7 +2,9 @@
 
 rule gatk_genotypegvcfs:
     input:
-        gvcf="gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz"
+        gvcf="gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz",
+        dbsnp=config['dbsnp'],
+        ref=config['ref']
     output:
         vcf=temp("gatk/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.vcf")
     log:
@@ -18,8 +20,8 @@ rule gatk_genotypegvcfs:
         """
         gatk GenotypeGVCFs \
            --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
-           --dbsnp {config[dbsnp]} \
-           -R {config[ref]} \
+           --dbsnp {input.dbsnp} \
+           -R {input.ref} \
            -V {input} \
            -O {output} >& {log}
         """
@@ -44,6 +46,7 @@ rule make_gvcf_arg_file_per_region:
 
 rule gatk_combinegvcfs:
     input:
+        ref=config['ref'],
         argfile="gatk/arg_file_gvcfs_mmq{gatk_mmq}.region_{analysis_region}.list",
         gvcfs=expand("gatk/{sample}/hc_raw.mmq{{gatk_mmq}}.region_{{analysis_region}}.gvcf.gz",
                      sample=config['bam_map'].keys())
@@ -64,14 +67,16 @@ rule gatk_combinegvcfs:
         gatk CombineGVCFs \
            --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
            --arguments_file {input.argfile} \
-           -R {config[ref]} \
+           -R {input.ref} \
            -O {output} >& {log}
         """
 
 
 rule gatk_scatter:
     input:
-        bam=lambda wildcards: config['bam_map'][wildcards.sample]
+        bam=lambda wildcards: config['bam_map'][wildcards.sample],
+        dbsnp=config['dbsnp'],
+        ref=config['ref']
     output:
         gvcf=temp("gatk/{sample}/hc_raw.mmq{gatk_mmq}.region_{analysis_region}.gvcf.gz")
     log:
@@ -94,12 +99,12 @@ rule gatk_scatter:
         gatk HaplotypeCaller \
             --java-options '-Xmx{params.memreq} -Xms{params.memreq}' \
             --dont-use-soft-clipped-bases \
-            --dbsnp {config[dbsnp]} \
+            --dbsnp {input.dbsnp} \
             --minimum-mapping-quality {params.mmq} \
             --min-base-quality-score {config[min_base_quality_score]} \
             --emit-ref-confidence BP_RESOLUTION \
             {params.regionflag} \
-            -R {config[ref]} \
+            -R {input.ref} \
             -I {input.bam} \
             -O {output.gvcf} >& {log}
         """
