@@ -60,7 +60,10 @@ rule make_permutations:
         generation_param=lambda wildcards: config['permtool_' + wildcards.muttype + '_generation_param']
     threads: 10
     resources:
-        mem_mb=lambda wildcards, input, threads: 5500*threads
+        # attempt starts at 1. quadruple memory on each attempt. in analysis of 575 single cells,
+        # 89% of jobs were handled at 1250MB/core, 98.8% at 2500MB/core, maximum job=5374MB/core.
+        # this should scale on number of mutations, but more work is needed to do that.
+        mem_mb=lambda wildcards, input, threads, attempt: (4^(attempt-1) * 1250) * threads
     shell:
         """
         {config[scripts]}/make_permutations.R \
