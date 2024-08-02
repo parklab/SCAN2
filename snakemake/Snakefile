@@ -39,9 +39,19 @@ if config['analysis'] == 'rescue':
 
 if config['analysis'] == 'permtool':
     include: "snakefile.permtool"
-    rule permtool:
-        input:
-            expand("perms_{muttype}_{passtype}.rda",
-                muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ]),
-            expand("seedinfo_{muttype}_{passtype}.rda",
-                muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])
+    # Allow user to skip the final combine stage. In this mode, the user just
+    # wants access to all of the individual permutation objects so they can
+    # combine them in arbitrary ways.
+    if config['no_combine_permutations']:
+        rule permtool:
+            input:
+                expand("perms_by_sample/{sample}/{muttype}_{passtype}.rda",
+                    sample=config['permtool_config_map'].keys(),
+                    muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])
+    else:
+        rule permtool:
+            input:
+                expand("perms_{muttype}_{passtype}.rda",
+                    muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ]),
+                expand("seedinfo_{muttype}_{passtype}.rda",
+                    muttype=[ 'snv', 'indel' ], passtype=[ 'pass', 'rescue' ])

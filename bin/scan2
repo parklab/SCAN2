@@ -88,6 +88,7 @@ scan2_param_defaults = {
     'resources': '/opt/anaconda1anaconda2anaconda3/lib/scan2/resources',  # also a directory
     'bam_map': {},             # maps sample name -> bam path
     'amplification_map': {},   # map sample name -> bulk|MDA|PTA|other things in the future..
+    'no_combine_permutations': False,
     'permtool_config_map': {},
     'permtool_matrix_map': {},
     'permtool_n_permutations': 10000,
@@ -1226,6 +1227,8 @@ if __name__ == "__main__":
         help='Similar to --permtool-snv-generation-param but acts as a multiplier for a hard-coded base number of random indels to generate per iteration.')
     permtool.add_argument('--permtool-bedtools-genome-file', type=readable_file, metavar='PATH',
         help='Genome file formatted for the -g option of bedtools intersect.')
+    permtool.add_argument('--no-combine-permutations', default=False, action='store_true',
+        help='Do not combine all per-sample permutations into a single permutation object. When many arbitrary combinations of samples are of interest, it is better to only generate per-sample permutation objects without a final combine step. The per-sample results are stored in the output directory perms_by_sample/SAMPLE_NAME/*.rda, which can be combined in arbitrary groups using scripts/combine_permutations.R.')
 
 
 
