@@ -808,7 +808,6 @@ def do_permtool(args):
 
     set_threads = [
         '--set-threads',
-        'make_callable_bed=' + str(args.callable_bed_n_cores),
         'make_permutations=' + str(args.make_permutations_n_cores),
         'combine_permutations=' + str(args.combine_permutations_n_cores)
     ]
@@ -1356,8 +1355,6 @@ if __name__ == "__main__":
     permtool_parser.set_defaults(executor=do_permtool)
     permtool_parser = add_runtime_args(permtool_parser)
     permtool_threading = permtool_parser.add_argument_group("Multithreading options")
-    permtool_threading.add_argument('--callable-bed-n-cores', default=10, type=int, metavar='N',
-        help="Number of cores to use when creating the BED of callable regions.")
     permtool_threading.add_argument('--make-permutations-n-cores', default=10, type=int, metavar='N',
         help="Number of cores to use when generating shuffled mutation candidates.")
     permtool_threading.add_argument('--combine-permutations-n-cores', default=10, type=int, metavar='N',

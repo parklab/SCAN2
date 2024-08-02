@@ -137,29 +137,3 @@ rule make_callable_bed:
                 gte {params.bulk_min_dp} {input.bulk_bigwig} \
         | cut -f1-3 > {output.bed}
         """
-
-
-'''
-rule make_callable_bed:
-    input:
-        config='scan.yaml',
-        tab=lambda wildcards: config['permtool_matrix_map'][wildcards.sample]
-    output:
-        bed="callable_regions/{sample}_{muttype}.bed"
-    log:
-        "callable_regions/{sample}_{muttype}.log"
-    benchmark:
-        "callable_regions/benchmark_{sample}_{muttype}.txt"
-    params:
-        sc_sample="{sample}",
-        muttype="{muttype}"
-    threads: 10
-    resources:
-        mem_mb=lambda wildcards, input, threads: 1500*threads
-    shell:
-        """
-        {config[scripts]}/make_callable_regions_bed.R \
-            {params.sc_sample} {params.muttype} {input.config} {input.tab} \
-            {output.bed} {threads} >& {log}
-        """
-'''
