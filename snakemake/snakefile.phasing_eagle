@@ -25,7 +25,7 @@ rule eagle_prepare:
              --multiallelics +both \
              --do-not-normalize \
              -Oz -o {output.vcfgz}) >& {log}
-        tabix -pvcf {output.vcfgz}"
+        tabix -pvcf {output.vcfgz}
         """
 
 
@@ -41,9 +41,8 @@ rule eagle_scatter:
     benchmark:
         "eagle/{chr}/benchmark_phaser.tsv"
     params:
-        zippedinput="eagle/{chr}/hc_raw.mmq60.{chr}.vcf.gz",
         refbcf=lambda wildcards: config['eagle_refpanel'][wildcards.chr],
-        outprefix="eagle/{chr}/phased_sites_tmp"
+        outprefix="eagle/{chr}/phased"
     resources:
         mem_mb=8000
     shell:
@@ -54,37 +53,3 @@ rule eagle_scatter:
             --vcfOutFormat v \
             --outPrefix {params.outprefix}
         """
-
-'''
-# special handling for chromosomes expected to be hemizygous
-ruleorder: eagle_scatter_chrY > eagle_scatter
-
-rule eagle_scatter_chrY:
-    input:
-        vcf="eagle/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf"
-    output:
-        vcf=temp("eagle/" + config['chrY'] + "/phased.vcf")
-    log:
-        "eagle/" + config['chrY'] + "/eagle.log"
-    benchmark:
-        "eagle/" + config['chrY'] + "/benchmark_phaser.tsv"
-    shell:
-        # bcftools annotate trims down the format field to only the GT tag,
-        # to match shapeit's output.
-        # Then setGT sets every genotype to phased, under the assumption that
-        # bulk GTs will be primarily hom. alt (1/1).
-        # It turns out this is a poor assumption at least for human chrY. Even
-        # after excluding PARs, there were ~3-fold more het genotypes in bulk
-        # then hom genotypes (1633 0/1 vs. 687 1/1), suggesting that variant
-        # calling on chrY in general is very poor.
-        """
-        bcftools annotate \
-            --remove '^FORMAT/GT' \
-            {input.vcf} \
-        | bcftools +setGT \
-            -Ov -o {output} \
-            -- \
-            --target-gt a \
-            --new-gt p
-        """
-'''
