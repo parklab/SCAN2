@@ -17,7 +17,7 @@ if config['analysis'] == 'call_mutations':
     rule call_mutations:
         input:
             "call_mutations_collected_benchmarks.txt",
-            objects=lambda wildcards: expand("call_mutations/{sample}/scan2_object.rda",
+            objects=lambda wildcards: expand("call_mutations/{sample}/summary_object.rda",
                 sample=config['sc_bams'].keys())
         default_target: True
 

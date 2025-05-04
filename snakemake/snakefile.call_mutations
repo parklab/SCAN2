@@ -207,3 +207,21 @@ rule call_mutations_benchmarks:
         """
         {config[scripts]}/collect_benchmarks.sh . {output.txt}
         """
+
+
+rule summarize_object:
+    input:
+        rda="call_mutations/{sample}/scan2_object.rda"
+    output:
+        rda="call_mutations/{sample}/summary_object.rda"
+    log:
+        "call_mutations/{sample}/summary_object.log"
+    benchmark:
+        "call_mutations/{sample}/summary_object.benchmark.txt"
+    threads: 4
+    resources:
+        mem_mb=lambda wildcards, input, threads: (1+threads)*8000
+    shell:
+        """
+        {config[scripts]}/summarize_object.R {input.rda} {output.rda} {threads} &> {log}
+        """
