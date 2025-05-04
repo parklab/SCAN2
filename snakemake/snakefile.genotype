@@ -47,7 +47,6 @@ rule genotype:
         scbinnedcounts="depth_profile/binned_counts/{sample}.tab.gz",
         bulkbinnedcounts="depth_profile/binned_counts/%s.tab.gz" % config['bulk_sample'],
         gcbins=config['resources'] + "/binned_counts/" + config['genome'] + "/gc_content.tab.gz",
-        #gcbins="/n/data1/hms/dbmi/park/jluquette/scan2-test/ginkgo_variable_bins/scan2_bins_human_g1k_v37_decoy/nuc_content/bins_mapq60_width1000/gc_content.tab.gz",
         dptab="depth_profile/{sample}_depth_table.rda",
         # If these two files are supplied, it will trigger a scatter/gather
         # process to precompute them. To not use precomputed files, comment
