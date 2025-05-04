@@ -59,6 +59,7 @@ rule make_permutations:
         passtype="{passtype}",
         generation_param=lambda wildcards: config['permtool_' + wildcards.muttype + '_generation_param']
     threads: 10
+    retries: 2
     resources:
         # attempt starts at 1. quadruple memory on each attempt. in analysis of 575 single cells,
         # 89% of jobs were handled at 1250MB/core, 98.8% at 2500MB/core, maximum job=5374MB/core.
