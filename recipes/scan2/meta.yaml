@@ -1,10 +1,10 @@
 package:
     name: scan2
-    version: "1.2.13"
+    version: "1.2.14"
     githash: {{ GIT_FULL_HASH }}
 
 build:
-    number: 2
+    number: 1
 
 requirements:
     run:
