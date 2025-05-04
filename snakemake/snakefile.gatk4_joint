@@ -14,6 +14,7 @@ rule gatk_scatter:
         "gatk/scatter_benchmark.mmq{gatk_mmq}.region_{analysis_region}.tsv"
     params:
         min_base_quality_score=config['min_base_quality_score']
+    retries: 2
     resources:
         # Warning: mem_mb must be >2500 (and in reality at least double that) since
         # the first 2500M is allocated to non-heap memory.
