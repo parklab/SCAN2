@@ -51,7 +51,6 @@ cat("Summarizing SCAN2 object with", nbrOfWorkers(), "cores.\n")
 progressr::handlers(global=TRUE)
 
 load(in.rda, verb=TRUE)
-results@static.filter.params$mode <- 'new'  # XXX: deleteme: old bug workaround
 smry <- make.summary.scan2(results, quiet=FALSE, preserve.object=FALSE)
 save(smry, file=out.rda, compress=FALSE)
 
