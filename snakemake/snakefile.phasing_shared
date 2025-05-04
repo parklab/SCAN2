@@ -150,13 +150,14 @@ rule phasing_prepare_filter_by_qual:
 # Handling for haploid chromosomes
 rule phase_chrY:
     input:
-        vcf="shapeit/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf"
+        # eagle uses .vcf.gz, shapeit2 does not compress the vcf
+        vcf=config["phaser"] + "/" + config['chrY'] + "/final_for_phasing.analyzable_sites.mmq60.vcf" + (".gz" if config["phaser"] == "eagle" else "")
     output:
-        vcf=temp("shapeit/" + config['chrY'] + "/phased.vcf")
+        vcf=temp(config["phaser"] + "/" + config['chrY'] + "/phased.vcf")
     log:
-        "shapeit/" + config['chrY'] + "/shapeit.log"
+        config["phaser"] + "/" + config['chrY'] + "/phaser.log"
     benchmark:
-        "shapeit/" + config['chrY'] + "/benchmark_phaser.tsv"
+        config["phaser"] + "/" + config['chrY'] + "/benchmark_phaser.tsv"
     shell:
         # bcftools annotate trims down the format field to only the GT tag,
         # to match shapeit's output.
