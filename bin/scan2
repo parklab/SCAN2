@@ -13,7 +13,7 @@ import pwd
 import time
 import uuid
 import pysam       # just for reading BAM headers to find samples
-import snakemake
+import snakemake.cli
 import distutils.util # for strtobool
 import csv
 from sys import exit
@@ -769,7 +769,7 @@ def run_snakemake(snakemake_command, args, a):
             args.snakemake_args = args.snakemake_args[1:]
         snakemake_command += args.snakemake_args.split(' ')
 
-    snakemake.main(snakemake_command)
+    snakemake.cli.main(snakemake_command)
 
 
 def do_makepanel(args):
