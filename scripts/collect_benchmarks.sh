@@ -104,7 +104,10 @@ elif [ "x$analysis" == "xcall_mutations" ]; then
     echo "Depth profiling (depth_method=$depth_method)"
     writeline "depth_profile" "joint_depth_matrix" "1" "$sd/depth_profile/benchmark_joint_depth_matrix.txt"
     for sc in $scs; do
-        writeline "depth_profile" "summarize" "$sc" "$sd/depth_profile/benchmark_${sc}_region_summarize.txt"
+        for chrom in $chroms; do
+            writeline "depth_profile" "region_summarize_scatter" "${sc}_$chrom" "$sd/depth_profile/$sc/${chrom}_depth_table.benchmark.txt"
+        done
+        writeline "depth_profile" "region_summarize_gather" "${sc}" "$sd/depth_profile/${sc}_depth_table.benchmark.txt"
     done
 
     # GATK uses analysis regions because it is very slow, samtools depth uses chromosomes
