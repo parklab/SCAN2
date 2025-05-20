@@ -53,6 +53,8 @@ muts[, id := paste(chr, pos, refnt, altnt)]
 # were combined?
 for (mt in muttypes) {
     m <- muts[muttype == mt]  # never write to m, just use this to prevent re-filtering for muttype
+    if (nrow(m) == 0)
+        next
 
     cat('Initial statistics:', sum(m$pass), 'passed', sum(m$rescue), 'rescued\n')
 
