@@ -14,7 +14,7 @@ rule gatk_scatter:
         bamlist=expand("-i {bam}", bam=config['bam_map'].values()),
         regionflag="--interval {analysis_region}",
         mmq="{gatk_mmq}"
-    retries: 2
+    #retries: 2
     resources:
         # OLD NOTES FROM FIRST ATTEMPTS --------------------------------------------------
         # N.B. scaling 4^x: the vast majority (95%+) of jobs use very, very little memory.
