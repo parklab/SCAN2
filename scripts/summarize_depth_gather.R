@@ -53,7 +53,7 @@ dptab <- Reduce(`+`, lapply(dptabs[!(names(dptabs) %in% sex.chroms)], function(d
 dptabs.sex <- lapply(dptabs[names(dptabs) %in% sex.chroms], function(dpt) dpt$dptab)
 # Currently there's no support for different max_depth for single cell and bulk.
 # Also, it is also expected to be uniform across chromosomes. So just take the first one.
-clamp.dp <- dptabs[[1]]$sc_max_depth
+clamp.dp <- as.integer(dptabs[[1]]$sc_max_depth)  # the header k=v splitting doesn't detect types
 save(dptab, dptabs.sex, clamp.dp, file=out.rda)
 
 if ('snakemake' %in% ls()) {
