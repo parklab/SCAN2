@@ -42,9 +42,17 @@ if (file.exists(out.seedinfo))
 
 
 suppressMessages(library(scan2))
-suppressMessages(library(future))
 suppressMessages(library(progressr))
-plan(multicore, workers=n.cores)
+suppressMessages(library(future))
+if (n.cores == 1) {
+    cat("Using sequential plan (1 core)\n")
+    plan(sequential)
+} else {
+    plan(multicore, workers=n.cores)
+}
+
+cat("Setting future.globals.maxSize to", Inf, "\n")
+options(future.globals.maxSize=Inf)
 
 progressr::with_progress({
     # handler_newline causes alot of printing, but it's log-friendly
@@ -54,8 +62,10 @@ progressr::with_progress({
 }, enable=TRUE)
 
 zperml <- permdata$zperml
+cat("Writing permutations to", out.rda, "\n")
 save(zperml, file=out.rda, compress=FALSE)
 seed.info <- permdata$seed.info
+cat("Writing random seeds used to", out.seedinfo, "\n")
 save(seed.info, file=out.seedinfo, compress=FALSE)
 
 if ('snakemake' %in% ls()) {
