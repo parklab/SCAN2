@@ -1314,7 +1314,7 @@ if __name__ == "__main__":
     makepanel_parser = add_runtime_args(makepanel_parser)
     makepanel_threading = makepanel_parser.add_argument_group("Multithreading options")
     makepanel_threading.add_argument('--n-cores', type=int, default=10, metavar='N',
-        help='Number of cores to use when digesting cross-sample panel GATK output. Note that the most consequential parallelization for `makepanel` is the size of the windows passed as --analysis-regions.')
+        help='Number of cores to use when digesting cross-sample panel GATK output. Note that the most consequential parallelization for `makepanel` is the size of the windows passed as --regions-file.')
     
     
     ##########################################################################
