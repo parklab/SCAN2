@@ -117,7 +117,7 @@ rule scatter_compute_ab_ests_and_models:
         chroms='{chrom}'
     threads: 1
     resources:
-        mem_mb=lambda wildcards, input, threads: threads*1000 + 500
+        mem_mb=lambda wildcards, input, threads: threads*1200 + 1000
     script:
         config['scripts'] + "/compute_ab_ests_and_models.R"
 
@@ -137,7 +137,7 @@ rule gather_compute_ab_ests_and_models:
         'call_mutations/{sample}/ab_ests_and_models.benchmark.txt'
     threads: 1
     resources:
-        mem_mb=200
+        mem_mb=1000
     shell:
         """
         {config[scripts]}/concat_tabix.sh vcf {output.tabgz} {input.tabgzs}
@@ -184,7 +184,7 @@ rule gather_compute_excess_cigar_scores:
         'call_mutations/{sample}/excess_cigar_scores.benchmark.txt'
     threads: 1
     resources:
-        mem_mb=250
+        mem_mb=1000
     shell:
         """
         {config[scripts]}/concat_tabix.sh vcf {output.tabgz} {input.tabgzs}

@@ -51,7 +51,7 @@ rule gatk_gather:
     benchmark:
         "gatk/gatk_gather.mmq{gatk_mmq}.benchmark.tsv"
     resources:
-        mem_mb=200
+        mem_mb=2000
     threads: 1
     shell:
         """
