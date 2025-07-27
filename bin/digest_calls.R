@@ -78,30 +78,11 @@ for (mt in muttypes) {
     # be artifacts. Remove the whole cluster, because it is often
     # true that the entire cluster is caused by the same few reads
     # that probably align poorly or are clipped.
-    filter.single.sample.clusters <- function(muts, threshold=300) {
-        by.sample <- split(muts, muts$sample)
-        newmuts <- do.call(rbind, lapply(by.sample, function(d) {
-            do.call(rbind, lapply(split(d, d$chr), function(dchr) {
-                dchr <- dchr[order(dchr$pos),]
-                up <- c(Inf, diff(dchr$pos))
-                down <- c(diff(dchr$pos), Inf)
-                dchr$nearest <- pmin(up, down)
-                dchr
-            }))
-        }))
-        # return back to original order
-        newmuts <- newmuts[order(chr, pos)]
-        newmuts[, cluster.filter := nearest < threshold]
-        # sanity check that the original data.table's ordering is identical
-        if (any(newmuts$id != muts$id))
-            stop("programming error: input and output data tables do not have identical ordering")
-        cat(sprintf('Flagged %d sites within %d bp in the same sample for removal\n',
-            sum(newmuts$cluster.filter), threshold))
-        print(addmargins(table(newmuts$sample, newmuts$cluster.filter)))
-        list(newmuts$nearest, newmuts$cluster.filter)
-    }
-    
-    muts[muttype == mt, c("nearest", "cluster.filter") := filter.single.sample.clusters(m, threshold=args$cluster_filter_bp)]
+    compute.nearest(muts, by.sample=TRUE)
+    muts[, cluster.filter := nearest < args$cluster_filter_bp]
+    cat(sprintf('Flagged %d sites within %d bp in the same sample for removal\n',
+        sum(muts$cluster.filter), args$cluster_filter_bp))
+    print(addmargins(table(muts$sample, muts$cluster.filter)))
 
     # if there are any recurrent mutations remaining,
     # then they recur in the same subject and are likely
