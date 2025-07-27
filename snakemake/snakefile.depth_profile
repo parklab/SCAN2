@@ -54,7 +54,7 @@ rule depth_profile_region_summarize_scatter:
         bulk_sample=config['bulk_sample'],
         max_depth=500
     resources:
-        mem_mb=250
+        mem_mb=1000
     threads: 1
     shell:
         """
@@ -130,7 +130,7 @@ rule depth_profile_gather:
             tail -n +2 $line ; \
          done) \
         | bgzip --threads {threads} -c > {output.tabgz}
-        tabix -p vcf -S 1 {output.tabgz}
+        tabix --threads {threads} -p vcf -S 1 {output.tabgz}
         """
 
 
@@ -204,7 +204,7 @@ rule samtoolsdepth_depth_profile_scatter:
         regionflag="-r {analysis_region}"
     threads: 1
     resources:
-        mem_mb=500
+        mem_mb=1000
     shell:
         # First two lines create a header in the correct order
         """
