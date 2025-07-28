@@ -15,17 +15,23 @@ parser$add_argument('--muts', action='append', metavar='FILE', required=TRUE,
     help='CSV file of somatic mutations with at least the following columns: sample, chr, pos, refnt, altnt, muttype, mutsig, pass, rescue. This argument can be specified multiple times to combine tables from multiple runs. Must be specified at least once.')
 parser$add_argument("--cluster-filter-bp", metavar='INT', type='integer', default=50,
     help='Remove mutations that are within INT base pairs of the nearest mutation of the same type (i.e., snv or indel) AND in the same sample.')
+parser$add_argument("--quiet", action='store_true', default=FALSE,
+    help='Do not print any output messages. Useful when output=stdout to pipe into downstream scripts.')
 
 args <- parser$parse_args(commandArgs(trailingOnly=TRUE))
 
 if (length(args$muts) < 1)
     stop('at least one --muts argument must be given')
 
-muttypes <- c('snv', 'indel')
+muttypes <- c('snv', 'indel', 'dbs', 'mnv')
 
 main.output.table <- args$output
+quiet.mode <- args$quiet
 
-if (file.exists(main.output.table))
+#print(file_test(op='-f', main.output.table))
+#if (file.exists(main.output.table) & file_test(op='-f', main.output.table))
+# file_test(-f) DOES NOT work like bash shell -f. Returns TRUE for /dev/stdout.
+if (file.exists(main.output.table) & main.output.table != '/dev/stdout' & main.output.table != '/dev/null') # Just a hack
     stop(paste('the output file', main.output.table, 'already exists, please delete it first'))
 
 
@@ -39,8 +45,10 @@ sample.to.subject.map <- setNames(unique(muts$sample), unique(muts$sample))
 if (!is.null(args$metadata)) {
     meta <- fread(args$metadata)#[sample %in% sample.to.subject.map]
     sample.to.subject.map <- setNames(meta[[args$individual_column]], meta[[args$sample_column]])
-    cat("got metadata sample to subject map:\n")
-    print(sample.to.subject.map)
+    if (!quiet.mode) {
+        cat("got metadata sample to subject map:\n")
+        print(sample.to.subject.map)
+    }
 }
 
 
@@ -56,20 +64,22 @@ for (mt in muttypes) {
     if (nrow(m) == 0)
         next
 
-    cat('Initial statistics:', sum(m$pass), 'passed', sum(m$rescue), 'rescued\n')
+    if (!quiet.mode) cat('Initial statistics:', sum(m$pass), 'passed', sum(m$rescue), 'rescued\n')
 
     # Remove mutations called in 2 different subjects.
     # This does NOT filter SNVs called more than once in the same
     # individual (=likely lineage marker), in which case one of the
     # multply-called mutations is retained. That filter is applied later.
-    cat('Raw recurrence rates:\n')
-    print(table(table(m$id)))
+    if (!quiet.mode) {
+        cat('Raw recurrence rates:\n')
+        print(table(table(m$id)))
+    }
     
-    cat('Recurrence x subject table\n')
+    if (!quiet.mode) cat('Recurrence x subject table\n')
     z <- split(m$subject, m$id)
     subjects <- sapply(z, function(v) length(unique(v)))
     recs <- sapply(z, length)
-    print(addmargins(table(recs, subjects)))
+    if (!quiet.mode) print(addmargins(table(recs, subjects)))
     # writing filter field: use the real data.table
     muts[muttype == mt, rec.filter := subjects[id] > 1]
 
@@ -80,9 +90,11 @@ for (mt in muttypes) {
     # that probably align poorly or are clipped.
     compute.nearest(muts, by.sample=TRUE)
     muts[, cluster.filter := nearest < args$cluster_filter_bp]
-    cat(sprintf('Flagged %d sites within %d bp in the same sample for removal\n',
-        sum(muts$cluster.filter), args$cluster_filter_bp))
-    print(addmargins(table(muts$sample, muts$cluster.filter)))
+    if (!quiet.mode) {
+        cat(sprintf('Flagged %d sites within %d bp in the same sample for removal\n',
+            sum(muts$cluster.filter), args$cluster_filter_bp))
+        print(addmargins(table(muts$sample, muts$cluster.filter)))
+    }
 
     # if there are any recurrent mutations remaining,
     # then they recur in the same subject and are likely
